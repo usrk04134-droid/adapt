@@ -1,0 +1,6 @@
+line-length = 120
+
+[lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# For more, config https://docs.astral.sh/ruff/configuration/
+select = ["E", "F"]
