@@ -1,0 +1,70 @@
+scanner_calibration: scanner_calibration.yaml
+
+controller:
+  # Selects the type of controller
+  # Possible values: pn_driver, simulation
+  type: simulation
+  cycle_time_ms: 100
+
+  # PN driver specific configuration
+  pn_driver:
+    # Path to rema file, this file should be somewhere persistent between reboots.
+    # The file contains IP and name of station configuration, this file will be created and/or read at startup.
+    # If this file was not existing at the time of startup the IP and NoS must be set by the external PLC or manually
+    # with proneta or similar tools.
+    rema_path: /var/lib/adaptio/rema.xml
+    # MAC address of the ethernet interface that is connected to the Profinet controller
+    # Should be 6 bytes in hex-format separated by colons
+    # mac_address: 60:7d:09:84:5f:81
+    # Name of ethernet interface that is connected to the Profinet controller.
+    # If both this and mac_address are defined mac_address is used.
+    interface: profinet1
+
+scanner:
+  filtering:
+    gray_minimum_top: 16
+    gray_minimum_wall: 48
+    gray_minimum_bottom: 16
+
+tracking:
+# Supervision period for groove data from scanner (ms)
+  groove_estimate_absence_supervision_ms: 5000
+
+  joint_tolerance:
+    # Joint upper width tolerance (mm)
+    upper_width: 10.0
+    # Joint surface angle tolerance (rad)
+    surface_angle: 0.174532925
+    # Joint wall angle tolerance (rad)
+    wall_angle: 0.13962634
+
+image_provider:
+# Selects the type of camera
+# Possible values: basler, simulation
+  type: simulation
+  fov:
+    width: 3500
+    height: 2500
+    offset_x: 312
+    offset_y: 0
+  basler:
+    gain: 12.0
+    exposure_time: 5000.0
+  simulation:
+    # path to images
+    realtime: false
+    images: ./calibration
+
+calibration_fixture_joint_geometry:
+# Upper joint width in mm
+  upper_joint_width: 50.0
+  # Groove depth in mm
+  groove_depth: 28.0
+  # Left joint angle in radians
+  left_joint_angle: 0.1396
+  # Right joint angle in radians
+  right_joint_angle: 0.1396
+  # Left max surface angle in radians
+  left_max_surface_angle: 0.34906585
+  # Right max surface angle in radians
+  right_max_surface_angle: 0.34906585

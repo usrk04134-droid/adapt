@@ -1,0 +1,46 @@
+unit-tests:
+  extends: .k8-adaptio-defaults
+  stage: test
+  timeout: 30 minutes
+  needs:
+    - job: build-tests
+      artifacts: true
+  script:
+    - source $GITLAB_SHARED_FUNCS
+
+    - section_start fetch_cache "Unit-tests; fetch nix dependencies" true
+    # Fetch from cache separately from building, to get individual timing measurements for each
+    # Set remote and local builders to 0 to force build step to fail / be skipped
+    - nix copy .#adaptio-core-ci-dev --max-jobs 0 --option builders '' || true
+    - section_end fetch_cache
+
+    - section_start tests "Unit-tests; Run the tests"
+    - ./result/bin/adaptio-core-tests --reporters=junit --out=${CI_PROJECT_DIR}/doctest-report.xml
+    - section_end tests
+  artifacts:
+    when: always
+    reports:
+      junit: ${CI_PROJECT_DIR}/doctest-report.xml
+    paths:
+      - ${CI_PROJECT_DIR}/doctest-report.xml
+    expire_in: 2 weeks
+
+component-tests:
+  extends: .k8-adaptio-defaults
+  stage: test
+  timeout: 30 minutes
+  needs:
+    - job: build-tests
+      artifacts: true
+  script:
+    - source $GITLAB_SHARED_FUNCS
+
+    - section_start fetch_cache "Component-tests; fetch nix dependencies" true
+    # Fetch from cache separately from building, to get individual timing measurements for each
+    # Set remote and local builders to 0 to force build step to fail / be skipped
+    - nix copy .#adaptio-core-ci-dev --max-jobs 0 --option builders '' || true
+    - section_end fetch_cache
+
+    - section_start tests "Component-tests; Run the tests"
+    - ./result/bin/data-set-runner --dataset ./tests/data_set/data_set.yaml --diff 0.49 --test-app ./result/bin/test-images -p 45
+    - section_end tests

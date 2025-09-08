@@ -1,0 +1,10 @@
+if (EXISTS "$ENV{Idl_ROOT}")
+  set(Idl_FOUND TRUE)
+  set(Idl_INCLUDE_DIR "$ENV{Idl_ROOT}/include")
+  set(Idl_LIBRARIES "idlLinux;idl115DriverLinux")
+
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+  link_directories("$ENV{Idl_ROOT}/lib")
+else ()
+  set(Idl_FOUND FALSE)
+endif ()

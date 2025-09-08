@@ -1,0 +1,47 @@
+namespace controller::pn_driver {
+
+char pnd_iod_buffer[] = R"(
+<PndIOD>
+    <DeviceIdentity VendorID="42" DeviceID="9" />
+    <MaxSlotNumber>32</MaxSlotNumber>
+    <MaxSubslotNumber>32</MaxSubslotNumber>
+    <MaxNumberOfSubslots>64</MaxNumberOfSubslots>
+    <MinDeviceInterval>32</MinDeviceInterval>
+    <MaxInputLength>1440</MaxInputLength>
+    <MaxOutputLength>1440</MaxOutputLength>
+    <MaxDataLength>2880</MaxDataLength>
+    <AssetManagementSupported>0</AssetManagementSupported>
+    <IOXSRequired>0</IOXSRequired>
+    <MaxRecordSize>32768</MaxRecordSize>
+    <SlotList>
+        <SlotItem SlotNumber="0" API="0" ModuleIdentNumber="1">
+            <SubslotItem SubslotNumber="1" SubmoduleIdentNumber="1" InputLength="0" OutputLength="0" IM5_Supported="1" />
+            <SubslotItem SubslotNumber="32768" SubmoduleIdentNumber="16" InputLength="0" OutputLength="0" IM5_Supported="1" />
+            <SubslotItem SubslotNumber="32769" SubmoduleIdentNumber="17" InputLength="0" OutputLength="0" IM5_Supported="1" />
+        </SlotItem>
+
+        {% set ns = namespace(input_length = 0, output_length = 0) -%}
+        <SlotItem SlotNumber="1" API="0" ModuleIdentNumber="10">
+            {%- set ns.input_length = 0 -%}
+            {%- for name, type in data['inputs'].items() %}
+            {%- for data_item in data['structs'][type].datapoints %}
+            {%- set ns.input_length = ns.input_length + (data_item.type|gsd_type|gsd_type_length) -%}
+            {%- endfor %}
+            {%- endfor %}
+            <SubslotItem SubslotNumber="1" SubmoduleIdentNumber="1" InputLength="0" OutputLength="{{ ns.input_length }}" IM5_Supported="0" />
+        </SlotItem>
+
+        <SlotItem SlotNumber="2" API="0" ModuleIdentNumber="11">
+            {%- set ns.output_length = 0 -%}
+            {%- for name, type in data['outputs'].items() %}
+            {%- for data_item in data['structs'][type].datapoints %}
+            {%- set ns.output_length = ns.output_length + (data_item.type|gsd_type|gsd_type_length) -%}
+            {%- endfor %}
+            {%- endfor %}
+            <SubslotItem SubslotNumber="1" SubmoduleIdentNumber="1" InputLength="{{ ns.output_length }}" OutputLength="0" IM5_Supported="0" />
+        </SlotItem>
+    </SlotList>
+</PndIOD>
+)";
+
+}  // namespace controller::pn_driver

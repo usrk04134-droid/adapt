@@ -1,0 +1,133 @@
+#pragma once
+
+#include <boost/outcome.hpp>
+#include <memory>
+#include <optional>
+
+#include "common/logging/application_log.h"
+#include "controller/controller_data.h"
+#include "controller/systems/system.h"
+
+namespace controller {
+// clang-format off
+// NOLINTBEGIN
+
+enum class ControllerErrorCode : uint32_t {
+  NO_ERROR = 0,
+  FAILED_TO_CONNECT,
+  ALREADY_CONNECTED,
+  DISCONNECTED,
+  INPUT_ERROR,
+  OUTPUT_ERROR,
+  UNEXPECTED_ERROR,
+  MAX_NUMBER_OF_ATTEMPTS,
+};
+
+// NOLINTNEXTLINE(*-identifier-naming)
+[[maybe_unused]] auto make_error_code(ControllerErrorCode) -> std::error_code;
+
+// Will be implemented by the party interested in the data.
+class ControllerDataCallbacks {
+ public:
+  virtual ~ControllerDataCallbacks() = default;
+
+{%- for input_name, input_type in data['inputs'].items() %}
+  virtual void On{{ input_name|snake_to_pascal }}InputUpdate({{ input_type }} data) = 0;
+{%- endfor %}
+
+  virtual void OnHeartbeatLost() = 0;
+  virtual void OnDisconnected(uint32_t reason_code) = 0;
+  virtual auto ValidateHeartbeat() -> bool = 0;
+};
+
+// Will be implemented by the controller handler (Inpact, simulation, etc.)
+class Controller {
+ public:
+  virtual ~Controller() = default;
+  virtual auto Connect() -> boost::outcome_v2::result<bool> = 0;
+  virtual void Disconnect() = 0;
+  virtual auto IsConnected() -> bool = 0;
+
+  void SetCallbackInterface(ControllerDataCallbacks* listener) {
+    callback_interface_ = listener;
+  };
+
+  void ClearCallbackInterface() {
+    callback_interface_ = std::nullopt;
+  }
+
+
+{%- for output_name, output_type in data['outputs'].items() %}
+  virtual void Write{{ output_name|snake_to_pascal }}Output(controller::{{ output_type }} data) {}
+{%- endfor %}
+
+
+{%- for output_name, output_type in data['outputs'].items() %}
+
+  void Set{{ output_name|snake_to_pascal }}({{ output_type }} data) {
+    {{ output_type }} output = data;
+    Write{{ output_name|snake_to_pascal }}Output(output);
+  }
+{% endfor %}
+
+
+{%- for input_name, input_type in data['inputs'].items() %}
+  virtual void Handle{{ input_name|snake_to_pascal }}Input({{ input_type }} data) {
+    callback_interface_.value()->On{{ input_name|snake_to_pascal }}InputUpdate(data);
+  }
+{% endfor %}
+
+  virtual auto RetrieveInputs() -> boost::outcome_v2::result<bool> {
+    return true;
+  }
+
+  virtual auto WriteOutputs() -> boost::outcome_v2::result<bool> {
+    return true;
+  }
+
+  virtual void AddSystem(SystemPtr system) {
+    systems_.emplace_back(std::move(system));
+  }
+
+  virtual void RunSystems() {
+    for (const auto &system : systems_) {
+      system->Apply();
+    }
+  }
+
+  virtual auto ValidateHeartbeat() -> bool {
+    if (callback_interface_) {
+      return callback_interface_.value()->ValidateHeartbeat();
+    }
+    return false;
+  }
+
+  virtual void OnHeartbeatLost() {
+    if (callback_interface_) {
+      callback_interface_.value()->OnHeartbeatLost();
+    }
+  }
+
+  virtual void OnDisconnected(uint32_t reason_code) {
+    if (callback_interface_) {
+      callback_interface_.value()->OnDisconnected(reason_code);
+    }
+  }
+
+ protected:
+  std::optional<ControllerDataCallbacks*> callback_interface_ = {};
+  std::vector<SystemPtr> systems_ = {};
+  bool set_external_command_mode_ = false;
+};
+
+using ControllerPtr = std::unique_ptr<Controller>;
+
+// NOLINTEND
+// clang-format on
+
+}  // namespace controller
+
+namespace std {
+template <>
+struct is_error_code_enum<controller::ControllerErrorCode> : true_type {};
+}  // namespace std

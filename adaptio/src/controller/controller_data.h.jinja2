@@ -1,0 +1,168 @@
+#pragma once
+
+#include <cstdint>
+#include <array>
+#include <bit>
+
+namespace controller {
+// clang-format off
+
+#pragma pack(push)
+#pragma pack(1)
+
+
+{% for name, members in data['structs'].items() %}
+class {{ name }} {
+  friend class InputImage;
+  friend class OutputImage;
+
+ private:
+{% if members.datapoints is defined -%}
+{%- for datapoint in members.datapoints %}
+  {{datapoint.type}} {{datapoint.name}} = 0;
+{%- endfor %}
+{%- endif %}
+
+ public:
+
+  {%- if members.datapoints is defined -%}
+  {%- for datapoint in members.datapoints %}
+    {%- if 'bitmask' in datapoint -%}
+      {%- for mask in datapoint.bitmask %}
+  void set_{{ datapoint.name }}_{{ mask.name }}(bool value) {
+    if (value) {
+      {{ datapoint.name }} |= (0x1 << {{ mask.offset }});
+    } else {
+      {{ datapoint.name }} &= ~(0x1 << {{ mask.offset }});
+    }
+  }
+
+  bool get_{{ datapoint.name }}_{{ mask.name }}() const {
+    return ({{ datapoint.name }} & (0x1 << {{ mask.offset }})) > 0;
+  }
+      {% endfor %}
+    {%- else %}
+
+  void set_{{ datapoint.name }}({{ datapoint.type }} value) {
+    {{ datapoint.name }} = value;
+  }
+
+  {{ datapoint.type }} get_{{ datapoint.name }}() const {
+    return {{ datapoint.name }};
+  }
+
+    {%- endif %}
+  {%- endfor %}
+  {%- endif %}
+
+  bool operator==(const {{name}}& other) const
+  {
+    {%- if members.datapoints is defined -%}
+    {%- for datapoint in members.datapoints -%}
+    {%- if loop.length == 1 %}
+    return {{ datapoint.name }} == other.{{ datapoint.name }};
+    {%- else -%}
+    {%- if loop.first %}
+    return {{ datapoint.name }} == other.{{ datapoint.name }} &&
+    {%- elif loop.last %}
+           {{ datapoint.name }} == other.{{ datapoint.name }};
+    {%- else %}
+           {{ datapoint.name }} == other.{{ datapoint.name }} &&
+    {%- endif -%}
+    {%- endif -%}
+    {%- endfor %}
+    {%- endif %}
+    ;
+  }
+
+  bool operator!=(const {{name}}& other) const {
+    return !(*this == other);
+  }
+
+};
+{% endfor %}
+
+class InputImage {
+
+ public:
+{%- for input_name, input_type in data['inputs'].items() %}
+  {{input_type}} {{input_name}};
+{%- endfor %}
+
+  void from_bytes(const uint8_t* bytes) {
+  {%- set ns = namespace(index = 1) -%}
+  {%- for input_name, input_type in data['inputs'].items() %}
+  {%- if data['structs'][input_type].datapoints is defined -%}
+  {% for datapoint in data['structs'][input_type].datapoints %}
+    uint32_t {{ input_name }}_{{ datapoint.name }}_temp = 0;
+    {{ input_name }}_{{ datapoint.name }}_temp  = bytes[{{(ns.index - 1) * 4 + 0}}] << 24;
+    {{ input_name }}_{{ datapoint.name }}_temp |= bytes[{{(ns.index - 1) * 4 + 1}}] << 16;
+    {{ input_name }}_{{ datapoint.name }}_temp |= bytes[{{(ns.index - 1) * 4 + 2}}] << 8;
+    {{ input_name }}_{{ datapoint.name }}_temp |= bytes[{{(ns.index - 1) * 4 + 3}}];
+    this->{{ input_name }}.{{ datapoint.name }} = std::bit_cast<{{ datapoint.type }}>({{ input_name }}_{{ datapoint.name }}_temp);
+  {%- set ns.index = ns.index + 1 -%}
+  {%- endfor %}
+  {%- endif -%}
+  {%- endfor %}
+  }
+
+  void to_bytes(uint8_t* bytes) {
+  {%- set ns = namespace(index = 1) -%}
+  {%- for input_name, input_type in data['inputs'].items() %}
+  {%- if data['structs'][input_type].datapoints is defined -%}
+  {% for datapoint in data['structs'][input_type].datapoints %}
+    bytes[{{(ns.index - 1) * 4 + 3}}] = ((uint8_t*)&this->{{ input_name }}.{{ datapoint.name }})[0];
+    bytes[{{(ns.index - 1) * 4 + 2}}] = ((uint8_t*)&this->{{ input_name }}.{{ datapoint.name }})[1];
+    bytes[{{(ns.index - 1) * 4 + 1}}] = ((uint8_t*)&this->{{ input_name }}.{{ datapoint.name }})[2];
+    bytes[{{(ns.index - 1) * 4 + 0}}] = ((uint8_t*)&this->{{ input_name }}.{{ datapoint.name }})[3];
+  {%- set ns.index = ns.index + 1 -%}
+  {%- endfor %}
+  {%- endif -%}
+  {%- endfor %}
+  };
+};
+
+class OutputImage {
+
+ public:
+{%- for output_name, output_type in data['outputs'].items() %}
+  {{output_type}} {{output_name}};
+{%- endfor %}
+
+  void from_bytes(const uint8_t* bytes) {
+  {%- set ns = namespace(index = 1) -%}
+  {%- for output_name, output_type in data['outputs'].items() %}
+  {%- if data['structs'][output_type].datapoints is defined -%}
+  {% for datapoint in data['structs'][output_type].datapoints %}
+    uint32_t {{ output_name }}_{{ datapoint.name }}_temp = 0;
+    {{ output_name }}_{{ datapoint.name }}_temp  = bytes[{{(ns.index - 1) * 4 + 0}}] << 24;
+    {{ output_name }}_{{ datapoint.name }}_temp |= bytes[{{(ns.index - 1) * 4 + 1}}] << 16;
+    {{ output_name }}_{{ datapoint.name }}_temp |= bytes[{{(ns.index - 1) * 4 + 2}}] << 8;
+    {{ output_name }}_{{ datapoint.name }}_temp |= bytes[{{(ns.index - 1) * 4 + 3}}];
+    this->{{ output_name }}.{{ datapoint.name }} = std::bit_cast<{{ datapoint.type }}>({{ output_name }}_{{ datapoint.name }}_temp);
+  {%- set ns.index = ns.index + 1 -%}
+  {%- endfor %}
+  {%- endif -%}
+  {%- endfor %}
+  }
+
+  void to_bytes(uint8_t* bytes) {
+  {%- set ns = namespace(index = 1) -%}
+  {%- for output_name, output_type in data['outputs'].items() %}
+  {%- if data['structs'][output_type].datapoints is defined -%}
+  {% for datapoint in data['structs'][output_type].datapoints %}
+    bytes[{{(ns.index - 1) * 4 + 3}}] = ((uint8_t*)&this->{{ output_name }}.{{ datapoint.name }})[0];
+    bytes[{{(ns.index - 1) * 4 + 2}}] = ((uint8_t*)&this->{{ output_name }}.{{ datapoint.name }})[1];
+    bytes[{{(ns.index - 1) * 4 + 1}}] = ((uint8_t*)&this->{{ output_name }}.{{ datapoint.name }})[2];
+    bytes[{{(ns.index - 1) * 4 + 0}}] = ((uint8_t*)&this->{{ output_name }}.{{ datapoint.name }})[3];
+  {%- set ns.index = ns.index + 1 -%}
+  {%- endfor %}
+  {%- endif -%}
+  {%- endfor %}
+  };
+};
+
+#pragma pack(pop)
+
+
+}  // namespace interface::controller

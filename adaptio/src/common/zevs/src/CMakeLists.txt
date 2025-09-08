@@ -1,0 +1,24 @@
+target_sources(${ADAPTIO_APPLICATION}
+    PRIVATE
+    eventloop_impl.h
+    coresocket_impl.h
+    coretimer_impl.h
+    timer_backend.h
+    timer_internal.h
+    timer_thread.h
+    corefactory_impl.h
+    process_impl.h
+    message_impl.h
+    log_impl.h
+    factory_impl.h
+
+    eventloop_impl.cc
+    coresocket_impl.cc
+    coretimer_impl.cc
+    timer_backend.cc
+    timer_thread.cc
+    corefactory_impl.cc
+    process_impl.cc
+    message_impl.cc
+    factory_impl.cc
+)

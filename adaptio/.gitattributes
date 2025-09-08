@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Specify LFS files
+*.efi filter=lfs diff=lfs merge=lfs -text
+
+# Specify other binary files
+*.png binary
+*.jpg binary
+*.jpeg binary

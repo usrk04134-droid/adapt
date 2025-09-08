@@ -1,0 +1,19 @@
+target_sources(${ADAPTIO_APPLICATION}
+  PUBLIC
+  line3d.h
+  line2d.h
+  plane3d.h
+  circle2d.h
+  circle3d.h
+  point2d.h
+  point3d.h
+  coordinate-systems.h
+
+  line3d.cc
+  line2d.cc
+  circle2d.cc
+  circle3d.cc
+  point3d.cc
+  point2d.cc
+  plane3d.cc
+)

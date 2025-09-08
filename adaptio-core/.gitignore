@@ -1,0 +1,45 @@
+# Build directories
+result
+build/
+cmake-build*
+.cache
+
+# IDE / Other environments
+.idea/
+.vscode/
+.direnv/
+.nix-env
+
+# Temp. files
+*~
+vgcore*
+
+# DHCP leases
+dhcpd.leases
+
+# Compile commands
+compile_commands.json
+
+# Perf
+perf.*
+
+# Python stuff
+__pycache__
+
+# ABW calc log files
+*ABW_calc_report_cpp.yaml
+
+# Mac garbage
+.DS_Store
+
+/build_macos
+/build_macos_arm
+
+# pre-commit
+.pre-commit-config.yaml
+
+# Generated files
+include/core/version.h
+
+# ruff
+.ruff_cache/

@@ -1,0 +1,10 @@
+---
+Checks: '-*,misc-include-cleaner,readability-identifier-naming'
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'src/.*'
+FormatStyle: file
+CheckOptions:
+  misc-include-cleaner.IgnoreHeaders: 'Eigen/.*;.*pndriver.*/.*;.*pnd_pntrc.h'
+ExtraArgs:
+- -Wno-unknown-pragmas  # remove this after switch to version >= clang-tidy-18
+...

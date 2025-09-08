@@ -1,0 +1,24 @@
+clang-tidy:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  extends: .k8-adaptio-defaults
+  stage: build
+  timeout: 1 hour
+  script:
+    - source $GITLAB_SHARED_FUNCS
+
+    - section_start fetch_cache "Clang-tidy; fetch nix dependencies" true
+    # Fetch from cache separately from building, to get individual timing measurements for each
+    - nix build .#adaptio-core-ci-dev --dry-run
+    - section_end fetch_cache
+
+    - section_start clang_tidy "Clang-tidy; run clang tidy"
+    - >
+      nix develop -c cmake -DCMAKE_BUILD_TYPE=Debug -B build/debug
+      &&
+      nix develop -c run-clang-tidy
+      -checks="-*,misc-include-cleaner"
+      -warnings-as-errors="misc-include-cleaner"
+      -extra-arg="-Wno-unknown-pragmas"
+      -p build/debug/ src/**/*.cc
+    - section_end clang_tidy

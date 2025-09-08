@@ -1,0 +1,29 @@
+#pragma once
+
+#include <pnd/common/pniobase.h>
+
+namespace controller::pn_driver {
+
+enum class SLOT_IDENTIFIERS : PNIO_UINT32 {
+  OUTPUT = 10,
+  INPUT = 11
+};
+
+struct Subslot {
+  PNIO_UINT32  ApiNum;
+  PNIO_UINT32  SlotNum;
+  PNIO_UINT32  SubslotNum;
+  PNIO_UINT32  ModIdent;
+  PNIO_UINT32  SubIdent;
+  PNIO_UINT16  OwnSessionKey;
+  PNIO_BOOL    IsWrongSubmod;
+  PNIO_IO_TYPE SubProperties;
+  PNIO_UINT16  InDataLength;
+  PNIO_UINT16  OutDataLength;
+};
+
+extern char pnd_iod_buffer[];
+extern char pnd_iod_minimal_buffer[];
+extern char pnd_iod_example_buffer[];
+
+}  // namespace controller::pn_driver

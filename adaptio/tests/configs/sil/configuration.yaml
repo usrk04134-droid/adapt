@@ -1,0 +1,128 @@
+controller:
+  # Selects the type of controller
+  # Possible values: pn_driver, simulation
+  type: simulation
+  cycle_time_ms: 100
+
+  # PN driver specific configuration
+  pn_driver:
+    # Path to rema file, this file should be somewhere persistent between reboots.
+    # The file contains IP and name of station configuration, this file will be created and/or read at startup.
+    # If this file was not existing at the time of startup the IP and NoS must be set by the external PLC or manually
+    # with proneta or similar tools.
+    rema_path: /var/lib/adaptio/rema.xml
+    # MAC address of the ethernet interface that is connected to the Profinet controller
+    # Should be 6 bytes in hex-format separated by colons
+    # mac_address: 60:7d:09:84:5f:81
+    # Name of ethernet interface that is connected to the Profinet controller.
+    # If both this and mac_address are defined mac_address is used.
+    interface: profinet1
+
+scanner:
+  filtering:
+    gray_minimum_top: 32
+    gray_minimum_wall: 16
+    gray_minimum_bottom: 32
+
+image_provider:
+  # Selects the type of camera
+  # Possible values: basler, simulation
+  type: simulation
+  fov:
+    width: 3500
+    height: 2500
+    offset_x: 312
+    offset_y: 0
+  basler:
+    gain: 15.0
+    exposure_time: 6000.0
+  simulation:
+    # path to images
+    realtime: false
+    images: .
+
+image_logging:
+  # available mode options:
+  # - off: no image logging
+  # - direct: image logging on when JT or ABP is active.
+  # - on_error: image logging when image processing fails and JT or ABP is active.
+  mode: off
+  # override the default path for image logging output.
+  # override_log_path:
+  sample_rate: 1
+  # used for 'on_error*' modes to also log 'buffer_size' of previous images.
+  buffer_size: 10
+  # used for type on_error or on_error_welding to limit the image logging output
+  on_error_interval_ms: 2500
+
+calibration_fixture_joint_geometry:
+  # Upper joint width in mm
+  upper_joint_width: 50.0
+  # Groove depth in mm
+  groove_depth: 28.0
+  # Left joint angle in radians
+  left_joint_angle: 0.1396
+  # Right joint angle in radians
+  right_joint_angle: 0.1396
+  # Left max surface angle in radians
+  left_max_surface_angle: 0.34906585
+  # Right max surface angle in radians
+  right_max_surface_angle: 0.34906585
+
+weld_control:
+  # Enable persistent storage of weld data
+  weld_data_persistent_storage: false
+  scanner_groove_geometry_update:
+    tolerance:
+      # Joint upper width tolerance (mm)
+      upper_width: 2.0
+      # Joint wall angle tolerance (rad)
+      wall_angle: 0.13962634
+  supervision:
+    # duration after which event is triggered for lost arcing
+    arcing_lost_grace_ms: 3000
+  # time between scanner input when JT is active
+  scanner_input_interval_ms: 50
+  adaptivity:
+    gaussian_filter:
+      kernel_size: 301
+      sigma: 50.0
+  # Time for the opeator to change mode when adaptio signals for handover.
+  # The grace time is not exact and can vary serveral seconds depending on
+  # what mode adaptio is in.
+  handover_grace_seconds: 25
+  # Time with image processing confidence level LOW/NO before triggering handover to manual mode.
+  scanner_low_confidence_grace_seconds: 5
+  # Time with image processing confidence level NO before triggering event and STOP towards PLC.
+  scanner_no_confidence_grace_seconds: 5
+
+tolerances:
+  joint_geometry:
+    # Joint upper width tolerance (mm)
+    upper_width: 10.0
+    # Joint surface angle tolerance (rad)
+    surface_angle: 0.174532925
+    # Joint wall angle tolerance (rad)
+    wall_angle: 0.13962634
+    
+calibration:
+  grid_config:
+    # Distance between top surface and measurement points (mm)
+    margin_top: 10.0
+    # Grid area expansion outside joint horizontally (mm, on each side)
+    margin_x: 0.0
+    # Grid area expansion outside joint vertically (mm, in addition to margin_top)
+    margin_z: 30.0
+    # No measurements within this distance to the touch left/right points (mm)
+    margin_c: 5.0
+    # Target number of measurements (minimum)
+    target_nr_gridpoints: 20
+  runner_config:
+    # Slid velocity horizontal/vertical (mm/sec)
+    slide_velocity: 5.0
+    # Stabilization time when target reached, before scanner data collection (sec)
+    stabilization_time: 2.0
+    # Target considered to be reached when within this distance (mm)
+    near_target_delta: 1.0
+    # Supervision timeout per measurement point (sec)
+    max_time_per_observation: 30.0

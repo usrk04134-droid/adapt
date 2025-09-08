@@ -1,0 +1,43 @@
+# Build directories
+result*
+build/
+cmake-build*
+.cache
+
+# IDE / Other environments
+.idea/
+.vscode/
+.direnv/
+.nix-env
+
+# Temp. files
+*~
+vgcore*
+*.bin
+*.tmp
+
+# DHCP leases
+dhcpd.leases
+
+# Compile commands
+compile_commands.json
+
+# perf data
+perf.*
+
+# Python stuff
+__pycache__
+
+# Pytest report
+pytest-adaptio-report-*
+
+# Pn driver
+pnd_trace.bin
+.DS_Store
+
+# pre-commit
+.pre-commit-config.yaml
+
+# ruff
+.ruff_cache/
+block-tests-report.xml
