@@ -1,0 +1,17 @@
+# Indicates if default or set in webhmi
+# false: not set
+# true: set
+valid: false
+
+# Upper joint width in mm
+upper_joint_width: 26.0
+# Groove depth in mm
+groove_depth: 42.0
+# Left joint angle in radians
+left_joint_angle: 0.14
+# Right joint angle in radians
+right_joint_angle: 0.14
+# Left max surface angle in radians
+left_max_surface_angle: 0.34906585
+# Right max surface angle in radians
+right_max_surface_angle: 0.34906585

@@ -1,0 +1,61 @@
+scanner_serial_number: 40297728
+
+# The camera parameters are set during calibration
+scanner_serial_number: 2
+
+intrinsic:
+  projection_center_distance: 0.0
+  focus_distance: 4.707852952290943804e+00
+  principal_point:
+    x: 1.001100742322118764e+00
+    y: 7.317642435771299914e-01
+  pixel_pitch:
+    x: 2.74e-06
+    y: 2.74e-06
+
+  rho: 3.141447305679321289e+00
+  tau: 1.221730476396030718e-01
+  d: 6.193863034310445048e-01
+  K1: 2.545519889414866316e-02
+  K2: 4.181119910248848152e-03
+  K3: -6.696371931147962128e-03
+  P1: -3.320003802347088265e-03
+  P2: 3.050356537053298695e-03
+
+  scaling_factors:
+    w: 5.633439999999999975e-03
+    m: 0.1
+    K1: 0.1
+    K2: 0.1
+    K3: 0.1
+    P1: 0.1
+    P2: 0.1
+
+extrinsic:
+  # Rotation matrix
+  R: !matrix
+    rows: 3
+    columns: 3
+    data: [ 9.997229424317457536e-01, -2.350816639678374523e-02, 1.185111080670121601e-03,
+            1.065018256781005875e-02, 4.068680551182541349e-01, -9.134248514987763912e-01,
+            2.099075955949937164e-02, 9.131844018800093776e-01, 4.070056955082629324e-01]
+
+  # Translation vector
+  t: !matrix
+    rows: 3
+    columns: 1
+    data: [ -5.106240047893689099e-02, -2.791469469541549980e-02, 3.925539620524008955e-01 ]
+
+  # Distortion coefficients
+  D: !matrix
+    rows: 5
+    columns: 1
+    data: [ 0.1, 0.01, -0.001, 0, 0 ]
+
+image_processing:
+  # Initial guesses
+  left_joint_angle: 0.1396263401595 # 8.0 / 360.0 * 2 * PI
+  right_joint_angle: 0.1396263401595 # 8.0 / 360.0 * 2 * PI
+  left_groove_depth: 0.0
+  right_groove_depth: 0.0
+checksum: d3ec73f036f6f903f7fad7f209157f92
