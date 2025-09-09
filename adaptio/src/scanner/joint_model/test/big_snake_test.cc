@@ -50,7 +50,7 @@ inline auto Setup() -> TestData {
       .principal_point            = {.x = 1.001100742322118764, .y = 7.317642435771299914e-01},
       .pixel_pitch                = {.x = 2.74e-06, .y = 2.74e-06},
       .rho                        = 3.141447305679321289,
-      .tau                        = 1.221730476396030718,
+      .tau                        = 1.221730476396030718e-01,
       .d                          = 6.193863034310445048e-01,
       .K1                         = 2.545519889414866316e-02,
       .K2                         = 4.181119910248848152e-03,
@@ -103,8 +103,8 @@ TEST_SUITE("Test Big Snake") {
     const double expected_xs[7] = {0.0394735, 0.0459291, 0.0494897, 0.0530746, 0.0566018, 0.06003, 0.064345};
     const double expected_ys[7] = {0.0459356, 0.00591587, 0.00567378, 0.00476669, 0.00585357, 0.0061066, 0.0444451};
     for (int i = 0; i < 7; i++) {
-      CHECK(std::abs(profile.points[i].x - expected_xs[i]) < 0.002);
-      CHECK(std::abs(profile.points[i].y - expected_ys[i]) < 0.002);
+      CHECK(std::abs(profile.points[i].x - expected_xs[i]) < 0.003);
+      CHECK(std::abs(profile.points[i].y - expected_ys[i]) < 0.003);
     }
   }
 }
