@@ -5,6 +5,11 @@
 #include <cstdlib>
 #include <optional>
 #include <filesystem>
+#include <array>
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <yaml-cpp/yaml.h>
 
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
@@ -86,26 +91,130 @@ TEST_SUITE("Test Big Snake") {
   TEST_CASE("Parse") {
     auto test_data = Setup();
 
-    auto big_snake = scanner::joint_model::BigSnake(test_data.joint_properties, test_data.scanner_config,
-                                                    std::move(test_data.camera_model));
+    // Locate dataset.yaml
+    const auto base_dir     = std::filesystem::path(__FILE__).parent_path() / "test_data";
+    const auto dataset_path = base_dir / "data_set.yaml";
+    REQUIRE(std::filesystem::exists(dataset_path));
 
-    auto grayscale_image = cv::imread(test_data.image_data.path + test_data.image_data.name, cv::IMREAD_GRAYSCALE);
-    auto maybe_image     = scanner::image::ImageBuilder::From(grayscale_image, test_data.image_data.name, 0).Finalize();
-    auto *image          = maybe_image.value().get();
+    // Parse dataset
+    auto dataset = YAML::LoadFile(dataset_path.string());
+    auto images  = dataset["images"];
+    auto annos   = dataset["annotations"];
 
-    auto res = big_snake.Parse(*image, {}, {}, false, {});
-    REQUIRE(res.has_value());
-
-    auto parsed = res.value();
-    auto &profile = std::get<0>(parsed);
-
-    // Expected ABW points for Image__2024-08-16__11-13-03.tiff from data_set.yaml (id: 3)
-    const double expected_xs[7] = {0.0394735, 0.0459291, 0.0494897, 0.0530746, 0.0566018, 0.06003, 0.064345};
-    const double expected_ys[7] = {0.0459356, 0.00591587, 0.00567378, 0.00476669, 0.00585357, 0.0061066, 0.0444451};
-    for (int i = 0; i < 7; i++) {
-      CHECK(std::abs(profile.points[i].x - expected_xs[i]) < 0.003);
-      CHECK(std::abs(profile.points[i].y - expected_ys[i]) < 0.003);
+    // Build map: image_id -> expected ABW points (xs/ys)
+    struct ExpectedPoints {
+      std::array<double, 7> xs{};
+      std::array<double, 7> ys{};
+    };
+    std::unordered_map<int, ExpectedPoints> expected_by_image_id;
+    for (auto anno : annos) {
+      const int image_id = anno["image_id"].as<int>();
+      const auto xs      = anno["abw_points_xs"].as<std::vector<double>>();
+      const auto ys      = anno["abw_points_ys"].as<std::vector<double>>();
+      if (xs.size() != 7 || ys.size() != 7) {
+        continue;
+      }
+      ExpectedPoints e{};
+      for (int i = 0; i < 7; i++) {
+        e.xs[i] = xs[i];
+        e.ys[i] = ys[i];
+      }
+      expected_by_image_id.insert_or_assign(image_id, e);
     }
+
+    // Helper to (re)create camera model each iteration
+    auto make_camera_model = []() {
+      scanner::image::TiltedPerspectiveCameraProperties camera_properties;
+      camera_properties.config_calib.intrinsic = {
+          .projection_center_distance = 0.0,
+          .focus_distance             = 4.707852952290943804,
+          .principal_point            = {.x = 1.001100742322118764, .y = 7.317642435771299914e-01},
+          .pixel_pitch                = {.x = 2.74e-06, .y = 2.74e-06},
+          .rho                        = 3.141447305679321289,
+          .tau                        = 1.221730476396030718e-01,
+          .d                          = 6.193863034310445048e-01,
+          .K1                         = 2.545519889414866316e-02,
+          .K2                         = 4.181119910248848152e-03,
+          .K3                         = -6.696371931147962128e-03,
+          .P1                         = -3.320003802347088265e-03,
+          .P2                         = 3.050356537053298695e-03,
+          .scaling_factors            = {.w = 5.63344e-03, .m = 0.1, .K1 = 0.1, .K2 = 0.1, .K3 = 0.1, .P1 = 0.1, .P2 = 0.1},
+      };
+      camera_properties.config_calib.extrinsic.rotation.row(0)
+          << 9.997229424317457536e-01, -2.350816639678374523e-02, 1.185111080670121601e-03;
+      camera_properties.config_calib.extrinsic.rotation.row(1)
+          << 1.065018256781005875e-02, 4.068680551182541349e-01, -9.134248514987763912e-01;
+      camera_properties.config_calib.extrinsic.rotation.row(2)
+          << 2.099075955949937164e-02, 9.131844018800093776e-01, 4.070056955082629324e-01;
+      camera_properties.config_calib.extrinsic.translation.col(0)
+          << -5.106240047893689099e-02, -2.791469469541549980e-02, 3.925539620524008955e-01;
+      camera_properties.config_fov = {.width = 3500, .offset_x = 312, .height = 2500, .offset_y = 0};
+      return std::make_unique<scanner::image::TiltedPerspectiveCamera>(camera_properties);
+    };
+
+    // Resolve image path candidates
+    auto find_image_path = [&](const std::string &rel_path) -> std::optional<std::filesystem::path> {
+      const auto filename = std::filesystem::path(rel_path).filename();
+      std::vector<std::filesystem::path> candidates;
+      candidates.emplace_back(base_dir / rel_path);                 // test_data/images/...
+      candidates.emplace_back(base_dir / filename);                 // test_data/<file>
+      // Try sibling adaptio-core checkout
+      auto repo_root = base_dir;
+      for (int i = 0; i < 5; i++) repo_root = repo_root.parent_path();
+      const auto core_ds = repo_root / "adaptio-core/tests/data_set";
+      candidates.emplace_back(core_ds / rel_path);
+      candidates.emplace_back(core_ds / filename);
+      for (const auto &c : candidates) {
+        if (std::filesystem::exists(c)) return c;
+      }
+      return std::nullopt;
+    };
+
+    int processed = 0;
+
+    for (auto img : images) {
+      const int image_id         = img["id"].as<int>();
+      const std::string file_rel = img["file_path"].as<std::string>();
+
+      if (!expected_by_image_id.contains(image_id)) {
+        // No expectations for this image id
+        continue;
+      }
+
+      auto maybe_path = find_image_path(file_rel);
+      if (!maybe_path.has_value()) {
+        INFO("Skipping missing image: " << file_rel);
+        continue;
+      }
+
+      const auto full_path = maybe_path.value();
+      auto grayscale_image = cv::imread(full_path.string(), cv::IMREAD_GRAYSCALE);
+      REQUIRE(grayscale_image.data != nullptr);
+
+      auto maybe_image = scanner::image::ImageBuilder::From(grayscale_image, full_path.filename().string(), 0).Finalize();
+      REQUIRE(maybe_image.has_value());
+      auto *image = maybe_image.value().get();
+
+      auto camera_model = make_camera_model();
+      auto big_snake    = scanner::joint_model::BigSnake(test_data.joint_properties, test_data.scanner_config,
+                                                      std::move(camera_model));
+
+      auto res = big_snake.Parse(*image, {}, {}, false, {});
+      REQUIRE(res.has_value());
+
+      auto parsed  = res.value();
+      auto &profile = std::get<0>(parsed);
+
+      const auto &exp = expected_by_image_id.at(image_id);
+      for (int i = 0; i < 7; i++) {
+        CHECK(std::abs(profile.points[i].x - exp.xs[i]) < 0.003);
+        CHECK(std::abs(profile.points[i].y - exp.ys[i]) < 0.003);
+      }
+
+      processed++;
+    }
+
+    CHECK(processed > 0);
   }
 }
 #endif
