@@ -4,6 +4,11 @@
 #include <cstdlib>
 #include <optional>
 #include <filesystem>
+#include <map>
+#include <vector>
+#include <numbers>
+#include <sstream>
+#include <algorithm>
 #include <yaml-cpp/yaml.h>
 
 #include "scanner/image/camera_model.h"
@@ -110,7 +115,7 @@ TEST_SUITE("Test Big Snake") {
     auto big_snake = scanner::joint_model::BigSnake(test_data.joint_properties, test_data.scanner_config,
                                                     std::move(test_data.camera_model));
 
-    auto grayscale_image = imread(test_data.image_data.path + test_data.image_data.name, cv::IMREAD_GRAYSCALE);
+    auto grayscale_image = cv::imread(test_data.image_data.path + test_data.image_data.name, cv::IMREAD_GRAYSCALE);
     auto maybe_image     = scanner::image::ImageBuilder::From(grayscale_image, test_data.image_data.name, 0).Finalize();
     auto *image          = maybe_image.value().get();
 
@@ -223,7 +228,7 @@ TEST_SUITE("Test Big Snake") {
                                                std::move(camera_model));
 
       auto image_path = base_dir / img.path;
-      auto grayscale_image = imread(image_path.string(), cv::IMREAD_GRAYSCALE);
+      auto grayscale_image = cv::imread(image_path.string(), cv::IMREAD_GRAYSCALE);
       REQUIRE_MESSAGE(!grayscale_image.empty(), "Failed to read image: " + image_path.string());
       auto maybe_image = scanner::image::ImageBuilder::From(grayscale_image, image_path.filename().string(), 0).Finalize();
       REQUIRE(maybe_image.has_value());
