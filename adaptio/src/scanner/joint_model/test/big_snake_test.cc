@@ -224,7 +224,21 @@ TEST_SUITE("Test Big Snake") {
           .offset_distance = 3.0,
       };
 
-      scanner::joint_model::BigSnake big_snake(properties, {.gray_minimum_top = 48, .gray_minimum_wall = 16, .gray_minimum_bottom = 48},
+      // Scanner gray thresholds (allow per-image override via scanner YAML if present)
+      int gray_top = 48;
+      int gray_wall = 16;
+      int gray_bottom = 48;
+      if (scanner_cfg_map.contains("camera/image_processing/gray_minimum_top")) {
+        gray_top = static_cast<int>(scanner_cfg_map.at("camera/image_processing/gray_minimum_top").Value<double>().value());
+      }
+      if (scanner_cfg_map.contains("camera/image_processing/gray_minimum_wall")) {
+        gray_wall = static_cast<int>(scanner_cfg_map.at("camera/image_processing/gray_minimum_wall").Value<double>().value());
+      }
+      if (scanner_cfg_map.contains("camera/image_processing/gray_minimum_bottom")) {
+        gray_bottom = static_cast<int>(scanner_cfg_map.at("camera/image_processing/gray_minimum_bottom").Value<double>().value());
+      }
+
+      scanner::joint_model::BigSnake big_snake(properties, {.gray_minimum_top = gray_top, .gray_minimum_wall = gray_wall, .gray_minimum_bottom = gray_bottom},
                                                std::move(camera_model));
 
       auto image_path = base_dir / img.path;
