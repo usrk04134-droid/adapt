@@ -104,6 +104,9 @@ void ManagementClient::OnReadyState(common::msg::management::ReadyState data) {
   }
 
   LOG_DEBUG("OnReadyState - ReadyState={}", ReadyStateToString(ready_state_));
+
+  // Immediately publish updated outputs so PLC sees readiness without waiting for the periodic timer
+  Update();
 }
 
 void ManagementClient::OnOnNotifyHandoverToManual(common::msg::management::NotifyHandoverToManual /*data*/) {
