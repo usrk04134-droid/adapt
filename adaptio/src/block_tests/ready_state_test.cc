@@ -11,6 +11,7 @@
 #include "helpers.h"
 #include "helpers_abp_parameters.h"
 #include "helpers_joint_geometry.h"
+#include "helpers_calibration_v2.h"
 #include "web_hmi/web_hmi_json_helpers.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
@@ -22,6 +23,22 @@ TEST_SUITE("Ready state") {
 
     StoreDefaultJointGeometryParams(fixture);
 
+    // Ensure calibrations (LTC + WOC) are present for TRACKING_READY
+    LaserTorchCalSet(fixture, {
+                                   {"distanceLaserTorch", 150.0},
+                                   {"stickout",           25.0 },
+                                   {"scannerMountAngle",  0.26 }
+    });
+    CHECK_EQ(LaserTorchCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
+
+    WeldObjectCalSet(fixture, {
+                                     {"residualStandardError",  0.0015},
+                                     {"rotationCenter",         {{"c1", -28.8}, {"c2", -88.7}, {"c3", -970.9}}},
+                                     {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 355.1}, {"c3", 23.1}}},
+                                     {"weldObjectRotationAxis", {{"c1", 0.0}, {"c2", 0.0},  {"c3", 1.0}}}
+    });
+    CHECK_EQ(WeldObjectCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
+
     fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
     auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
     CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
@@ -30,15 +47,8 @@ TEST_SUITE("Ready state") {
     msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
     CHECK_EQ(msg->state, common::msg::management::ReadyState::State::TRACKING_READY);
 
-    // Start calibration
-    nlohmann::json payload({
-        {"offset",   40.0},
-        {"angle",    0.4 },
-        {"stickout", 20.0}
-    });
-    auto start_cal = web_hmi::CreateMessage("LaserToTorchCalibration", payload);
-    fixture.WebHmiIn()->DispatchMessage(std::move(start_cal));
-
+    // Start calibration (V2) should transition to NOT_READY immediately
+    WeldObjectCalStart(fixture, 4.0, 25.0, 1000.0);
     msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
     CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
   }
@@ -48,6 +58,22 @@ TEST_SUITE("Ready state") {
     fixture.StartApplication();
 
     StoreDefaultJointGeometryParams(fixture);
+
+    // Ensure calibrations (LTC + WOC) are present for TRACKING_READY
+    LaserTorchCalSet(fixture, {
+                                   {"distanceLaserTorch", 150.0},
+                                   {"stickout",           25.0 },
+                                   {"scannerMountAngle",  0.26 }
+    });
+    CHECK_EQ(LaserTorchCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
+
+    WeldObjectCalSet(fixture, {
+                                     {"residualStandardError",  0.0015},
+                                     {"rotationCenter",         {{"c1", -28.8}, {"c2", -88.7}, {"c3", -970.9}}},
+                                     {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 355.1}, {"c3", 23.1}}},
+                                     {"weldObjectRotationAxis", {{"c1", 0.0}, {"c2", 0.0},  {"c3", 1.0}}}
+    });
+    CHECK_EQ(WeldObjectCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
 
     fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
     auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
@@ -68,6 +94,22 @@ TEST_SUITE("Ready state") {
     fixture.StartApplication();
 
     StoreDefaultJointGeometryParams(fixture);
+
+    // Ensure calibrations (LTC + WOC) are present for TRACKING_READY
+    LaserTorchCalSet(fixture, {
+                                   {"distanceLaserTorch", 150.0},
+                                   {"stickout",           25.0 },
+                                   {"scannerMountAngle",  0.26 }
+    });
+    CHECK_EQ(LaserTorchCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
+
+    WeldObjectCalSet(fixture, {
+                                     {"residualStandardError",  0.0015},
+                                     {"rotationCenter",         {{"c1", -28.8}, {"c2", -88.7}, {"c3", -970.9}}},
+                                     {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 355.1}, {"c3", 23.1}}},
+                                     {"weldObjectRotationAxis", {{"c1", 0.0}, {"c2", 0.0},  {"c3", 1.0}}}
+    });
+    CHECK_EQ(WeldObjectCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
 
     fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
     auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
@@ -94,6 +136,22 @@ TEST_SUITE("Ready state") {
     StoreDefaultABPParams(fixture);
     StoreSettings(fixture, TestSettings{.use_edge_sensor = false}, true);
 
+    // Ensure calibrations (LTC + WOC) are present for TRACKING_READY
+    LaserTorchCalSet(fixture, {
+                                   {"distanceLaserTorch", 150.0},
+                                   {"stickout",           25.0 },
+                                   {"scannerMountAngle",  0.26 }
+    });
+    CHECK_EQ(LaserTorchCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
+
+    WeldObjectCalSet(fixture, {
+                                     {"residualStandardError",  0.0015},
+                                     {"rotationCenter",         {{"c1", -28.8}, {"c2", -88.7}, {"c3", -970.9}}},
+                                     {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 355.1}, {"c3", 23.1}}},
+                                     {"weldObjectRotationAxis", {{"c1", 0.0}, {"c2", 0.0},  {"c3", 1.0}}}
+    });
+    CHECK_EQ(WeldObjectCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
+
     fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
     auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
     CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
@@ -112,6 +170,22 @@ TEST_SUITE("Ready state") {
     StoreDefaultJointGeometryParams(fixture);
     StoreDefaultABPParams(fixture);
     StoreSettings(fixture, TestSettings{.use_edge_sensor = true}, true); /* same as default value */
+
+    // Ensure calibrations (LTC + WOC) are present for TRACKING_READY
+    LaserTorchCalSet(fixture, {
+                                   {"distanceLaserTorch", 150.0},
+                                   {"stickout",           25.0 },
+                                   {"scannerMountAngle",  0.26 }
+    });
+    CHECK_EQ(LaserTorchCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
+
+    WeldObjectCalSet(fixture, {
+                                     {"residualStandardError",  0.0015},
+                                     {"rotationCenter",         {{"c1", -28.8}, {"c2", -88.7}, {"c3", -970.9}}},
+                                     {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 355.1}, {"c3", 23.1}}},
+                                     {"weldObjectRotationAxis", {{"c1", 0.0}, {"c2", 0.0},  {"c3", 1.0}}}
+    });
+    CHECK_EQ(WeldObjectCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
 
     fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
     auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
