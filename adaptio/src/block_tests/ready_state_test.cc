@@ -11,6 +11,7 @@
 #include "helpers.h"
 #include "helpers_abp_parameters.h"
 #include "helpers_joint_geometry.h"
+#include "helpers_calibration_v2.h"
 #include "web_hmi/web_hmi_json_helpers.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
@@ -21,6 +22,7 @@ TEST_SUITE("Ready state") {
     fixture.StartApplication();
 
     StoreDefaultJointGeometryParams(fixture);
+    SetDefaultCalibrations(fixture);
 
     fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
     auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
@@ -48,6 +50,7 @@ TEST_SUITE("Ready state") {
     fixture.StartApplication();
 
     StoreDefaultJointGeometryParams(fixture);
+    SetDefaultCalibrations(fixture);
 
     fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
     auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
@@ -68,6 +71,7 @@ TEST_SUITE("Ready state") {
     fixture.StartApplication();
 
     StoreDefaultJointGeometryParams(fixture);
+    SetDefaultCalibrations(fixture);
 
     fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
     auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
@@ -91,6 +95,7 @@ TEST_SUITE("Ready state") {
     fixture.StartApplication();
 
     StoreDefaultJointGeometryParams(fixture);
+    SetDefaultCalibrations(fixture);
     StoreDefaultABPParams(fixture);
     StoreSettings(fixture, TestSettings{.use_edge_sensor = false}, true);
 
@@ -110,6 +115,7 @@ TEST_SUITE("Ready state") {
     fixture.StartApplication();
 
     StoreDefaultJointGeometryParams(fixture);
+    SetDefaultCalibrations(fixture);
     StoreDefaultABPParams(fixture);
     StoreSettings(fixture, TestSettings{.use_edge_sensor = true}, true); /* same as default value */
 

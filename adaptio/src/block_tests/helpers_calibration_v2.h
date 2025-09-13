@@ -6,6 +6,7 @@
 #include "common/messages/kinematics.h"
 #include "helpers.h"
 #include "helpers_simulator.h"
+#include "helpers_joint_geometry.h"
 #include "sim-config.h"
 #include "simulator_interface.h"
 #include "test_utils/testlog.h"
@@ -16,6 +17,50 @@ inline auto Merge(const nlohmann::json& payload1, const nlohmann::json& payload2
   nlohmann::json result = payload1;
   result.update(payload2);
   return result;
+}
+
+// Shared defaults and helpers to avoid duplication in tests
+inline const nlohmann::json OK_PAYLOAD = {{"result", "ok"}};
+inline const nlohmann::json FAIL_PAYLOAD = {{"result", "fail"}};
+
+inline const nlohmann::json DEFAULT_LASER_TORCH_CONFIG = {
+    {"distanceLaserTorch", 150.0},
+    {"stickout",           25.0 },
+    {"scannerMountAngle",  0.26 }
+};
+
+inline const nlohmann::json DEFAULT_WELD_OBJECT_CAL_RESULT = {
+    {"residualStandardError",  0.0015                                        },
+    {"rotationCenter",         {{"c1", -28.8}, {"c2", -88.7}, {"c3", -970.9}}},
+    {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 355.1}, {"c3", 23.1}}    },
+    {"weldObjectRotationAxis", {{"c1", 0.0}, {"c2", 0.0}, {"c3", 1.0}}       }
+};
+
+inline void SetDefaultCalibrations(TestFixture& fixture) {
+  LaserTorchCalSet(fixture, DEFAULT_LASER_TORCH_CONFIG);
+  CHECK_EQ(LaserTorchCalSetRsp(fixture), OK_PAYLOAD);
+
+  WeldObjectCalSet(fixture, DEFAULT_WELD_OBJECT_CAL_RESULT);
+  CHECK_EQ(WeldObjectCalSetRsp(fixture), OK_PAYLOAD);
+}
+
+inline void SubscribeReadyAndExpect(
+    TestFixture& fixture,
+    std::initializer_list<common::msg::management::ReadyState::State> expected_states) {
+  fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
+  for (auto expected_state : expected_states) {
+    auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
+    CHECK_EQ(msg->state, expected_state);
+  }
+}
+
+inline void EnsureTrackingReadyWithDefaults(TestFixture& fixture) {
+  StoreDefaultJointGeometryParams(fixture);
+  SetDefaultCalibrations(fixture);
+  SubscribeReadyAndExpect(
+      fixture,
+      {common::msg::management::ReadyState::State::NOT_READY,
+       common::msg::management::ReadyState::State::TRACKING_READY});
 }
 
 inline void LaserTorchCalSet(TestFixture& fixture, const nlohmann::json& payload) {

@@ -45,26 +45,11 @@ const double TOP_TOUCH_HORIZONTAL_OFFSET_M = 10e-3;
 const float JT_HORIZONTAL_OFFSET = 0.0;
 const float JT_VERTICAL_OFFSET   = STICKOUT_M * 1000 + 1.0;
 
-const auto SUCCESS_PAYLOAD = nlohmann::json{
-    {"result", "ok"}
-};
-
-const auto FAILURE_PAYLOAD = nlohmann::json{
-    {"result", "fail"}
-};
-
-const nlohmann::json LASER_TORCH_CONFIG = {
-    {"distanceLaserTorch", 150.0},
-    {"stickout",           25.0 },
-    {"scannerMountAngle",  0.26 }
-};
-
-const nlohmann::json CAL_RESULT = {
-    {"residualStandardError",  0.0015                                        },
-    {"rotationCenter",         {{"c1", -28.8}, {"c2", -88.7}, {"c3", -970.9}}},
-    {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 355.1}, {"c3", 23.1}}    },
-    {"weldObjectRotationAxis", {{"c1", 0.0}, {"c2", 0.0}, {"c3", 1.0}}       }
-};
+// Reuse shared defaults from helpers_calibration_v2.h
+const auto SUCCESS_PAYLOAD = OK_PAYLOAD;
+const auto FAILURE_PAYLOAD = FAIL_PAYLOAD;
+const auto LASER_TORCH_CONFIG = DEFAULT_LASER_TORCH_CONFIG;
+const auto CAL_RESULT = DEFAULT_WELD_OBJECT_CAL_RESULT;
 
 void JointTracking(TestFixture& fixture, depsim::ISimulator& simulator) {
   auto torch_pos = simulator.GetTorchPosition();
