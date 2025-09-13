@@ -24,6 +24,7 @@
 #include "bead_control/src/weld_position_data_storage.h"
 #include "common/clock_functions.h"
 #include "common/logging/application_log.h"
+#include "common/math/math.h"
 #include "groove_fit.h"
 #include "macs/macs_groove.h"
 #include "macs/macs_point.h"
@@ -69,17 +70,21 @@ auto BeadControlImpl::CalculateBeadsInLayer(double right_bead_area) -> std::tupl
   auto const average_bead_area = std::midpoint(left_bead_area_, right_bead_area);
   auto total_beads             = static_cast<int>(std::round(layer_area / average_bead_area));
 
-  if (!bottom_width_to_num_beads_.empty()) {
-    auto const bottom_width = average_empty_groove_->BottomWidth();
-    for (auto const& data : bottom_width_to_num_beads_) {
-      if (data.required_width <= bottom_width) {
+  LOG_DEBUG("Actual depth of previous layer: left {:.5f}, right {:.5f}", average_empty_groove_.value().LeftDepth(),
+            average_empty_groove_.value().RightDepth());
+
+  if (!top_width_to_num_beads_.empty()) {
+    auto const top_width =
+        BeadCalc::MeanLayerTopWidth(average_empty_groove_.value(), left_bead_area_, right_bead_area, step_up_value_);
+    for (auto const& data : top_width_to_num_beads_) {
+      if (data.required_width <= top_width) {
         continue;
       }
 
       auto const max_beads_for_width = data.beads_allowed - 1;
       if (max_beads_for_width < total_beads) {
         total_beads = max_beads_for_width;
-        LOG_INFO("Limit number of beads in layer to {} for bottom width {:.2f}", total_beads, bottom_width);
+        LOG_INFO("Limit number of beads in layer to {} for top width {:.2f}", total_beads, top_width);
       }
       break;
     }
@@ -332,7 +337,7 @@ auto BeadControlImpl::CalculateBeadPosition(const macs::Groove& groove,
   }
 
   return result;
-}  // namespace bead_control
+}
 
 auto BeadControlImpl::CalculateBeadSliceAreaRatio(const macs::Groove& empty_groove) -> double {
   auto bead_number_l_to_r = 0;
@@ -391,8 +396,8 @@ auto BeadControlImpl::Update(const Input& input) -> std::pair<Result, Output> {
 
   storage_->Store(input.weld_object_angle, data);
 
-  auto const result =
-      BeadOperationUpdate(input.weld_object_angle, input.weld_object_ang_velocity, input.steady_satisfied);
+  auto const result = BeadOperationUpdate(input.weld_object_angle, input.weld_object_ang_velocity, input.paused,
+                                          input.in_horizontal_position);
   switch (result) {
     case Result::OK:
       break;
@@ -455,20 +460,65 @@ auto BeadControlImpl::GetStatus() const -> Status {
 }
 
 void BeadControlImpl::Reset() {
-  state_           = State::IDLE;
-  progress_        = 0.;
-  layer_number_    = 0;
-  bead_number_     = 0;
-  next_layer_type_ = LayerType::FILL;
-  layer_type_      = LayerType::FILL;
+  state_                          = State::IDLE;
+  progress_                       = 0.;
+  layer_number_                   = 0;
+  bead_number_                    = 0;
+  next_layer_type_                = LayerType::FILL;
+  layer_type_                     = LayerType::FILL;
+  total_beads_in_prev_full_layer_ = {};
+  paused_angular_position_        = {};
 }
 
-auto BeadControlImpl::BeadOperationUpdate(double angular_position, double angular_velocity, bool steady_satisfied)
-    -> Result {
+void BeadControlImpl::ResumeBeadOperation(double angular_position) {
+  assert(paused_angular_position_);
+
+  LOG_INFO("Resume state {} at position {:.4f} layer: {} bead: {} progress: {:.1f}%", StateToString(state_),
+           *paused_angular_position_, layer_number_, bead_number_, progress_ * 100.0);
+
+  auto bead_operation_distance = 0.0;
+  switch (state_) {
+    case State::STEADY:
+      bead_operation_distance = 2 * std::numbers::pi;
+      break;
+    case State::OVERLAPPING:
+      bead_operation_distance = bead_overlap_;
+      break;
+    case State::REPOSITIONING:
+      /* repositioning does not need to be resumed */
+    case State::IDLE:
+      return;
+  }
+
+  auto const distance_since_pause =
+      common::math::WrappedDist(*paused_angular_position_, angular_position, 2 * std::numbers::pi);
+
+  LOG_INFO("angular distance since pause: {:.4f}", distance_since_pause);
+  if (distance_since_pause >= 0.0) {
+    // bead operation resumed in from of the pause position - this is an unexpected scenario - no special handling
+    // needed
+    return;
+  }
+
+  auto const distance_progress = distance_since_pause / bead_operation_distance;
+
+  auto const new_progress = progress_ + distance_progress;
+  if (new_progress >= 0.0) {
+    LOG_INFO("Updating progress {:.1f}% -> {:.1f}%", progress_ * 100.0, new_progress * 100.0);
+    progress_ = new_progress;
+  } else {
+    LOG_INFO("Resume position before previous start position -> set new start position");
+    progress_               = 0.0;
+    start_angular_position_ = angular_position;
+  }
+}
+
+auto BeadControlImpl::BeadOperationUpdate(double angular_position, double angular_velocity, bool paused,
+                                          bool in_horizontal_position) -> Result {
   auto start_repositioning = [this]() -> Result {
     auto const result = OnNewBead();
     if (result == Result::OK) {
-      LOG_DEBUG("Start Repositioning");
+      LOG_INFO("Start Repositioning");
       progress_ = 0.; /* reposition state will not update progress */
       state_    = State::REPOSITIONING;
     }
@@ -490,8 +540,8 @@ auto BeadControlImpl::BeadOperationUpdate(double angular_position, double angula
                                  : position - start_angular_position_ + (2 * static_cast<double>(std::numbers::pi))) /
                             distance;
 
-    LOG_TRACE("position: {:.4f} start_position: {:.4f} distance: {:.4f} progress: {:.4f}/{:.4f}", position,
-              start_angular_position_, distance, progress, progress_);
+    LOG_TRACE("position: {:.4f} start_position: {:.4f} distance: {:.4f} progress: {:.4f}% -> {:.4f}%", position,
+              start_angular_position_, distance, progress_ * 100.0, progress * 100.0);
 
     auto const done = progress >= 1 || progress < progress_;
 
@@ -500,20 +550,31 @@ auto BeadControlImpl::BeadOperationUpdate(double angular_position, double angula
     return done;
   };
 
-  if (state_ != State::IDLE && !steady_satisfied) {
-    /* do not advance past the initial repositioning until steady condition is satisfied */
-    return Result::OK;
+  auto result = Result::OK;
+
+  if (paused && !paused_angular_position_) {
+    paused_angular_position_ = last_angular_position_;
+    LOG_INFO("Paused in state {} at {:.4f} layer: {} bead: {} progress: {:.1f}%", StateToString(state_),
+             *paused_angular_position_, layer_number_, bead_number_, progress_ * 100.0);
+  } else if (!paused && paused_angular_position_) {
+    ResumeBeadOperation(angular_position);
+    paused_angular_position_ = {};
+    last_angular_position_   = angular_position;
+    return result;
   }
 
-  auto result = Result::OK;
   switch (state_) {
     case State::IDLE:
       result = start_repositioning();
       break;
     case State::STEADY:
+      if (paused) {
+        break;
+      }
+
       if (update_angular_position(angular_position, 2 * std::numbers::pi)) {
         /* Bead finished -> start overlapping */
-        LOG_DEBUG("Start Overlapping at position: {}", angular_position);
+        LOG_INFO("Start Overlapping at position: {:.4f}", angular_position);
         start_angular_position_ = angular_position;
         progress_               = 0.;
         state_                  = State::OVERLAPPING;
@@ -531,14 +592,17 @@ auto BeadControlImpl::BeadOperationUpdate(double angular_position, double angula
       }
       break;
     case State::REPOSITIONING:
-      /* Repositioning finished -> start steady */
-      LOG_DEBUG("Start Steady at position: {}", angular_position);
-      start_angular_position_ = angular_position;
-      progress_               = 0.;
-      state_                  = State::STEADY;
+      if (!paused && in_horizontal_position) {
+        /* Repositioning finished -> start steady */
+        LOG_INFO("Start Steady at position: {:.4f}", angular_position);
+        start_angular_position_ = angular_position;
+        progress_               = 0.;
+        state_                  = State::STEADY;
+      }
       break;
     case State::OVERLAPPING:
-      if (update_angular_position(angular_position, BeadCalc::Distance2Angle(weld_object_radius_, bead_overlap_))) {
+      if (!paused &&
+          update_angular_position(angular_position, BeadCalc::Distance2Angle(weld_object_radius_, bead_overlap_))) {
         /* Overlap finished -> start repositioning */
         result = start_repositioning();
       }
@@ -553,9 +617,8 @@ auto BeadControlImpl::BeadOperationUpdate(double angular_position, double angula
 }
 
 void BeadControlImpl::ResetGrooveData() {
-  empty_layer_groove_fit_         = {};
-  total_beads_in_prev_full_layer_ = {};
-  empty_groove_buffer_            = {};
+  empty_layer_groove_fit_ = {};
+  empty_groove_buffer_    = {};
   empty_layer_groove_buffer_.Clear();
 }
 

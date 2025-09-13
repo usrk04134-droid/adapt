@@ -28,4 +28,6 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     adaptive_welding_test.cc
     calibration_v2_test.cc
     settings_test.cc
+    weld_session.cc
+    multiblock_basic_test.cc
 )

@@ -96,6 +96,9 @@ void ManagementClient::OnReadyState(common::msg::management::ReadyState data) {
     case common::msg::management::ReadyState::State::ABP_CAP_READY:
       ready_state_ = ReadyState::ABP_CAP_READY;
       break;
+    case common::msg::management::ReadyState::State::ABP_AND_ABP_CAP_READY:
+      ready_state_ = ReadyState::ABP_AND_ABP_CAP_READY;
+      break;
     default:
       LOG_ERROR("Invalid ReadyState");
   }
@@ -210,6 +213,11 @@ void ManagementClient::Update() {
       break;
     case ReadyState::ABP_CAP_READY:
       output.set_status_ready_for_tracking(true);
+      output.set_status_ready_for_abp(false);
+      output.set_status_ready_for_auto_cap(true);
+      break;
+    case ReadyState::ABP_AND_ABP_CAP_READY:
+      output.set_status_ready_for_tracking(true);
       output.set_status_ready_for_abp(true);
       output.set_status_ready_for_auto_cap(true);
       break;
@@ -270,12 +278,13 @@ void ManagementClient::OnAdaptioInput(const InputData& data) {
   }
 
   if (data.sequence_type == Sequence::ABP &&
-      (ready_state_ != ReadyState::ABP_READY && ready_state_ != ReadyState::ABP_CAP_READY)) {
+      (ready_state_ != ReadyState::ABP_READY && ready_state_ != ReadyState::ABP_AND_ABP_CAP_READY)) {
     SetState(InterfaceState::ERROR, "Cannot start ABP", data);
     return;
   }
 
-  if (data.sequence_type == Sequence::ABP_CAP && ready_state_ != ReadyState::ABP_CAP_READY) {
+  if (data.sequence_type == Sequence::ABP_CAP &&
+      (ready_state_ != ReadyState::ABP_CAP_READY && ready_state_ != ReadyState::ABP_AND_ABP_CAP_READY)) {
     SetState(InterfaceState::ERROR, "Cannot start ABP CAP", data);
     return;
   }
@@ -295,8 +304,9 @@ void ManagementClient::OnAdaptioInput(const InputData& data) {
         SendTrackingStart();
         SendABPStart();
       } else if (data.sequence_type == Sequence::ABP_CAP) {
-        SetState(InterfaceState::ERROR, "IDLE -> ABP_CAP not allowed", data);
-        return;
+        SetState(InterfaceState::ABP_CAP, "Start ABP CAP", data);
+        SendTrackingStart();
+        SendABPCapStart();
       }
       break;
 
@@ -318,7 +328,6 @@ void ManagementClient::OnAdaptioInput(const InputData& data) {
       } else if (data.sequence_type == Sequence::ABP_CAP) {
         SetState(InterfaceState::ABP_CAP, "Start ABP_CAP", data);
         SendABPCapStart();
-        SendTrackingUpdate();
       }
       break;
 

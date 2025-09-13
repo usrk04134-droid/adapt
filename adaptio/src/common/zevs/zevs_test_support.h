@@ -51,6 +51,9 @@ class Mocket : public CoreSocket, public std::enable_shared_from_this<Mocket> {
   void DispatchMessage(MessagePtr message, Location loc = Location::current());
 
   auto Queued() const -> size_t { return message_queue_.size(); }
+
+  using DispatchObserverT = std::function<void(const Mocket &, Location)>;
+  void SetDispatchObserver(DispatchObserverT observer);
   // End of API methods
 
   using EndpointObserverT = std::function<void(EndpointInfo)>;
@@ -72,6 +75,7 @@ class Mocket : public CoreSocket, public std::enable_shared_from_this<Mocket> {
   std::function<void(MessagePtr)> callback_handler_;
   EndpointObserverT observer_;
   std::deque<MessagePtr> message_queue_;
+  DispatchObserverT dispatch_observer_{nullptr};
 };
 
 using MocketPtr = std::shared_ptr<Mocket>;
@@ -109,6 +113,9 @@ class MocketTimer : public CoreTimer {
   void SetRequestObserver(RequestObserver observer);
   void SetCancelObserver(CancelObserver observer);
 
+  using DispatchObserverT = std::function<void(const MocketTimer &, Location)>;
+  void SetDispatchObserver(DispatchObserverT observer);
+
  private:
   struct Task {
     std::string name;
@@ -123,6 +130,7 @@ class MocketTimer : public CoreTimer {
   std::set<Task> tasks_;
   RequestObserver request_observer_{nullptr};
   CancelObserver cancel_observer_{nullptr};
+  DispatchObserverT dispatch_observer_{nullptr};
 };
 
 using MocketTimerPtr = std::shared_ptr<MocketTimer>;
@@ -382,6 +390,10 @@ void Mocket::Dispatch(Data data, Location loc) {
     assert(false);
   }
   callback_handler_(std::move(message));
+
+  if (dispatch_observer_) {
+    dispatch_observer_(*this, loc);
+  }
 }
 
 inline void Mocket::DispatchMessage(MessagePtr message, Location loc) {
@@ -394,7 +406,13 @@ inline void Mocket::DispatchMessage(MessagePtr message, Location loc) {
     assert(false);
   }
   callback_handler_(std::move(message));
+
+  if (dispatch_observer_) {
+    dispatch_observer_(*this, loc);
+  }
 }
+
+inline void Mocket::SetDispatchObserver(DispatchObserverT observer) { dispatch_observer_ = std::move(observer); }
 
 // NOLINTNEXTLINE(modernize-pass-by-value)
 inline Mocket::Mocket(SocketType socket_type, const EndpointObserverT &observer)
@@ -474,6 +492,8 @@ inline void MocketLogging::LogError(const std::string &source, const std::string
 
 inline MocketTimer::MocketTimer(uint32_t timer_instance) : timer_instance_(timer_instance) {}
 
+inline void MocketTimer::SetDispatchObserver(DispatchObserverT observer) { dispatch_observer_ = std::move(observer); }
+
 // For single-shot timeouts the task could be removed from the map at dispatch.
 // If there are multiple task with the same task_name, the one with the lowest task_id
 // will be dispatched (and possibly removed).
@@ -500,6 +520,10 @@ inline void MocketTimer::Dispatch(const std::string &task_name, Location loc) {
   }
 
   handler_(id, name);
+
+  if (dispatch_observer_) {
+    dispatch_observer_(*this, loc);
+  }
 }
 
 inline auto MocketTimer::Request(uint32_t duration_ms, bool periodic, const std::string &task_name) -> uint32_t {

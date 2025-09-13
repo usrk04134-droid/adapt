@@ -122,7 +122,7 @@ class WeldControlImpl : public WeldControl,
   double cached_edge_position_{0.0};
 
   std::optional<double> last_weld_axis_position_;
-  bool ready_for_auto_cap_{false};
+  bool ready_for_jt_to_auto_cap_{false};
 
   macs::Slice cached_mcs_{};
   lpcs::Slice cached_lpcs_{};
@@ -140,7 +140,6 @@ class WeldControlImpl : public WeldControl,
 
   std::optional<std::chrono::steady_clock::time_point> scanner_no_confidence_timestamp_;
   std::optional<std::chrono::steady_clock::time_point> scanner_low_confidence_timestamp_;
-  std::optional<std::chrono::steady_clock::time_point> handover_to_jt_timestamp_;
   std::optional<std::chrono::steady_clock::time_point> handover_to_abp_cap_timestamp_;
   std::optional<std::chrono::steady_clock::time_point> handover_to_manual_timestamp_;
   double cached_groove_area_{0.0};
@@ -165,8 +164,8 @@ class WeldControlImpl : public WeldControl,
 
   clock_functions::SystemClockNowFunc system_clock_now_func_;
   clock_functions::SteadyClockNowFunc steady_clock_now_func_;
-  kinematics::State weld_axis_state_{kinematics::State::INIT};
-  kinematics::EdgeState edge_state_{kinematics::EdgeState::NOT_AVAILABLE};
+  std::optional<kinematics::State> weld_axis_state_;
+  std::optional<kinematics::EdgeState> edge_state_;
 
   /* Metrics */
   std::unique_ptr<PerformanceMetrics> perf_metrics_;
@@ -184,6 +183,12 @@ class WeldControlImpl : public WeldControl,
     } confident_slice;
     prometheus::Gauge* confident_slice_buffer_fill_ratio;
   } metrics_;
+
+  struct {
+    bool active{false};
+    bool resume_blocked{false};
+    bool ready_for_cap{false};
+  } weld_session_;
 
   /* WebHMI */
   void GetWeldControlStatus() const;
@@ -214,6 +219,7 @@ class WeldControlImpl : public WeldControl,
   void ChangeState(State new_state);
   auto CheckHandover() -> bool;
   auto UpdateSliceConfidence() -> bool;
+  void ClearWeldSession();
 };
 
 }  // namespace weld_control

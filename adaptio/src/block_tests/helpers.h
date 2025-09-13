@@ -11,6 +11,7 @@
 #include "common/clock_functions.h"
 #include "common/messages/scanner.h"
 #include "common/zevs/zevs_test_support.h"
+#include "controller/controller_messenger.h"
 #include "mocks/config_manager_mock.h"
 
 class ApplicationWrapper {
@@ -134,4 +135,60 @@ class TestFixture {
   std::shared_ptr<ClockNowFuncWrapper> clock_now_func_wrapper_;
   std::shared_ptr<TimerWrapper> timer_wrapper_;
   std::unique_ptr<configuration::ConfigManagerMock> config_manager_mock_;
+};
+
+struct MockPlc : public controller::Controller {
+  auto Connect() -> boost::outcome_v2::result<bool> override {
+    is_connected = true;
+    return true;
+  }
+
+  void Disconnect() override { is_connected = false; }
+  auto IsConnected() -> bool override { return is_connected; }
+  void WriteAdaptioOutput(controller::AdaptioOutput data) override { adaptio_output = data; }
+  void WriteTrackingOutput(controller::TrackOutput data) override { track_output = data; }
+
+  controller::AdaptioOutput adaptio_output;
+  controller::TrackOutput track_output;
+  bool is_connected = false;
+};
+
+class ControllerFixture {
+ public:
+  explicit ControllerFixture(clock_functions::SystemClockNowFunc system_clock_now_func);
+
+  void Start();
+  void Stop();
+
+  auto Management() -> zevs::Mocket *;
+  auto Kinematics() -> zevs::Mocket *;
+  auto WeldSystem() -> zevs::Mocket *;
+  auto Timer() -> zevs::MocketTimer *;
+  auto Mock() -> MockPlc *;
+  auto Sut() -> controller::ControllerMessenger *;
+
+ private:
+  clock_functions::SystemClockNowFunc system_clock_now_func_;
+  MockPlc *mock_plc_;
+  controller::ControllerMessengerPtr controller_messenger_;
+  std::string base_url_;
+
+  zevs::MocketPtr management_mocket_;
+  zevs::MocketPtr kinematics_mocket_;
+  zevs::MocketPtr weld_system_mocket_;
+  zevs::MocketTimerPtr timer_mocket_;
+};
+
+class MultiFixture {
+ public:
+  MultiFixture();
+  void PlcDataUpdate();
+  auto Main() -> TestFixture &;
+  auto Ctrl() -> ControllerFixture &;
+
+ private:
+  void ForwardAllPending();
+
+  TestFixture app_;
+  ControllerFixture ctrl_;
 };

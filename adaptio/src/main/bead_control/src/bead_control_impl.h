@@ -38,9 +38,7 @@ class BeadControlImpl : public BeadControl {
   void SetKGain(double k_gain) override { k_gain_ = k_gain; };
   void SetCapBeads(int beads) override { cap_beads_ = beads; };
   void SetCapCornerOffset(double offset) override { cap_corner_offset_ = offset; };
-  void SetBottomWidthToNumBeads(const std::vector<BeadBottomWidthData>& data) override {
-    bottom_width_to_num_beads_ = data;
-  };
+  void SetTopWidthToNumBeads(const std::vector<BeadTopWidthData>& data) override { top_width_to_num_beads_ = data; };
   void ResetGrooveData() override;
   auto GetEmptyGroove(double pos) -> std::optional<macs::Groove> override;
   void RegisterCapNotification(std::chrono::seconds notification_grace, double last_layer_depth,
@@ -64,7 +62,7 @@ class BeadControlImpl : public BeadControl {
   double k_gain_{0.};
   int cap_beads_{2};
   double cap_corner_offset_{0.};
-  std::vector<BeadBottomWidthData> bottom_width_to_num_beads_;
+  std::vector<BeadTopWidthData> top_width_to_num_beads_;
 
   int layer_number_{0};
   int bead_number_{0};
@@ -93,6 +91,8 @@ class BeadControlImpl : public BeadControl {
     OnCapNotification on_notification;
   } cap_notification_;
 
+  std::optional<double> paused_angular_position_;
+
   auto CalculateBeadsInLayer(double right_bead_area) -> std::tuple<std::optional<int>, double>;
   auto OnFillLayerFirstBead() -> bool;
   auto OnFillLayerSecondBead() -> bool;
@@ -100,7 +100,10 @@ class BeadControlImpl : public BeadControl {
   auto CalculateBeadPosition(const macs::Groove& groove, const std::optional<macs::Groove>& maybe_empty_groove)
       -> std::tuple<double, tracking::TrackingMode, tracking::TrackingReference>;
   auto CalculateBeadSliceAreaRatio(const macs::Groove& maybe_empty_groove) -> double;
-  auto BeadOperationUpdate(double angular_position, double angular_velocity, bool steady_satisfied) -> Result;
+  void extracted();
+  auto BeadOperationUpdate(double angular_position, double angular_velocity, bool paused, bool in_horizontal_position)
+      -> Result;
+  void ResumeBeadOperation(double angular_position);
   void UpdateGrooveLocking(const Input& input);
 };
 

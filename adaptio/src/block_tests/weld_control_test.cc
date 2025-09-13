@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <numbers>
 #include <optional>
-#include <string>
 
 #include "block_tests/helpers_abp_parameters.h"
 #include "block_tests/helpers_joint_geometry.h"
@@ -39,7 +38,7 @@ TEST_SUITE("WeldControl") {
 
     StoreDefaultJointGeometryParams(fixture);
 
-    CheckWeldControlStatus(fixture, "idle");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
     // Start Joint tracking
     common::msg::management::TrackingStart start_joint_tracking_msg{
         .joint_tracking_mode = static_cast<uint32_t>(tracking::TrackingMode::TRACKING_LEFT_HEIGHT),
@@ -50,7 +49,7 @@ TEST_SUITE("WeldControl") {
     // Receive StartScanner
     CHECK(fixture.Scanner()->Receive<common::msg::scanner::Start>());
 
-    CheckWeldControlStatus(fixture, "jt");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
   }
 
   TEST_CASE("input") {
@@ -150,10 +149,10 @@ TEST_SUITE("WeldControl") {
         .vertical_offset     = VERTICAL_OFFSET};
     fixture.Management()->Dispatch(start_joint_tracking_msg);
 
-    CheckWeldControlStatus(fixture, "jt");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
     StartABP(fixture);
-    CheckWeldControlStatus(fixture, "abp");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
 
     DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID1,
                                   common::msg::weld_system::OnWeldSystemStateChange::State::ARCING);
@@ -199,7 +198,7 @@ TEST_SUITE("WeldControl") {
 
     StoreDefaultJointGeometryParams(fixture);
 
-    CheckWeldControlStatus(fixture, "idle");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
     // Start Joint tracking
     common::msg::management::TrackingStart start_joint_tracking_msg{
         .joint_tracking_mode = static_cast<uint32_t>(tracking::TrackingMode::TRACKING_LEFT_HEIGHT),
@@ -210,7 +209,7 @@ TEST_SUITE("WeldControl") {
     // Receive StartScanner
     CHECK(fixture.Scanner()->Receive<common::msg::scanner::Start>());
 
-    CheckWeldControlStatus(fixture, "jt");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
@@ -218,7 +217,7 @@ TEST_SUITE("WeldControl") {
     CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 100.0);
 
     StartABP(fixture);
-    CheckWeldControlStatus(fixture, "abp");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
   }
 
   TEST_CASE("input_validation") {
@@ -242,11 +241,11 @@ TEST_SUITE("WeldControl") {
           .vertical_offset     = VERTICAL_OFFSET};
       fixture.Management()->Dispatch(start_joint_tracking_msg);
 
-      CheckWeldControlStatus(fixture, "jt");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
       if (mode == weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT) {
         StartABP(fixture);
-        CheckWeldControlStatus(fixture, "abp");
+        CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
       }
 
       DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID1,
@@ -304,14 +303,14 @@ TEST_SUITE("WeldControl") {
       setup(weld_control::Mode::JOINT_TRACKING);
       input(-0.1, 0.012, 5000);
       CheckEvents(fixture, {event_invalid_input});
-      CheckWeldControlStatus(fixture, "idle");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
 
       /* --- repeat test for ABP --- */
 
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
       input(-0.1, 0.012, 5000);
       CheckEvents(fixture, {event_invalid_input});
-      CheckWeldControlStatus(fixture, "idle");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
     }
 
     /* invalid weld-object radius */
@@ -319,14 +318,14 @@ TEST_SUITE("WeldControl") {
       setup(weld_control::Mode::JOINT_TRACKING);
       input(0.0, 0.012, 0.0);
       CheckEvents(fixture, {event_invalid_input});
-      CheckWeldControlStatus(fixture, "idle");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
 
       /* --- repeat test for ABP --- */
 
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
       input(0.0, 0.012, -0.1);
       CheckEvents(fixture, {event_invalid_input});
-      CheckWeldControlStatus(fixture, "idle");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
     }
 
     /* weld-axis position > 360 degrees but < 363 degrees - OK
@@ -334,11 +333,11 @@ TEST_SUITE("WeldControl") {
     {
       setup(weld_control::Mode::JOINT_TRACKING);
       input((2 * std::numbers::pi) + common::math::DegToRad(1.0), 0.012, 750.0);
-      CheckWeldControlStatus(fixture, "jt");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
       input((2 * std::numbers::pi) + common::math::DegToRad(4.0), 0.012, 750.0);
       CheckEvents(fixture, {event_weld_axis_position});
-      CheckWeldControlStatus(fixture, "idle");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
 
       /* --- repeat test for ABP --- */
 
@@ -387,11 +386,11 @@ TEST_SUITE("WeldControl") {
           .vertical_offset     = VERTICAL_OFFSET};
       fixture.Management()->Dispatch(start_joint_tracking_msg);
 
-      CheckWeldControlStatus(fixture, "jt");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
       if (mode == weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT) {
         StartABP(fixture);
-        CheckWeldControlStatus(fixture, "abp");
+        CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
       }
 
       DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID1,
@@ -503,7 +502,7 @@ TEST_SUITE("WeldControl") {
 
     StoreDefaultJointGeometryParams(fixture);
 
-    CheckWeldControlStatus(fixture, "idle");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
 
     // Start Joint tracking
     common::msg::management::TrackingStart start_joint_tracking_msg{
@@ -511,7 +510,7 @@ TEST_SUITE("WeldControl") {
         .horizontal_offset   = HORIZONTAL_OFFSET,
         .vertical_offset     = VERTICAL_OFFSET};
     fixture.Management()->Dispatch(start_joint_tracking_msg);
-    CheckWeldControlStatus(fixture, "jt");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
@@ -520,10 +519,10 @@ TEST_SUITE("WeldControl") {
 
     // Start and stop ABP
     fixture.Management()->Dispatch(common::msg::management::ABPStart{});
-    CheckWeldControlStatus(fixture, "abp");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
 
     fixture.Management()->Dispatch(common::msg::management::ABPStop{});
-    CheckWeldControlStatus(fixture, "jt");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
   }
 
   TEST_CASE("edge_sensor_not_available_when_in_idle") {
@@ -543,10 +542,10 @@ TEST_SUITE("WeldControl") {
         .vertical_offset     = VERTICAL_OFFSET};
     fixture.Management()->Dispatch(start_joint_tracking_msg);
 
-    CheckWeldControlStatus(fixture, "jt");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
     StartABP(fixture);
-    CheckWeldControlStatus(fixture, "abp");
+    CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
 
     DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::NOT_AVAILABLE);
   }
@@ -570,11 +569,11 @@ TEST_SUITE("WeldControl") {
           .vertical_offset     = VERTICAL_OFFSET};
       fixture.Management()->Dispatch(start_joint_tracking_msg);
 
-      CheckWeldControlStatus(fixture, "jt");
+      CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
       if (mode == weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT) {
         StartABP(fixture);
-        CheckWeldControlStatus(fixture, "abp");
+        CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
       }
 
       DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID1,

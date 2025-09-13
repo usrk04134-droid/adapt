@@ -42,5 +42,8 @@ class BeadCalc {
   // and move the bead position towards the side with a larger area. bead_pos and return values are relative
   // bead position between 0-1 where 0 and 1 are the left and right corners, respectively.
   auto static BeadPositionAdjustment(const macs::Groove& groove, double bead_pos, double k_gain) -> double;
+
+  auto static MeanLayerTopWidth(const macs::Groove& groove, double left_bead_area, double right_bead_area,
+                                double step_up_value) -> double;
 };
 }  // namespace bead_control

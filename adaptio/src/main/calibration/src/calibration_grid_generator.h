@@ -71,10 +71,11 @@ inline auto ValidateAndCalculateGrooveTopCenter(const joint_geometry::JointGeome
 }
 
 // TODO: Move this function to another file
-inline auto ValidateAndCalculateGrooveTopCenter2(
-    const joint_geometry::JointGeometry& joint_geometry, double min_touch_width_ratio, double max_touch_width_ratio,
-    double wire_diameter, double stickout, const macs::Point& left_touch_position,
-    const macs::Point& right_touch_position, const macs::Point& top_left_touch_position) -> std::optional<macs::Point> {
+inline auto ValidateAndCalculateGrooveTopCenter2(const joint_geometry::JointGeometry& joint_geometry,
+                                                 double wire_diameter, double stickout,
+                                                 const macs::Point& left_wall_touch_position,
+                                                 const macs::Point& right_wall_touch_position,
+                                                 const macs::Point& top_touch_position) -> std::optional<macs::Point> {
   // For now, assume symmetric joint so left and right depths are the same
   // TODO(zachjz): Change the following two lines when asymmetric joints are supported.
   const double groove_depth_left  = joint_geometry.groove_depth_mm;
@@ -82,12 +83,27 @@ inline auto ValidateAndCalculateGrooveTopCenter2(
   const double top_height_diff    = groove_depth_right - groove_depth_left;
   const double wire_radius        = wire_diameter * HALF;
 
-  // Measured surface points (from touch sense)
-  const Point2d top_left_touch_k   = {top_left_touch_position.horizontal, top_left_touch_position.vertical - stickout};
-  const Point2d left_wall_touch_b  = {left_touch_position.horizontal + wire_radius,
-                                      left_touch_position.vertical - stickout};
-  const Point2d right_wall_touch_d = {right_touch_position.horizontal - wire_radius,
-                                      right_touch_position.vertical - stickout};
+  // Check if top touch point is left or right
+  const bool top_touch_is_left_side = top_touch_position.horizontal > left_wall_touch_position.horizontal;
+  Point2d top_left_touch_k;
+  Point2d top_right_touch_h;
+
+  // Special handling of top touch points based on which side of the joint was touched
+  if (top_touch_is_left_side) {
+    // Left top --> measured K, computed H
+    top_left_touch_k  = {top_touch_position.horizontal, top_touch_position.vertical - stickout};
+    top_right_touch_h = {0, top_left_touch_k.GetY() + top_height_diff};
+  } else {
+    // Right top --> measured H, computed K
+    top_right_touch_h = {top_touch_position.horizontal, top_touch_position.vertical - stickout};
+    top_left_touch_k  = {0, top_right_touch_h.GetY() - top_height_diff};
+  }
+
+  // Additional measured surface points (from touch sense)
+  const Point2d left_wall_touch_b  = {left_wall_touch_position.horizontal + wire_radius,
+                                      left_wall_touch_position.vertical - stickout};
+  const Point2d right_wall_touch_d = {right_wall_touch_position.horizontal - wire_radius,
+                                      right_wall_touch_position.vertical - stickout};
 
   // Computed surface points. Change these if additional touch points are added to the touch sense procedure.
   const Point2d top_left_touch_l   = {top_left_touch_k.GetX() - 1.0, top_left_touch_k.GetY()};
@@ -95,7 +111,6 @@ inline auto ValidateAndCalculateGrooveTopCenter2(
                                       std::cos(joint_geometry.left_joint_angle_rad) + left_wall_touch_b.GetY()};
   const Point2d right_wall_touch_i = {-std::sin(joint_geometry.right_joint_angle_rad) + right_wall_touch_d.GetX(),
                                       std::cos(joint_geometry.right_joint_angle_rad) + right_wall_touch_d.GetY()};
-  const Point2d top_right_touch_h  = {0, top_left_touch_k.GetY() + top_height_diff};
   const Point2d top_right_touch_g  = {top_right_touch_h.GetX() + 1.0, top_right_touch_h.GetY()};
 
   // Construct surface lines (weld object surface in torch plane) from surface points

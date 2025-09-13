@@ -156,31 +156,34 @@ WeldControlImpl::WeldControlImpl(
   kinematics_client_->SubscribeStateChanges(
       [this](const kinematics::StateChange& data) {
         if (data.weld_axis_state != weld_axis_state_) {
-          LOG_INFO("Weld-axis state changed from {} -> {}", kinematics::StateToString(weld_axis_state_),
+          LOG_INFO("Weld-axis state changed from {} -> {}",
+                   weld_axis_state_ ? kinematics::StateToString(*weld_axis_state_) : "unknown",
                    kinematics::StateToString(data.weld_axis_state));
         }
 
-        switch (data.weld_axis_state) {
-          case kinematics::State::HOMED:
-            /* stored position are no longer valid -> reset groove data */
-            last_weld_axis_position_ = {};
-            bead_control_->ResetGrooveData();
-            break;
-          case kinematics::State::INIT:
-          default:
-            break;
+        if (weld_axis_state_) {
+          switch (data.weld_axis_state) {
+            case kinematics::State::HOMED:
+              /* stored position are no longer valid -> reset groove data */
+              last_weld_axis_position_ = {};
+              ResetGrooveData();
+              break;
+            case kinematics::State::INIT:
+            default:
+              break;
+          }
         }
 
         weld_axis_state_ = data.weld_axis_state;
         CheckReady();
       },
       [this](const kinematics::EdgeState& state) {
-        if (state == edge_state_) {
+        if (edge_state_ && state == *edge_state_) {
           return;
         }
 
-        if (settings_.UseEdgeSensor() && state == kinematics::EdgeState::NOT_AVAILABLE) {
-          ResetGrooveData();
+        if (settings_.UseEdgeSensor() && edge_state_ && state == kinematics::EdgeState::NOT_AVAILABLE) {
+          confident_slice_buffer_.Clear();
 
           if (state_ == State::WELDING) {
             LOG_ERROR("Edge sensor is no longer available when in welding state!");
@@ -189,7 +192,8 @@ WeldControlImpl::WeldControlImpl(
           }
         }
 
-        LOG_INFO("Edge state changed from {} -> {}", kinematics::EdgeStateToString(edge_state_),
+        LOG_INFO("Edge state changed from {} -> {}",
+                 edge_state_ ? kinematics::EdgeStateToString(*edge_state_) : "unknown",
                  kinematics::EdgeStateToString(state));
 
         edge_state_ = state;
@@ -203,6 +207,35 @@ WeldControlImpl::WeldControlImpl(
     this->GetWeldControlStatus();
   };
   web_hmi_->Subscribe("GetWeldControlStatus", weld_control_status);
+
+  auto clear_weld_session = [this](std::string const& /*topic*/, const nlohmann::json& /*payload*/) {
+    auto ok = false;
+    nlohmann::json response_payload;
+    std::string msg;
+
+    if (mode_ == Mode::AUTOMATIC_BEAD_PLACEMENT) {
+      msg = "Unable to clear weld session with ABP active.";
+    } else {
+      ok = true;
+    }
+
+    if (ok) {
+      ClearWeldSession();
+
+      response_payload = {
+          {"result", "ok"}
+      };
+    } else {
+      LOG_ERROR("Failed to clear weld session ({})", msg);
+      response_payload = {
+          {"result",  "fail"},
+          {"message", msg   }
+      };
+    }
+
+    web_hmi_->Send("ClearWeldSessionRsp", response_payload);
+  };
+  web_hmi_->Subscribe("ClearWeldSession", clear_weld_session);
 
   auto weld_system_state_change = [this](weld_system::WeldSystemId id, weld_system::WeldSystemState state) {
     this->WeldSystemStateChange(id, state);
@@ -269,6 +302,9 @@ void WeldControlImpl::SetupMetrics(prometheus::Registry* registry) {
                                                       .Register(*registry)
                                                       .Add({});
   }
+
+  metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
+                                                  static_cast<double>(confident_slice_buffer_.Slots()));
 }
 
 void WeldControlImpl::UpdateBeadControlParameters() {
@@ -283,7 +319,7 @@ void WeldControlImpl::UpdateBeadControlParameters() {
     bead_control_->SetCapBeads(abp_parameters->CapBeads());
     bead_control_->SetCapCornerOffset(abp_parameters->CapCornerOffset());
 
-    std::vector<bead_control::BeadControl::BeadBottomWidthData> data;
+    std::vector<bead_control::BeadControl::BeadTopWidthData> data;
     for (auto bead_no = 3;; ++bead_no) {
       auto const width = abp_parameters->StepUpLimit(bead_no);
       if (!width.has_value()) {
@@ -294,7 +330,7 @@ void WeldControlImpl::UpdateBeadControlParameters() {
           .required_width = width.value(),
       });
     }
-    bead_control_->SetBottomWidthToNumBeads(data);
+    bead_control_->SetTopWidthToNumBeads(data);
 
     switch (abp_parameters->FirstBeadPositionValue()) {
       case ABPParameters::FirstBeadPosition::LEFT:
@@ -509,18 +545,24 @@ void WeldControlImpl::LogModeChange() {
 }
 
 auto WeldControlImpl::JTReady() const -> bool {
-  auto const weld_axis_ok   = weld_axis_state_ == kinematics::State::HOMED;
-  auto const edge_sensor_ok = settings_.UseEdgeSensor() ? edge_state_ == kinematics::EdgeState::AVAILABLE : true;
+  auto const weld_axis_ok   = weld_axis_state_ && *weld_axis_state_ == kinematics::State::HOMED;
+  auto const edge_sensor_ok = settings_.UseEdgeSensor() ? edge_state_.value_or(kinematics::EdgeState::NOT_AVAILABLE) ==
+                                                              kinematics::EdgeState::AVAILABLE
+                                                        : true;
 
   return weld_axis_ok && edge_sensor_ok;
 }
 
 auto WeldControlImpl::ABPReady() const -> bool {
-  auto const weld_axis_ok      = weld_axis_state_ == kinematics::State::HOMED;
-  auto const edge_sensor_ok    = settings_.UseEdgeSensor() ? edge_state_ == kinematics::EdgeState::AVAILABLE : true;
-  auto const abp_parameters_ok = weld_sequence_config_->GetABPParameters().has_value();
+  auto const weld_axis_ok   = weld_axis_state_ && *weld_axis_state_ == kinematics::State::HOMED;
+  auto const edge_sensor_ok = settings_.UseEdgeSensor() ? edge_state_.value_or(kinematics::EdgeState::NOT_AVAILABLE) ==
+                                                              kinematics::EdgeState::AVAILABLE
+                                                        : true;
 
-  return weld_axis_ok && edge_sensor_ok && abp_parameters_ok;
+  auto const abp_parameters_ok = weld_sequence_config_->GetABPParameters().has_value();
+  auto const weld_session_ok   = !weld_session_.resume_blocked;
+
+  return weld_axis_ok && edge_sensor_ok && abp_parameters_ok && weld_session_ok;
 }
 
 void WeldControlImpl::UpdateReady() {
@@ -531,9 +573,12 @@ void WeldControlImpl::UpdateReady() {
     }
 
     if (ABPReady()) {
-      ready_modes.emplace_back(Mode::AUTOMATIC_BEAD_PLACEMENT, LayerType::FILL);
+      if (!weld_session_.active || !weld_session_.ready_for_cap) {
+        ready_modes.emplace_back(Mode::AUTOMATIC_BEAD_PLACEMENT, LayerType::FILL);
+      }
 
-      if (ready_for_auto_cap_) {
+      if ((weld_session_.active && weld_session_.ready_for_cap) ||
+          (!weld_session_.active && ready_for_jt_to_auto_cap_)) {
         ready_modes.emplace_back(Mode::AUTOMATIC_BEAD_PLACEMENT, LayerType::CAP);
       }
     };
@@ -562,20 +607,30 @@ void WeldControlImpl::CheckReady() {
 
 void WeldControlImpl::WeldSystemStateChange(weld_system::WeldSystemId id, weld_system::WeldSystemState state) {
   auto const arcing = state == weld_system::WeldSystemState::ARCING;
-  if (mode_ == Mode::AUTOMATIC_BEAD_PLACEMENT) {
-    /* compare previous state with new state to see if arcing is lost */
-    auto const arcing_lost = weld_systems_[id].state == weld_system::WeldSystemState::ARCING && !arcing;
 
-    if (arcing_lost && !weld_systems_[id].arcing_lost_timestamp) {
-      LOG_ERROR("Unexpected weld-system-{} arcing lost", weld_system::WeldSystemIdToString(id));
-      weld_systems_[id].arcing_lost_timestamp = steady_clock_now_func_();
-    } else if (arcing && weld_systems_[id].arcing_lost_timestamp.has_value()) {
-      auto const now = steady_clock_now_func_();
-      auto const duration_without_arcing =
-          std::chrono::duration_cast<std::chrono::milliseconds>(now - weld_systems_[id].arcing_lost_timestamp.value());
-      LOG_INFO("Regained weld-system-{} arcing after {} ms", weld_system::WeldSystemIdToString(id),
-               duration_without_arcing.count());
+  switch (mode_) {
+    case Mode::AUTOMATIC_BEAD_PLACEMENT: {
+      /* compare previous state with new state to see if arcing is lost */
+      auto const arcing_lost = weld_systems_[id].state == weld_system::WeldSystemState::ARCING && !arcing;
+
+      if (arcing_lost && !weld_systems_[id].arcing_lost_timestamp) {
+        LOG_ERROR("Unexpected weld-system-{} arcing lost", weld_system::WeldSystemIdToString(id));
+        weld_systems_[id].arcing_lost_timestamp = steady_clock_now_func_();
+      } else if (arcing && weld_systems_[id].arcing_lost_timestamp.has_value()) {
+        auto const now                     = steady_clock_now_func_();
+        auto const duration_without_arcing = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now - weld_systems_[id].arcing_lost_timestamp.value());
+        LOG_INFO("Regained weld-system-{} arcing after {} ms", weld_system::WeldSystemIdToString(id),
+                 duration_without_arcing.count());
+      }
+      break;
     }
+    case Mode::IDLE:
+    case Mode::JOINT_TRACKING:
+      if (arcing) {
+        ClearWeldSession();
+      }
+      break;
   }
 
   if (arcing) {
@@ -657,10 +712,6 @@ auto WeldControlImpl::CheckSupervision() -> std::optional<event::Code> {
 void WeldControlImpl::ChangeMode(Mode new_mode) {
   LOG_INFO("Mode change {} -> {} (state: {})", ModeToString(mode_), ModeToString(new_mode), StateToString(state_));
 
-  if (new_mode == Mode::AUTOMATIC_BEAD_PLACEMENT) {
-    bead_control_->Reset();
-  }
-
   mode_ = new_mode;
 
   LogModeChange();
@@ -678,6 +729,9 @@ void WeldControlImpl::ChangeState(State new_state) {
 }
 
 void WeldControlImpl::UpdateConfidentSlice() {
+  metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
+                                                  static_cast<double>(confident_slice_buffer_.Slots()));
+
   auto const use_edge_sensor = settings_.UseEdgeSensor();
   if (cached_lpcs_.confidence == lpcs::SliceConfidence::HIGH && use_edge_sensor) {
     if (!confident_slice_buffer_.Available()) {
@@ -686,9 +740,6 @@ void WeldControlImpl::UpdateConfidentSlice() {
 
     confident_slice_buffer_.Store(cached_weld_axis_position_,
                                   {.edge_position = cached_edge_position_, .groove = cached_mcs_.groove.value()});
-
-    metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
-                                                    static_cast<double>(confident_slice_buffer_.Slots()));
   }
 
   auto const data = confident_slice_buffer_.Get(cached_weld_axis_position_);
@@ -739,14 +790,14 @@ void WeldControlImpl::UpdateConfidentSlice() {
 }
 
 void WeldControlImpl::UpdateReadyForABPCap() {
-  /* this function handles ready-for-ABP-CAP when in JT mode - once ready_for_auto_cap_ is set we do not allow it to go
-   * back to avoid toggling the value back and forth */
+  /* this function handles ready-for-ABP-CAP when in JT mode - once ready_for_jt_to_auto_cap_ is set we do not allow it
+   * to go back to avoid toggling the value back and forth */
 
   if (mode_ != Mode::JOINT_TRACKING) {
     return;
   }
 
-  if (ready_for_auto_cap_) {
+  if (ready_for_jt_to_auto_cap_) {
     return;
   }
 
@@ -763,7 +814,7 @@ void WeldControlImpl::UpdateReadyForABPCap() {
     return;
   }
 
-  ready_for_auto_cap_ = true;
+  ready_for_jt_to_auto_cap_ = true;
   UpdateReady();
 }
 
@@ -979,9 +1030,9 @@ void WeldControlImpl::UpdateTrackingPosition() {
                            .wire_diameter     = weld_systems_[weld_system::WeldSystemId::ID2].data.wire_diameter,
                            .twin_wire         = weld_systems_[weld_system::WeldSystemId::ID2].data.twin_wire},
           .groove       = cached_delayed_mcs_.value(),
-          .steady_satisfied = std::fabs(slides_actual_.horizontal - slides_desired_->horizontal_pos) <
-                                  REPOSITION_IN_POSITION_TOLERANCE &&
-                              state_ == State::WELDING,
+          .in_horizontal_position =
+              std::fabs(slides_actual_.horizontal - slides_desired_->horizontal_pos) < REPOSITION_IN_POSITION_TOLERANCE,
+          .paused              = state_ == State::IDLE,
           .look_ahead_distance = 0,
       };
 
@@ -1036,13 +1087,6 @@ void WeldControlImpl::UpdateTrackingPosition() {
 
 auto WeldControlImpl::CheckHandover() -> bool {
   auto const now = steady_clock_now_func_();
-  if (handover_to_jt_timestamp_ && now > handover_to_jt_timestamp_.value() + config_.handover_grace) {
-    LOG_ERROR("Handover to JT failed");
-    event_handler_->SendEvent(event::HANDOVER_FAILED, std::nullopt);
-    observer_->OnError();
-    return false;
-  }
-
   if (handover_to_abp_cap_timestamp_ && now > handover_to_abp_cap_timestamp_.value() + config_.handover_grace) {
     LOG_ERROR("Handover to ABP CAP failed");
     event_handler_->SendEvent(event::HANDOVER_FAILED, std::nullopt);
@@ -1257,8 +1301,7 @@ void WeldControlImpl::AutoBeadPlacementStart(LayerType layer_type) {
   smooth_weld_speed_.Fill(abp_parameters->WeldSpeedAvg());
   smooth_ws2_current_.Fill(abp_parameters->WS2CurrentAvg());
 
-  /* Clear ready-for-auto-cap when ABP is started so that ready-for-auto-cap can be triggered again */
-  ready_for_auto_cap_ = false;
+  ready_for_jt_to_auto_cap_ = false;
   UpdateReady();
 
   auto on_cap_notification = [this]() {
@@ -1269,19 +1312,22 @@ void WeldControlImpl::AutoBeadPlacementStart(LayerType layer_type) {
       LOG_INFO("Handover to manual");
       handover_to_manual_timestamp_ = steady_clock_now_func_();
       observer_->OnNotifyHandoverToManual();
+      weld_session_.resume_blocked = true;
     } else {
       LOG_INFO("Handover to ABP-CAP");
       handover_to_abp_cap_timestamp_ = steady_clock_now_func_();
-      ready_for_auto_cap_            = true; /* ABP active */
+      weld_session_.ready_for_cap    = true;
       UpdateReady();
     }
   };
 
   switch (mode_) {
     case Mode::JOINT_TRACKING: {
-      LOG_INFO("ABP Start with parameters: {}",
-               weld_sequence_config_->GetABPParameters().value_or(ABPParameters{}).ToString());
+      LOG_INFO("ABP Start with parameters: {} session: {}",
+               weld_sequence_config_->GetABPParameters().value_or(ABPParameters{}).ToString(),
+               weld_session_.active ? "resume" : "new");
       ChangeMode(Mode::AUTOMATIC_BEAD_PLACEMENT);
+      weld_session_.active = true;
       break;
     }
     case Mode::AUTOMATIC_BEAD_PLACEMENT:
@@ -1316,9 +1362,12 @@ void WeldControlImpl::AutoBeadPlacementStop() {
     case Mode::AUTOMATIC_BEAD_PLACEMENT:
       weld_systems_[weld_system::WeldSystemId::ID1].arcing_lost_timestamp = {};
       weld_systems_[weld_system::WeldSystemId::ID2].arcing_lost_timestamp = {};
-      handover_to_jt_timestamp_                                           = {};
       handover_to_abp_cap_timestamp_                                      = {};
       ChangeMode(Mode::JOINT_TRACKING);
+
+      if (state_ == State::WELDING) {
+        ClearWeldSession();
+      }
       break;
     case Mode::JOINT_TRACKING:
     case Mode::IDLE:
@@ -1328,22 +1377,22 @@ void WeldControlImpl::AutoBeadPlacementStop() {
   }
 
   LogData("adaptio-state-change");
+
+  UpdateReady();
 }
 
 void WeldControlImpl::Stop() {
   LOG_INFO("Stop");
   scanner_client_->Stop();
-  pending_scanner_stop_    = true;
-  last_weld_axis_position_ = {};
-  ready_for_auto_cap_      = false;
+  pending_scanner_stop_     = true;
+  last_weld_axis_position_  = {};
+  ready_for_jt_to_auto_cap_ = false;
 
   kinematics_client_->Release();
   tracking_manager_->Reset();
-  bead_control_->Reset();
   delay_buffer_->Clear();
   weld_systems_[weld_system::WeldSystemId::ID1].arcing_lost_timestamp = {};
   weld_systems_[weld_system::WeldSystemId::ID2].arcing_lost_timestamp = {};
-  handover_to_jt_timestamp_                                           = {};
   handover_to_abp_cap_timestamp_                                      = {};
   handover_to_manual_timestamp_                                       = {};
   bead_control_->UnregisterCapNotification();
@@ -1359,6 +1408,8 @@ void WeldControlImpl::Stop() {
   ChangeState(State::IDLE);
 
   LogData("adaptio-state-change");
+
+  UpdateReady();
 }
 
 void WeldControlImpl::SetObserver(WeldControlObserver* observer) { observer_ = observer; }
@@ -1376,8 +1427,21 @@ void WeldControlImpl::ResetGrooveData() {
   bead_control_->ResetGrooveData();
   delay_buffer_->Clear();
   confident_slice_buffer_.Clear();
+  ClearWeldSession();
 }
 
 void WeldControlImpl::AddWeldStateObserver(WeldStateObserver* observer) { weld_state_observers_.push_back(observer); }
+
+void WeldControlImpl::ClearWeldSession() {
+  if (weld_session_.active) {
+    LOG_INFO("Clearing active weld session!");
+  }
+
+  weld_session_ = {};
+
+  bead_control_->Reset();
+
+  UpdateReady();
+}
 
 }  // namespace weld_control

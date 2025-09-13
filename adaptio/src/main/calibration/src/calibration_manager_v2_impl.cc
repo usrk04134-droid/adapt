@@ -537,6 +537,12 @@ void CalibrationManagerV2Impl::OnRightPosProcedureComplete(const std::optional<O
 
   calibration_ctx_.top_center = top_center.value();
 
+  if (calibration_ctx_.left.slide_position.horizontal < calibration_ctx_.right.slide_position.horizontal) {
+    LOG_INFO("Walls touched in wrong order");
+    // Check if wall is touched in wrong order. Allow it and swap to the correct positions
+    std::swap(calibration_ctx_.left, calibration_ctx_.right);
+  }
+
   // At this point the right-pos is considered ok
   LOG_INFO("Top center calculated to h: {:.2f}, v: {:.2f}", top_center.value().horizontal, top_center.value().vertical);
   web_hmi_->Send("WeldObjectCalRightPosRsp", SUCCESS_PAYLOAD);
@@ -553,7 +559,7 @@ void CalibrationManagerV2Impl::HandleRightTouchFailure(const std::string& reason
 
 auto CalibrationManagerV2Impl::CalculateTopCenter() -> std::optional<macs::Point> {
   const auto& joint_geometry = calibration_ctx_.joint_geometry;
-  const auto& top_left_obs   = calibration_ctx_.top;
+  const auto& top_obs        = calibration_ctx_.top;
   const auto& left_obs       = calibration_ctx_.left;
   const auto& right_obs      = calibration_ctx_.right;
   const auto stickout        = calibration_ctx_.stickout;
@@ -561,11 +567,10 @@ auto CalibrationManagerV2Impl::CalculateTopCenter() -> std::optional<macs::Point
 
   // support both top center point methods until WebHMI has introduced the touch top step
   if (calibration_ctx_.top) {
-    macs::Point top_left_point = top_left_obs.value();
+    macs::Point top_point = top_obs.value();
     LOG_INFO("Computing top center with 3 point procedure.");
-    return ValidateAndCalculateGrooveTopCenter2(joint_geometry, MIN_TOUCH_WIDTH_RATIO, MAX_TOUCH_WIDTH_RATIO,
-                                                wire_diameter, stickout, left_obs.slide_position,
-                                                right_obs.slide_position, top_left_point);
+    return ValidateAndCalculateGrooveTopCenter2(joint_geometry, wire_diameter, stickout, left_obs.slide_position,
+                                                right_obs.slide_position, top_point);
   } else {
     LOG_INFO("Computing top center with 2 point procedure.");
     return ValidateAndCalculateGrooveTopCenter(joint_geometry, MIN_TOUCH_WIDTH_RATIO, MAX_TOUCH_WIDTH_RATIO,

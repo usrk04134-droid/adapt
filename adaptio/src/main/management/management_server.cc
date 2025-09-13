@@ -178,20 +178,22 @@ auto ManagementServer::UpdateReadyState() -> bool {
   auto joint_geometry        = joint_geometry_provider_->GetJointGeometry();
 
   ReadyState new_ready_state = ReadyState::NOT_READY;
-  if (!busy_from_webhmi && joint_geometry.has_value() && weld_control_jt_ready_) {
-    new_ready_state = ReadyState::TRACKING_READY;
-  }
-
-  if (new_ready_state == ReadyState::TRACKING_READY && weld_control_abp_ready_) {
-    new_ready_state = ReadyState::ABP_READY;
-  }
-
-  if (new_ready_state == ReadyState::ABP_READY && weld_control_abp_cap_ready_) {
-    new_ready_state = ReadyState::ABP_CAP_READY;
-  }
-
   if (activity_status_->Get() == coordination::ActivityStatusE::CALIBRATION_AUTO_MOVE) {
     new_ready_state = ReadyState::NOT_READY_AUTO_CAL_MOVE;
+  } else {
+    if (!busy_from_webhmi && weld_object_cal_valid && joint_geometry.has_value() && weld_control_jt_ready_) {
+      new_ready_state = ReadyState::TRACKING_READY;
+    }
+
+    if (new_ready_state == ReadyState::TRACKING_READY) {
+      if (weld_control_abp_ready_ && weld_control_abp_cap_ready_) {
+        new_ready_state = ReadyState::ABP_AND_ABP_CAP_READY;
+      } else if (weld_control_abp_ready_) {
+        new_ready_state = ReadyState::ABP_READY;
+      } else if (weld_control_abp_cap_ready_) {
+        new_ready_state = ReadyState::ABP_CAP_READY;
+      }
+    }
   }
 
   if (new_ready_state != ready_state_) {
@@ -237,6 +239,9 @@ void ManagementServer::SendReadyState() {
       break;
     case ReadyState::ABP_CAP_READY:
       data.state = common::msg::management::ReadyState::State::ABP_CAP_READY;
+      break;
+    case ReadyState::ABP_AND_ABP_CAP_READY:
+      data.state = common::msg::management::ReadyState::State::ABP_AND_ABP_CAP_READY;
       break;
   }
 

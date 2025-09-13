@@ -45,7 +45,7 @@ auto BeadCalc::MeanLayerArea(const macs::Groove& groove, double left_bead_area, 
   auto const left_bead_height  = bead_height_factor * sqrt(2 * left_bead_area / std::numbers::pi);
   auto const right_bead_height = bead_height_factor * sqrt(2 * right_bead_area / std::numbers::pi);
 
-  LOG_INFO("Left bead height: {:.5f} Right bead height: {:.5f}", left_bead_height, right_bead_height);
+  LOG_INFO("Calculated Left bead height: {:.5f} Right bead height: {:.5f}", left_bead_height, right_bead_height);
 
   return groove::PolygonArea(
       {WallCoordinate(groove[macs::ABW_LOWER_LEFT], groove[macs::ABW_UPPER_LEFT], left_bead_height),
@@ -170,4 +170,26 @@ auto BeadCalc::BeadPositionAdjustment(const macs::Groove& groove, double bead_po
 
   return new_bead_pos;
 }
+
+auto BeadCalc::MeanLayerTopWidth(const macs::Groove& groove, double left_bead_area, double right_bead_area,
+                                 double step_up_value) -> double {
+  auto bead_height_factor =
+      BEAD_HEIGHT_FACTOR_MIN + ((BEAD_HEIGHT_FACTOR_MAX - BEAD_HEIGHT_FACTOR_MIN) * step_up_value);
+
+  auto const left_bead_height  = bead_height_factor * std::sqrt(2 * left_bead_area / std::numbers::pi);
+  auto const right_bead_height = bead_height_factor * std::sqrt(2 * right_bead_area / std::numbers::pi);
+
+  LOG_DEBUG("Measured depth of previous layer: left {:.5f}, right {:.5f}", groove.LeftDepth(), groove.RightDepth());
+  LOG_DEBUG("Calculated Left bead height: {:.5f} Right bead height: {:.5f}", left_bead_height, right_bead_height);
+
+  auto const left_top = WallCoordinate(groove[macs::ABW_LOWER_LEFT], groove[macs::ABW_UPPER_LEFT], left_bead_height);
+  auto const right_top =
+      WallCoordinate(groove[macs::ABW_LOWER_RIGHT], groove[macs::ABW_UPPER_RIGHT], right_bead_height);
+
+  auto const top_width = std::fabs((right_top - left_top).horizontal);
+  LOG_DEBUG("Measured bottom layer width: {:.5f}", groove.BottomWidth());
+  LOG_DEBUG("Calculated layer top width: {:.5f}", top_width);
+  return top_width;
+}
+
 }  // namespace bead_control

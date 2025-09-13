@@ -342,8 +342,9 @@ struct CalibrateConfig {
   auto calibration_result = WeldObjectCalResult(fixture, sim_config);
   CHECK(calibration_result["result"] == "ok");
   TESTLOG(">>>>> WeldObjectCalResult: {}", calibration_result.dump());
-  auto torch_to_lpcs_translation_c2 = calibration_result["torchToLpcsTranslation"]["c2"].get<double>();
-  CHECK_EQ(round(torch_to_lpcs_translation_c2), round(1000 * sim_config.lpcs_config.y));
+  auto torch_to_lpcs_translation_c2 = calibration_result["torchToLpcsTranslation"]["c2"].get<double>() / 1000.0;
+  auto const tolerance              = sim_config.lpcs_config.y * 0.01;
+  REQUIRE(torch_to_lpcs_translation_c2 == doctest::Approx(sim_config.lpcs_config.y).epsilon(tolerance));
 
   // Check Ready state
   ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();

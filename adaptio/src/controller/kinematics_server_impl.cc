@@ -69,14 +69,14 @@ void KinematicsServerImpl::OnAxisInput(AxisInput axis) {
     case AxisId::WELD_AXIS: {
       weld_axis_buffer_->StorePosition(axis.get_position(), axis.get_velocity(), time_since_epoch);
 
-      auto const weld_axis_homed = axis.get_status_homed();
-      if (weld_axis_homed != weld_axis_homed_) {
+      auto const weld_axis_homed = axis.get_status_homed() ? TriState::TRUE : TriState::FALSE;
+      if (weld_axis_homed_ == TriState::UNKNOWN || weld_axis_homed != weld_axis_homed_) {
         weld_axis_homed_ = weld_axis_homed;
 
         if (send_state_changes_) {
           socket_->Send(common::msg::kinematics::StateChange{
-              .weld_axis_state = weld_axis_homed_ ? common::msg::kinematics::StateChange::State::HOMED
-                                                  : common::msg::kinematics::StateChange::State::INIT,
+              .weld_axis_state = weld_axis_homed_ == TriState::TRUE ? common::msg::kinematics::StateChange::State::HOMED
+                                                                    : common::msg::kinematics::StateChange::State::INIT,
           });
         }
       }
@@ -90,12 +90,14 @@ void KinematicsServerImpl::OnAxisInput(AxisInput axis) {
 void KinematicsServerImpl::OnWeldObjectRadius(double radius) { weld_object_radius_ = radius; }
 
 void KinematicsServerImpl::OnEdgePositionAvailableStatus(bool status) {
-  if (send_state_changes_ && (status != edge_position_available_)) {
+  auto const edge_position_available = status ? TriState::TRUE : TriState::FALSE;
+  if (send_state_changes_ &&
+      (edge_position_available_ == TriState::UNKNOWN || (edge_position_available != edge_position_available_))) {
     socket_->Send(common::msg::kinematics::EdgeStateChange{
         .edge_state = status ? common::msg::kinematics::EdgeStateChange::State::AVAILABLE
                              : common::msg::kinematics::EdgeStateChange::State::NOT_AVAILABLE});
   }
-  edge_position_available_ = status;
+  edge_position_available_ = edge_position_available;
 }
 
 void KinematicsServerImpl::OnEdgePosition(double value) { edge_position_ = value; }
@@ -187,14 +189,20 @@ void KinematicsServerImpl::OnSubscribeStateChanges(common::msg::kinematics::Subs
   send_state_changes_ = true;
 
   if (send_state_changes_) {
-    /* send current states to new subscribers */
-    socket_->Send(common::msg::kinematics::StateChange{
-        .weld_axis_state = weld_axis_homed_ ? common::msg::kinematics::StateChange::State::HOMED
-                                            : common::msg::kinematics::StateChange::State::INIT,
-    });
-    socket_->Send(common::msg::kinematics::EdgeStateChange{
-        .edge_state = edge_position_available_ ? common::msg::kinematics::EdgeStateChange::State::AVAILABLE
-                                               : common::msg::kinematics::EdgeStateChange::State::NOT_AVAILABLE});
+    if (weld_axis_homed_ != TriState::UNKNOWN) {
+      /* send current states to new subscribers */
+      socket_->Send(common::msg::kinematics::StateChange{
+          .weld_axis_state = weld_axis_homed_ == TriState::TRUE ? common::msg::kinematics::StateChange::State::HOMED
+                                                                : common::msg::kinematics::StateChange::State::INIT,
+      });
+    }
+
+    if (edge_position_available_ != TriState::UNKNOWN) {
+      socket_->Send(common::msg::kinematics::EdgeStateChange{
+          .edge_state = edge_position_available_ == TriState::TRUE
+                            ? common::msg::kinematics::EdgeStateChange::State::AVAILABLE
+                            : common::msg::kinematics::EdgeStateChange::State::NOT_AVAILABLE});
+    }
   }
 }
 

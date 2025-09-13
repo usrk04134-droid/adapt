@@ -4,6 +4,7 @@
 #include <prometheus/registry.h>
 #include <SQLiteCpp/Database.h>
 
+#include <array>
 #include <boost/outcome.hpp>
 #include <boost/outcome/result.hpp>
 #include <boost/outcome/success_failure.hpp>
@@ -35,7 +36,16 @@
 #include "test_utils/testlog.h"
 #include "weld_control/weld_control_types.h"
 
-const uint32_t TIMER_INSTANCE = 1;
+const uint32_t TIMER_INSTANCE       = 1;
+const uint32_t TIMER_INSTANCE_2     = 2;
+const std::string ENDPOINT_BASE_URL = "adaptio";
+const uint32_t PLC_CYCLE_TIME_MS    = 100;
+
+namespace {
+auto MakeEndpoint(const std::string& suffix) -> std::string {
+  return fmt::format("inproc://{}/{}", ENDPOINT_BASE_URL, suffix);
+}
+}  // namespace
 
 ApplicationWrapper::ApplicationWrapper(SQLite::Database* database, configuration::ConfigManagerMock* config_manager,
                                        clock_functions::SystemClockNowFunc system_clock_now_func,
@@ -57,7 +67,7 @@ void ApplicationWrapper::Start() {
   application_ = std::make_unique<Application>(configuration_, events_path_, database_, logs_path_,
                                                system_clock_now_func_, steady_clock_now_func_, registry_.get(), -1);
   // Run the application
-  application_->Run("Application", "adaptio");
+  application_->Run("Application", ENDPOINT_BASE_URL);
 }
 
 void ApplicationWrapper::Exit() {
@@ -233,10 +243,10 @@ void TestFixture::SetupMockets() {
 
   web_hmi_in_mocket_  = factory_.GetMocket(zevs::Endpoint::BIND, "tcp://0.0.0.0:5555");
   web_hmi_out_mocket_ = factory_.GetMocket(zevs::Endpoint::BIND, "tcp://0.0.0.0:5556");
-  management_mocket_  = factory_.GetMocket(zevs::Endpoint::CONNECT, "inproc://adaptio/management");
-  kinematics_mocket_  = factory_.GetMocket(zevs::Endpoint::CONNECT, "inproc://adaptio/kinematics");
-  scanner_mocket_     = factory_.GetMocket(zevs::Endpoint::CONNECT, "inproc://adaptio/scanner");
-  weld_system_mocket_ = factory_.GetMocket(zevs::Endpoint::CONNECT, "inproc://adaptio/weld-system");
+  management_mocket_  = factory_.GetMocket(zevs::Endpoint::CONNECT, MakeEndpoint("management"));
+  kinematics_mocket_  = factory_.GetMocket(zevs::Endpoint::CONNECT, MakeEndpoint("kinematics"));
+  scanner_mocket_     = factory_.GetMocket(zevs::Endpoint::CONNECT, MakeEndpoint("scanner"));
+  weld_system_mocket_ = factory_.GetMocket(zevs::Endpoint::CONNECT, MakeEndpoint("weld-system"));
   timer_mocket_       = factory_.GetMocketTimer(TIMER_INSTANCE);
 }
 
@@ -366,4 +376,105 @@ auto ScannerDataWrapper::FillUp(double value) -> ScannerDataWrapper& {
   }
 
   return *this;
+}
+
+ControllerFixture::ControllerFixture(clock_functions::SystemClockNowFunc system_clock_now_func)
+    : system_clock_now_func_(std::move(system_clock_now_func)) {
+  auto mock_plc_ptr     = std::make_unique<MockPlc>();
+  mock_plc_             = mock_plc_ptr.get();
+  controller_messenger_ = std::make_unique<controller::ControllerMessenger>(std::move(mock_plc_ptr), PLC_CYCLE_TIME_MS,
+                                                                            system_clock_now_func_, ENDPOINT_BASE_URL);
+}
+
+void ControllerFixture::Start() {
+  controller_messenger_->ThreadEntry("ControllerMessenger");
+
+  auto* factory       = zevs::GetMocketFactory();
+  management_mocket_  = factory->GetMocket(zevs::Endpoint::BIND, MakeEndpoint("management"));
+  kinematics_mocket_  = factory->GetMocket(zevs::Endpoint::BIND, MakeEndpoint("kinematics"));
+  weld_system_mocket_ = factory->GetMocket(zevs::Endpoint::BIND, MakeEndpoint("weld-system"));
+  timer_mocket_       = factory->GetMocketTimer(TIMER_INSTANCE_2);
+}
+
+void ControllerFixture::Stop() { controller_messenger_.reset(); }
+
+auto ControllerFixture::Management() -> zevs::Mocket* { return management_mocket_.get(); }
+auto ControllerFixture::Kinematics() -> zevs::Mocket* { return kinematics_mocket_.get(); }
+auto ControllerFixture::WeldSystem() -> zevs::Mocket* { return weld_system_mocket_.get(); }
+auto ControllerFixture::Timer() -> zevs::MocketTimer* { return timer_mocket_.get(); }
+auto ControllerFixture::Mock() -> MockPlc* { return mock_plc_; }
+auto ControllerFixture::Sut() -> controller::ControllerMessenger* { return controller_messenger_.get(); }
+
+MultiFixture::MultiFixture()
+    : ctrl_([wrapper = app_.GetClockNowFuncWrapper()]() { return wrapper->GetSystemClock(); }) {
+  app_.StartApplication();
+  ctrl_.Start();
+
+  app_.WebHmiIn()->SetDispatchObserver([this](const zevs::Mocket&, zevs::Mocket::Location) { ForwardAllPending(); });
+
+  app_.Scanner()->SetDispatchObserver([this](const zevs::Mocket&, zevs::Mocket::Location) { ForwardAllPending(); });
+
+  app_.Timer()->SetDispatchObserver(
+      [this](const zevs::MocketTimer&, zevs::MocketTimer::Location) { ForwardAllPending(); });
+
+  ctrl_.Timer()->SetDispatchObserver(
+      [this](const zevs::MocketTimer&, zevs::MocketTimer::Location) { ForwardAllPending(); });
+}
+
+void MultiFixture::PlcDataUpdate() {
+  // A call to ForwardAllPending is done before timer dispatch to make sure
+  // events and state changes are reflected in output data to plc
+  ForwardAllPending();
+  ctrl_.Timer()->Dispatch("controller_periodic_update");
+}
+
+auto MultiFixture::Main() -> TestFixture& { return app_; }
+auto MultiFixture::Ctrl() -> ControllerFixture& { return ctrl_; }
+
+void MultiFixture::ForwardAllPending() {
+  enum class Side { APP, CTRL };
+
+  auto forward_one_side = [this](Side current_side) -> bool {
+    bool moved_any_message = false;
+
+    struct MocketPair {
+      zevs::Mocket* source;
+      zevs::Mocket* destination;
+    };
+
+    const std::array<MocketPair, 3> bridge_pairs =
+        (current_side == Side::APP)
+            ? std::array<MocketPair, 3>{{
+                  {.source = app_.Management(),  .destination = ctrl_.Management()},
+                  {.source = app_.Kinematics(),  .destination = ctrl_.Kinematics()},
+                  {.source = app_.WeldSystem(),  .destination = ctrl_.WeldSystem()},
+              }}
+            : std::array<MocketPair, 3>{{
+                  {.source = ctrl_.Management(), .destination = app_.Management()},
+                  {.source = ctrl_.Kinematics(), .destination = app_.Kinematics()},
+                  {.source = ctrl_.WeldSystem(), .destination = app_.WeldSystem()},
+              }};
+
+    for (const auto& mocket_pair : bridge_pairs) {
+      while (mocket_pair.source && mocket_pair.destination && mocket_pair.source->Queued() > 0) {
+        auto message = mocket_pair.source->ReceiveMessage();
+        if (!message) {
+          break;
+        }
+        mocket_pair.destination->DispatchMessage(std::move(message));
+        moved_any_message = true;
+      }
+    }
+    return moved_any_message;
+  };
+
+  // APP first, then CTRL; repeat until neither side moved
+  while (true) {
+    bool made_progress  = false;
+    made_progress      |= forward_one_side(Side::APP);
+    made_progress      |= forward_one_side(Side::CTRL);
+    if (!made_progress) {
+      break;
+    }
+  }
 }

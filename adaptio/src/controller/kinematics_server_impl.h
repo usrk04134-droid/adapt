@@ -35,6 +35,13 @@ class KinematicsServerImpl : public KinematicsServer {
   void OnUnSubscribeStateChanges(common::msg::kinematics::UnSubscribeStateChanges data);
   void OnGetEdgePosition(common::msg::kinematics::GetEdgePosition data);
 
+  // TriState enum type only because optional<bool> is very error prone
+  enum class TriState {
+    UNKNOWN,
+    TRUE,
+    FALSE,
+  };
+
   zevs::Socket* socket_;
   KinematicsServerObserver* observer_ = nullptr;
   SlidePositionBuffer* horizontal_position_buffer_;
@@ -44,9 +51,9 @@ class KinematicsServerImpl : public KinematicsServer {
   bool vertical_in_position_{false};
   double weld_object_radius_{0.};
   clock_functions::SystemClockNowFunc system_clock_now_func_;
-  bool weld_axis_homed_         = false;
-  bool send_state_changes_      = false;
-  bool edge_position_available_ = false;
+  TriState weld_axis_homed_{TriState::UNKNOWN};
+  bool send_state_changes_ = false;
+  TriState edge_position_available_{TriState::UNKNOWN};
   double edge_position_{};
 };
 

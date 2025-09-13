@@ -50,7 +50,8 @@ struct ReadyState {
     NOT_READY_AUTO_CAL_MOVE,
     TRACKING_READY,
     ABP_READY,
-    ABP_CAP_READY
+    ABP_CAP_READY,
+    ABP_AND_ABP_CAP_READY
   } state{ReadyState::State::NOT_READY};
 };
 

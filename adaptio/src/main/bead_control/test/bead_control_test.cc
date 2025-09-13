@@ -78,7 +78,8 @@ TEST_SUITE("BeadControl") {
                                      .wire_diameter     = 3.,
                                      .twin_wire         = false},
         .groove                   = groove,
-        .steady_satisfied         = true,
+        .in_horizontal_position   = true,
+        .paused                   = false,
     };
 
     // Step in radians between each sample. New ABW points every 50ms i.e. 20 times/s
@@ -108,11 +109,11 @@ TEST_SUITE("BeadControl") {
     test_controller_update(1, 1, tracking::TrackingMode::TRACKING_LEFT_HEIGHT, bead_control::State::REPOSITIONING);
     // Reposition to left side
     // The axis is half way
-    input.steady_satisfied = false;
+    input.in_horizontal_position = false;
     test_controller_update(1, 1, tracking::TrackingMode::TRACKING_LEFT_HEIGHT, bead_control::State::REPOSITIONING);
 
-    // The axis is within tolerance
-    input.steady_satisfied = true;
+    // The axis is  within tolerance
+    input.in_horizontal_position = true;
 
     CHECK(!control.GetEmptyGroove(std::numbers::pi).has_value());
 
@@ -130,11 +131,11 @@ TEST_SUITE("BeadControl") {
     CHECK(control.GetEmptyGroove(std::numbers::pi).has_value());
 
     // The axis is in the middle of the groove
-    input.steady_satisfied = false;
+    input.in_horizontal_position = false;
     test_controller_update(2, 1, tracking::TrackingMode::TRACKING_RIGHT_HEIGHT, bead_control::State::REPOSITIONING);
 
     // Axis is within tolerance
-    input.steady_satisfied = true;
+    input.in_horizontal_position = true;
 
     // Welding second bead
     // Scanner starts to see the first bead
@@ -161,6 +162,175 @@ TEST_SUITE("BeadControl") {
     test_controller_update(3, 1, tracking::TrackingMode::TRACKING_CENTER_HEIGHT, bead_control::State::OVERLAPPING);
 
     test_controller_update(1, 2, tracking::TrackingMode::TRACKING_LEFT_HEIGHT, bead_control::State::REPOSITIONING);
+  }
+
+  TEST_CASE("PauseAndResume") {
+    bead_control::WeldPositionDataStorage storage(bead_control::MAX_BUFFER_SIZE);
+    bead_control::BeadControlImpl control(&storage, std::chrono::steady_clock::now);
+
+    auto const groove = macs::Groove({.horizontal = 75., .vertical = 25.}, {.horizontal = 25., .vertical = -25.},
+                                     {.horizontal = 12.5, .vertical = -25.}, {.horizontal = 0., .vertical = -25.},
+                                     {.horizontal = -12.5, .vertical = -25.}, {.horizontal = -25, .vertical = -25.},
+                                     {.horizontal = -75, .vertical = 25.});
+
+    auto weld_object_lin_velocity          = 1000. / 60.;  // mm/sec
+    auto wire_lin_velocity                 = 6000. / 60.;  // mm/sec
+    auto weld_object_radius                = 1500.;
+    bead_control::BeadControl::Input input = {
+        .weld_object_angle        = 1.2, // Start angle can be any between 0 - 2*pi
+        .weld_object_ang_velocity = weld_object_lin_velocity / weld_object_radius,
+        .weld_object_radius       = weld_object_radius,
+        .weld_system1             = {.wire_lin_velocity = wire_lin_velocity,
+                                     .current           = 1.,
+                                     .wire_diameter     = 3.,
+                                     .twin_wire         = false},
+        .weld_system2             = {.wire_lin_velocity = wire_lin_velocity,
+                                     .current           = 1.,
+                                     .wire_diameter     = 3.,
+                                     .twin_wire         = false},
+        .groove                   = groove,
+        .in_horizontal_position   = true,
+        .paused                   = false,
+    };
+
+    // Step in radians between each sample. New ABW points every 50ms i.e. 20 times/s
+    auto const angle_step = input.weld_object_ang_velocity / 0.05;
+
+    // Number of samples for one turn
+    auto const number_of_samples = static_cast<int>(2 * std::numbers::pi / angle_step);
+
+    auto const progress_step = 1.0 / number_of_samples;
+
+    struct Expect {
+      std::optional<int> bead;
+      std::optional<int> layer;
+      std::optional<tracking::TrackingMode> tracking;
+      std::optional<bead_control::State> state;
+      std::optional<double> progress;
+    };
+
+    auto test_controller_update = [&control, &input](double delta_angle, const Expect& expect) {
+      auto [result, output] = control.Update(input);
+
+      CHECK(result == bead_control::BeadControl::Result::OK);
+
+      if (expect.tracking) {
+        CHECK(output.tracking_mode == expect.tracking);
+      }
+
+      input.weld_object_angle = std::fmod(input.weld_object_angle + delta_angle, 2 * std::numbers::pi);
+
+      auto status = control.GetStatus();
+      if (expect.bead) {
+        CHECK(status.bead_number == expect.bead);
+      }
+
+      if (expect.layer) {
+        CHECK(status.layer_number == expect.layer);
+      }
+
+      if (expect.state) {
+        CHECK(bead_control::StateToString(status.state) == bead_control::StateToString(expect.state.value()));
+      }
+
+      if (expect.progress) {
+        REQUIRE(status.progress == doctest::Approx(expect.progress.value()).epsilon(0.02));
+      }
+
+      TESTLOG("state: {}, bead: {}, progress: {:.2f}", bead_control::StateToString(status.state), status.bead_number,
+              status.progress);
+    };
+
+    control.SetWallOffset(3.);
+
+    // ABP started
+    test_controller_update(angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::REPOSITIONING});
+
+    // Test that reposition state is kept when rotating the weld-object and in_horizontal_position=false paused=false
+    input.in_horizontal_position = false;
+    input.paused                 = false;
+    for (int i = 0; i <= 2 * number_of_samples; i++) {
+      test_controller_update(angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::REPOSITIONING});
+    }
+
+    // Test that reposition state is kept when rotating the weld-object and in_horizontal_position=true paused=true
+    input.in_horizontal_position = true;
+    input.paused                 = true;
+    for (int i = 0; i <= 2 * number_of_samples; i++) {
+      test_controller_update(angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::REPOSITIONING});
+    }
+
+    // Test that state is changed and the progress is updated when preconditions are fulfilled
+    input.in_horizontal_position = true;
+    input.paused                 = false;
+    test_controller_update(angle_step,
+                           {.bead = 1, .layer = 1, .state = bead_control::State::REPOSITIONING, .progress = 0.0});
+    test_controller_update(angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = 0.0});
+    test_controller_update(angle_step,
+                           {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = progress_step});
+
+    // Pause and move the weld-object backwards making sure that progress is handled correctly
+    input.paused = true;
+    test_controller_update(-2 * angle_step,
+                           {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = progress_step});
+
+    test_controller_update(-2 * angle_step,
+                           {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = progress_step});
+
+    // Resume and before the bead start position -> bead start position is reset to the current position
+    input.paused = false;
+    test_controller_update(angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = 0.0});
+
+    // Update steady state progress 0 -> 50%
+    int step = 1;
+    for (;;) {
+      test_controller_update(
+          angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = step * progress_step});
+
+      if (step > number_of_samples * 0.5) {
+        break;
+      }
+      ++step;
+    }
+
+    // Pause
+    input.paused = true;
+    test_controller_update(
+        0.0, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = step * progress_step});
+
+    // Move back three "steps" and and resume -> bead start position and progress is kept
+    test_controller_update(
+        -3 * angle_step,
+        {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = step * progress_step});
+
+    step         -= 2;
+    input.paused  = false;
+    test_controller_update(
+        angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = step * progress_step});
+
+    // Update steady state progress 50 -> 80%
+    step += 1;
+    for (;;) {
+      test_controller_update(
+          angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = step * progress_step});
+
+      if (step > number_of_samples * 0.8) {
+        break;
+      }
+      ++step;
+    }
+
+    // Pause and resume ahead of the current position
+    input.paused = true;
+    test_controller_update(
+        0.0, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = step * progress_step});
+
+    test_controller_update(
+        angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = step * progress_step});
+
+    input.paused = false;
+    test_controller_update(
+        angle_step, {.bead = 1, .layer = 1, .state = bead_control::State::STEADY, .progress = step * progress_step});
   }
 
   TEST_CASE("BeadAdaptivity") {
@@ -257,7 +427,8 @@ TEST_SUITE("BeadControl") {
                                        .wire_diameter     = 3.,
                                        .twin_wire         = false},
           .groove                   = test.groove,
-          .steady_satisfied         = true,
+          .in_horizontal_position   = true,
+          .paused                   = false,
       };
 
       // Step in radians between each sample. New ABW points every 50ms i.e. 20 times/s
@@ -292,12 +463,12 @@ TEST_SUITE("BeadControl") {
                              test.wall_offset, 1.);
       // Reposition to left side
       // The axis is half way
-      input.steady_satisfied = false;
+      input.in_horizontal_position = false;
       test_controller_update(1, 1, tracking::TrackingMode::TRACKING_LEFT_HEIGHT, bead_control::State::REPOSITIONING,
                              test.wall_offset, 1.);
 
       // The axis is within tolerance
-      input.steady_satisfied = true;
+      input.in_horizontal_position = true;
 
       // Welding first bead
       for (int i = 0; i <= number_of_samples; i++) {
@@ -314,12 +485,12 @@ TEST_SUITE("BeadControl") {
                              test.wall_offset, 1.);
 
       // The axis is in the middle of the groove
-      input.steady_satisfied = false;
+      input.in_horizontal_position = false;
       test_controller_update(2, 1, tracking::TrackingMode::TRACKING_RIGHT_HEIGHT, bead_control::State::REPOSITIONING,
                              test.wall_offset, 1.);
 
       // Axis is within tolerance
-      input.steady_satisfied = true;
+      input.in_horizontal_position = true;
 
       // Welding second bead
       // Scanner starts to see the first bead
@@ -417,7 +588,8 @@ TEST_SUITE("BeadControl") {
           .weld_object_ang_velocity = weld_object_lin_velocity / weld_object_radius,
           .weld_object_radius       = weld_object_radius,
           .groove                   = test.groove,
-          .steady_satisfied         = true,
+          .in_horizontal_position   = true,
+          .paused                   = false,
       };
 
       // Step in radians between each sample. New ABW points every 50ms i.e. 20 times/s
@@ -449,11 +621,11 @@ TEST_SUITE("BeadControl") {
       for (auto bead = 1; bead <= test.cap_beads; ++bead) {
         auto const pos = test.bead_positions[bead - 1];
         test_controller_update(bead, bead_control::State::REPOSITIONING, pos);
-        input.steady_satisfied = false;
+        input.in_horizontal_position = false;
         test_controller_update(bead, bead_control::State::REPOSITIONING, pos);
 
         // The axis is within tolerance
-        input.steady_satisfied = true;
+        input.in_horizontal_position = true;
 
         for (int i = 0; i <= number_of_samples; i++) {
           test_controller_update(bead, bead_control::State::STEADY, pos);

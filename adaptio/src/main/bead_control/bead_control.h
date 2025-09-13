@@ -29,8 +29,8 @@ class BeadControl {
     } weld_system1, weld_system2;
     macs::Groove groove;
 
-    /* true when the steady state's preconditions are satisfied */
-    bool steady_satisfied{};
+    bool in_horizontal_position{false};
+    bool paused{false};
 
     /* distance added to 'weld_object_angle' used to look up how the future groove looks like for
      * 'bead-slice-area-ratio' and 'groove-area-ratio' calculations */
@@ -96,13 +96,13 @@ class BeadControl {
   virtual void SetKGain(double k_gain)              = 0;
   virtual void SetCapBeads(int beads)               = 0;
   virtual void SetCapCornerOffset(double offset)    = 0;
-  struct BeadBottomWidthData {
+  struct BeadTopWidthData {
     int beads_allowed;
     double required_width;
   };
-  virtual void SetBottomWidthToNumBeads(const std::vector<BeadBottomWidthData>& data) = 0;
-  virtual void ResetGrooveData()                                                      = 0;
-  virtual auto GetEmptyGroove(double pos) -> std::optional<macs::Groove>              = 0;
+  virtual void SetTopWidthToNumBeads(const std::vector<BeadTopWidthData>& data) = 0;
+  virtual void ResetGrooveData()                                                = 0;
+  virtual auto GetEmptyGroove(double pos) -> std::optional<macs::Groove>        = 0;
 
   using OnCapNotification                                                 = std::function<void()>;
   virtual void RegisterCapNotification(std::chrono::seconds notification_grace, double last_layer_depth,

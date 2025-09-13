@@ -15,6 +15,7 @@ enum class ReadyState {
   TRACKING_READY,
   ABP_READY,
   ABP_CAP_READY,
+  ABP_AND_ABP_CAP_READY,
 };
 
 inline auto ToString(ReadyState state) -> std::string {
@@ -29,6 +30,8 @@ inline auto ToString(ReadyState state) -> std::string {
       return "abp_ready";
     case ReadyState::ABP_CAP_READY:
       return "abp_cap_ready";
+    case ReadyState::ABP_AND_ABP_CAP_READY:
+      return "abp_and_abp_cap_ready";
     default:
       return "";
   }

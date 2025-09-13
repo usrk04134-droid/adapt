@@ -199,8 +199,8 @@ TEST_SUITE("AdaptiveWeldingTest") {
     SUBCASE("Basic") { AdativeWeldingTest(test_parameters); }
     SUBCASE("WithStepUpLimits") {
       test_parameters.abp_parameters.step_up_limits = {
-          30.0, /* require >30mm bottom groove width for 3 beads */
-          40.0, /* require >40mm bottom groove width for 4 beads */
+          32.1, /* required top groove width for 3 beads */
+          42.0, /* required top groove width for 4 beads */
       };
       test_parameters.testcase_parameters.expected_beads_in_layer[6]  = 2; /* 3 -> 2 */
       test_parameters.testcase_parameters.expected_beads_in_layer[7]  = 2; /* 3 -> 2 */
@@ -377,10 +377,10 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
   // Receive StartScanner
   REQUIRE_MESSAGE(fixture.Scanner()->Receive<common::msg::scanner::Start>(), "No Start msg received");
 
-  CheckWeldControlStatus(fixture, "jt");
+  CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
   StartABP(fixture);
-  CheckWeldControlStatus(fixture, "abp");
+  CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
 
   DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID1,
                                 common::msg::weld_system::OnWeldSystemStateChange::State::ARCING);
@@ -575,6 +575,7 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
           case common::msg::management::ReadyState::State::ABP_READY:
             break;
           case common::msg::management::ReadyState::State::ABP_CAP_READY:
+          case common::msg::management::ReadyState::State::ABP_AND_ABP_CAP_READY:
             StartABPCap(fixture);
             break;
         }

@@ -72,6 +72,7 @@ class ManagementClient {
     TRACKING_READY,
     ABP_READY,
     ABP_CAP_READY,
+    ABP_AND_ABP_CAP_READY,
   } ready_state_{};
   static auto ReadyStateToString(ReadyState) -> std::string;
 
