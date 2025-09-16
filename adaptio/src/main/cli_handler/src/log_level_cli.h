@@ -18,3 +18,4 @@ class LogLevelCli {
 };
 
 }  // namespace cli_handler
+

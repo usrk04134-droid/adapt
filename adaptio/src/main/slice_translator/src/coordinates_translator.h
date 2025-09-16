@@ -2,8 +2,8 @@
 
 #include "lpcs/lpcs_slice.h"
 #include "scanner_client/scanner_client.h"
-#include "slice_observer.h"
-#include "slice_translator_service_v2.h"
+#include "slice_translator/slice_observer.h"
+#include "slice_translator/slice_translator_service_v2.h"
 
 namespace slice_translator {
 
@@ -25,3 +25,4 @@ class CoordinatesTranslator : public scanner_client::ScannerObserver {
 };
 
 }  // namespace slice_translator
+

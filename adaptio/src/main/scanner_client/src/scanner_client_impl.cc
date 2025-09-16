@@ -1,4 +1,4 @@
-#include "scanner_client/scanner_client_impl.h"
+#include "scanner_client/src/scanner_client_impl.h"
 
 #include <cmath>
 #include <cstdint>
@@ -12,7 +12,6 @@
 #include "lpcs/lpcs_point.h"
 #include "lpcs/lpcs_slice.h"
 #include "macs/macs_point.h"
-#include "scanner_client.h"
 #include "scanner_client/scanner_client.h"
 
 namespace scanner_client {
@@ -197,3 +196,4 @@ void ScannerClientImpl::OnStopRsp(common::msg::scanner::StopRsp stopped) {
 }
 
 }  // namespace scanner_client
+

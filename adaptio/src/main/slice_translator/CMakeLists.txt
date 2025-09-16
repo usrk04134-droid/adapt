@@ -2,12 +2,12 @@ target_sources(${ADAPTIO_APPLICATION}
     PRIVATE
     slice_translator.h
     slice_observer.h
-    coordinates_translator.h
+    src/coordinates_translator.h
     slice_translator_service_v2.h
     model_extract.h
     model_config.h
     src/model_impl.h
     
-    coordinates_translator.cc
+    src/coordinates_translator.cc
     src/model_impl.cc
 )

@@ -17,7 +17,6 @@ struct Observation {
 };
 
 struct TorchPlaneInfo {
-  // Observation laser_plane_observation;
   macs::Point top_center_at_torch_plane;
   macs::Point bottom_center_at_torch_plane;
 };
@@ -57,3 +56,4 @@ class CalibrationSolver {
 };
 
 }  // namespace calibration
+

@@ -7,10 +7,9 @@
 #include <vector>
 
 #include "calibration/calibration_types.h"
-#include "calibration/src/calibration_solver.h"
+#include "calibration/calibration_solver.h"
 #include "macs/macs_point.h"
 #include "slice_translator/model_extract.h"
-#include "slice_translator/src/model_impl.h"
 
 namespace calibration {
 

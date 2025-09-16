@@ -51,3 +51,4 @@ class ScannerClientImpl : public ScannerClient {
 };
 
 }  // namespace scanner_client
+

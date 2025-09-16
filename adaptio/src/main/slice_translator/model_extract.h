@@ -2,7 +2,7 @@
 
 #include <Eigen/Eigen>
 
-#include "calibration/src/calibration_solver.h"
+#include "calibration/calibration_solver.h"
 #include "lpcs/lpcs_point.h"
 #include "macs/macs_point.h"
 
