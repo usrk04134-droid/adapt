@@ -1,4 +1,4 @@
-#include "coordinates_translator.h"
+#include "slice_translator/src/coordinates_translator.h"
 
 #include "common/logging/application_log.h"
 #include "lpcs/lpcs_slice.h"
@@ -51,3 +51,4 @@ void CoordinatesTranslator::OnScannerDataUpdateV2(const lpcs::Slice& data, const
     observer->Receive(machine_slice, data, axis_position, angle_from_torch_to_scanner);
   }
 }
+

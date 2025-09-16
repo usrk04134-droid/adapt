@@ -12,7 +12,7 @@
 #include <optional>
 #include <string>
 
-#include "calibration/src/calibration_solver.h"
+#include "calibration/calibration_solver.h"
 #include "common/logging/application_log.h"
 #include "common/types/vector_3d.h"
 

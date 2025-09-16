@@ -8,7 +8,7 @@
 
 #include "calibration/calibration_configuration.h"
 #include "calibration/src/calibration_grid_generator.h"
-#include "calibration/src/calibration_solver.h"
+#include "calibration/calibration_solver.h"
 #include "common/logging/application_log.h"
 #include "common/zevs/zevs_socket.h"
 #include "kinematics/kinematics_client.h"

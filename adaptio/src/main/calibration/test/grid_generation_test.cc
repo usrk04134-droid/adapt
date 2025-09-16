@@ -7,7 +7,7 @@
 #include "../src/calibration_grid_generator.h"
 // #include "src/calibration_solver.h"
 #include "../src/calibration_solver_impl.h"
-#include "calibration/src/calibration_solver.h"
+#include "calibration/calibration_solver.h"
 // #include "calibration/src/calibration_solver.h"
 // #include "slice_translator/model_extract.h"
 

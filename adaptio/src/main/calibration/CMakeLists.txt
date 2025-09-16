@@ -4,7 +4,7 @@ target_sources(${ADAPTIO_APPLICATION}
     calibration_metrics.h
     calibration_types.h
     calibration_configuration.h
-    src/calibration_solver.h
+    calibration_solver.h
     src/calibration_solver_impl.h
     src/calibration_manager_v2_impl.h
     src/calibration_grid_generator.h

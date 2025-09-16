@@ -1,4 +1,4 @@
-#include "kinematics_client_impl.h"
+#include "kinematics/src/kinematics_client_impl.h"
 
 #include <cstdint>
 #include <utility>
@@ -170,3 +170,4 @@ void KinematicsClientImpl::OnGetEdgePositionRsp(common::msg::kinematics::GetEdge
 }
 
 }  // namespace kinematics
+
