@@ -1,8 +1,10 @@
 #include "scanner/joint_model/big_snake.h"
 
 #include <cmath>
+#include <numbers>
 #include <cstdlib>
 #include <optional>
+#include <opencv2/imgcodecs.hpp>
 
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
@@ -107,7 +109,7 @@ TEST_SUITE("Test Big Snake") {
     auto big_snake = scanner::joint_model::BigSnake(test_data.joint_properties, test_data.scanner_config,
                                                     std::move(test_data.camera_model));
 
-    auto grayscale_image = imread(test_data.image_data.path + test_data.image_data.name, cv::IMREAD_GRAYSCALE);
+    auto grayscale_image = cv::imread(test_data.image_data.path + test_data.image_data.name, cv::IMREAD_GRAYSCALE);
     auto maybe_image     = scanner::image::ImageBuilder::From(grayscale_image, test_data.image_data.name, 0).Finalize();
     auto *image          = maybe_image.value().get();
 
