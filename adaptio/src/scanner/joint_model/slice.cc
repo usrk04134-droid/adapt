@@ -544,12 +544,18 @@ auto Slice::CalculateAngles(const image::WorkspaceCoordinates& snake) -> std::ve
 auto Slice::PositionPointsOnSnake(const image::WorkspaceCoordinates& snake, double abw0_horizontal,
                                   double abw6_horizontal, double left_angle, double right_angle, double offset_distance)
     -> std::optional<std::tuple<Point, Point, Point, Point>> {
-  auto maybe_abw0 = FindIntersection(abw0_horizontal, snake);
-  auto maybe_abw6 = FindIntersection(abw6_horizontal, snake);
+  // Clamp provided horizontal guesses to the available snake x-range to avoid out-of-range errors
+  const double snake_x_min = snake(0, 0);
+  const double snake_x_max = snake(0, snake.cols() - 1);
+  const double abw0_x      = std::clamp(abw0_horizontal, snake_x_min, snake_x_max);
+  const double abw6_x      = std::clamp(abw6_horizontal, snake_x_min, snake_x_max);
+
+  auto maybe_abw0 = FindIntersection(abw0_x, snake);
+  auto maybe_abw6 = FindIntersection(abw6_x, snake);
 
   if (!maybe_abw0.has_value() || !maybe_abw6.has_value()) {
     LOG_ERROR("Old abw0_x: {:.5f} old abw6_x {:.5f} snake start x {:.5f} stop x {:.5f}", abw0_horizontal,
-              abw6_horizontal, snake(0, 0), snake(0, snake.cols() - 1));
+              abw6_horizontal, snake_x_min, snake_x_max);
     return std::nullopt;
   }
 
