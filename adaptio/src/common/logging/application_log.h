@@ -2,6 +2,7 @@
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <boost/core/null_deleter.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
