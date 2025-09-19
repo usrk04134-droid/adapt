@@ -1,0 +1,24 @@
+---
+
+# Minimal dataset for BigSnake::Parse() unit test derived from adaptio-core/tests/data_set
+images:
+  - id: 3
+    file_path: Image__2024-08-16__11-13-03.tiff
+    joint_id: 2
+    scanner_id: 2
+
+scanners:
+  - id: 2
+    file_path: ../../../../adaptio-core/tests/data_set/scanners/new_cam_params_silverscanner.yaml
+    serial_number: test
+
+joints:
+  - id: 2
+    file_path: ../../../../adaptio-core/tests/data_set/geometries/new_u_joint.yaml
+
+annotations:
+  - id: 3
+    image_id: 3
+    abw_points_xs: [0.0394735,0.0459291,0.0494897,0.0530746,0.0566018,0.06003,0.064345]
+    abw_points_ys: [0.0459356,0.00591587,0.00567378,0.00476669,0.00585357,0.0061066,0.0444451]
+
