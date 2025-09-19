@@ -175,7 +175,10 @@ TEST_SUITE("BigSnake dataset") {
 
       auto res = snake.Parse(*image, {}, {}, false, {});
       REQUIRE(res.has_value());
-      auto [profile, /*snake_lpcs*/, /*processing_time*/, /*num_walls*/] = res.value();
+      auto [profile, snake_lpcs, processing_time, num_walls] = res.value();
+      (void)snake_lpcs;
+      (void)processing_time;
+      (void)num_walls;
 
       REQUIRE(profile.points.size() == 7);
       REQUIRE(annotation.xs.size() == 7);
