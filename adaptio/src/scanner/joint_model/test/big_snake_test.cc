@@ -10,6 +10,7 @@
 #include "scanner/image/tilted_perspective_camera.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/scanner_configuration.h"
+#include "common/logging/application_log.h"
 #ifndef DOCTEST_CONFIG_DISABLE
 #include <doctest/doctest.h>
 
@@ -103,15 +104,25 @@ inline auto Setup() -> TestData {
 TEST_SUITE("Test Big Snake") {
   TEST_CASE("Parse") {
     auto test_data = Setup();
+    LOG_INFO("Single-image test setup complete: image={}{}", test_data.image_data.path, test_data.image_data.name);
 
     auto big_snake = scanner::joint_model::BigSnake(test_data.joint_properties, test_data.scanner_config,
                                                     std::move(test_data.camera_model));
+    LOG_INFO("Constructed BigSnake for single-image test");
 
     auto grayscale_image = imread(test_data.image_data.path + test_data.image_data.name, cv::IMREAD_GRAYSCALE);
+    LOG_INFO("Loaded grayscale image: {}{} (rows={}, cols={})", test_data.image_data.path, test_data.image_data.name,
+             grayscale_image.rows, grayscale_image.cols);
     auto maybe_image     = scanner::image::ImageBuilder::From(grayscale_image, test_data.image_data.name, 0).Finalize();
     auto *image          = maybe_image.value().get();
 
     auto res = big_snake.Parse(*image, {}, {}, false, {});
+    if (res.has_value()) {
+      auto [profile, snake_lpcs, processing_time, num_walls] = res.value();
+      LOG_INFO("Parsed single image: processing_time={}ms, num_walls={}", processing_time, num_walls);
+    } else {
+      LOG_INFO("Parse failed for single image");
+    }
     CHECK(res.has_value());
   }
 }
