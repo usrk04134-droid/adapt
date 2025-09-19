@@ -15,6 +15,7 @@
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/scanner_configuration.h"
 #include "common/file/yaml.h"
+#include "common/logging/application_log.h"
 
 #ifndef DOCTEST_CONFIG_DISABLE
 #include <doctest/doctest.h>
@@ -102,28 +103,36 @@ TEST_SUITE("BigSnake dataset") {
     // Arrange
     const std::filesystem::path base_dir   = std::filesystem::path(__FILE__).parent_path() / "test_data";
     const std::string dataset_path         = (base_dir / "data_set.yaml").string();
+    LOG_INFO("Loading dataset from {}", dataset_path);
     const auto dataset             = LoadDataset(dataset_path);
 
     REQUIRE(dataset.images.size() >= 1);
+    LOG_INFO("Loaded dataset: images={} scanners={} joints={} annotations={}", dataset.images.size(),
+             dataset.scanners.size(), dataset.joints.size(), dataset.annotations_by_image_id.size());
 
     // Resolve scanner/joint paths relative to dataset yaml directory
     const std::filesystem::path dataset_dir = std::filesystem::path(dataset_path).parent_path();
     const auto scanner_cfg_path             = (dataset_dir / dataset.scanners.at(2).file_path).string();
     const auto joint_geo_path               = (dataset_dir / dataset.joints.at(2).file_path).string();
+    LOG_INFO("Scanner config path: {}", scanner_cfg_path);
+    LOG_INFO("Joint geometry path: {}", joint_geo_path);
 
     // Load scanner and joint yaml using existing YAML utility
     auto maybe_scanner_yaml = common::file::Yaml::FromFile(scanner_cfg_path, "camera");
     REQUIRE_FALSE(maybe_scanner_yaml.has_error());
     auto scanner_cfg_map = maybe_scanner_yaml.value()->AsUnorderedMap();
+    LOG_INFO("Loaded scanner configuration (keys={})", scanner_cfg_map.size());
 
     auto maybe_joint_yaml = common::file::Yaml::FromFile(joint_geo_path, "joint");
     REQUIRE_FALSE(maybe_joint_yaml.has_error());
     auto joint_map = maybe_joint_yaml.value()->AsUnorderedMap();
+    LOG_INFO("Loaded joint geometry (keys={})", joint_map.size());
 
     // Build camera
     auto camera_properties       = scanner::image::TiltedPerspectiveCameraProperties::FromUnorderedMap(scanner_cfg_map);
     camera_properties.config_fov = {.width = 3500, .offset_x = 312, .height = 2500, .offset_y = 0};
     auto camera_model            = std::make_unique<scanner::image::TiltedPerspectiveCamera>(camera_properties);
+    LOG_INFO("Constructed TiltedPerspectiveCamera");
 
     // Build BigSnake
     const scanner::joint_model::JointProperties properties = {
@@ -142,6 +151,7 @@ TEST_SUITE("BigSnake dataset") {
     scanner::ScannerConfigurationData scan_cfg{.gray_minimum_top = 48, .gray_minimum_wall = 24, .gray_minimum_bottom = 48};
 
     auto snake = scanner::joint_model::BigSnake(properties, scan_cfg, std::move(camera_model));
+    LOG_INFO("Constructed BigSnake joint model");
 
     // Build filename -> image entry map
     std::unordered_map<std::string, DatasetImage> filename_to_image;
@@ -152,23 +162,28 @@ TEST_SUITE("BigSnake dataset") {
     // Iterate images present in directory; skip those without mapping/annotations
     int tested = 0;
     const auto images_dir = dataset_dir / "images";
+    LOG_INFO("Scanning images directory {}", images_dir.string());
     for (const auto &image_path : ListImageFiles(images_dir)) {
       const std::string filename = image_path.filename().string();
       auto it_img                = filename_to_image.find(filename);
       if (it_img == filename_to_image.end()) {
+        LOG_INFO("Skipping {}: not in dataset images list", filename);
         continue;
       }
       const auto &img_entry = it_img->second;
       const auto ann_it     = dataset.annotations_by_image_id.find(img_entry.id);
       if (ann_it == dataset.annotations_by_image_id.end()) {
+        LOG_INFO("Skipping {} (image_id={}): missing annotations", filename, img_entry.id);
         continue;
       }
       const auto &annotation = ann_it->second;
 
       auto gray = imread(image_path.string(), cv::IMREAD_GRAYSCALE);
       if (gray.data == nullptr) {
+        LOG_INFO("Skipping {}: failed to load image", filename);
         continue;
       }
+      LOG_INFO("Processing {} (image_id={})", filename, img_entry.id);
       auto maybe_image = scanner::image::ImageBuilder::From(gray, filename, 0).Finalize();
       REQUIRE(maybe_image.has_value());
       auto *image = maybe_image.value().get();
@@ -176,24 +191,28 @@ TEST_SUITE("BigSnake dataset") {
       auto res = snake.Parse(*image, {}, {}, false, {});
       REQUIRE(res.has_value());
       auto [profile, snake_lpcs, processing_time, num_walls] = res.value();
-      (void)snake_lpcs;
-      (void)processing_time;
-      (void)num_walls;
+      LOG_INFO("Parsed {}: processing_time={}ms, num_walls={}", filename, processing_time, num_walls);
 
       REQUIRE(profile.points.size() == 7);
       REQUIRE(annotation.xs.size() == 7);
       REQUIRE(annotation.ys.size() == 7);
 
       const double tol_mm = 1.5;  // tolerance in mm
+      double max_dist_mm  = 0.0;
       for (size_t i = 0; i < 7; ++i) {
         const double dx_mm = (profile.points[i].x - annotation.xs[i]) * 1000.0;
         const double dy_mm = (profile.points[i].y - annotation.ys[i]) * 1000.0;
         const double dist  = std::sqrt(dx_mm * dx_mm + dy_mm * dy_mm);
         CHECK_MESSAGE(dist <= tol_mm, "image_id=" << img_entry.id << ": ABW" << i << " distance " << dist << "mm exceeds tolerance");
+        if (dist > max_dist_mm) {
+          max_dist_mm = dist;
+        }
       }
+      LOG_INFO("{}: max ABW distance = {} mm", filename, max_dist_mm);
       tested++;
     }
     CHECK(tested >= 1);
+    LOG_INFO("Dataset test completed: tested {} image(s)", tested);
   }
 }
 
