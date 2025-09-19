@@ -1,6 +1,8 @@
 #include <yaml-cpp/yaml.h>
 
+#include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -76,20 +78,38 @@ auto LoadDataset(const std::string &dataset_yaml_path) -> Dataset {
   return dataset;
 }
 
+auto ListImageFiles(const std::filesystem::path &images_dir) -> std::vector<std::filesystem::path> {
+  std::vector<std::filesystem::path> files;
+  if (!std::filesystem::exists(images_dir)) {
+    return files;
+  }
+  for (const auto &entry : std::filesystem::directory_iterator(images_dir)) {
+    if (entry.is_regular_file()) {
+      auto ext = entry.path().extension().string();
+      std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+      if (ext == ".tiff") {
+        files.push_back(entry.path());
+      }
+    }
+  }
+  return files;
+}
+
 }  // namespace
 
 TEST_SUITE("BigSnake dataset") {
   TEST_CASE("Parse matches annotated ABW points within tolerance") {
     // Arrange
-    const std::string dataset_path = "./src/scanner/joint_model/test/test_data/abw_dataset.yaml";
+    const std::filesystem::path base_dir   = std::filesystem::path(__FILE__).parent_path() / "test_data";
+    const std::string dataset_path         = (base_dir / "data_set.yaml").string();
     const auto dataset             = LoadDataset(dataset_path);
 
     REQUIRE(dataset.images.size() >= 1);
 
     // Resolve scanner/joint paths relative to dataset yaml directory
     const std::filesystem::path dataset_dir = std::filesystem::path(dataset_path).parent_path();
-    const auto scanner_cfg_path = (dataset_dir / dataset.scanners.at(2).file_path).string();
-    const auto joint_geo_path   = (dataset_dir / dataset.joints.at(2).file_path).string();
+    const auto scanner_cfg_path             = (dataset_dir / dataset.scanners.at(2).file_path).string();
+    const auto joint_geo_path               = (dataset_dir / dataset.joints.at(2).file_path).string();
 
     // Load scanner and joint yaml using existing YAML utility
     auto maybe_scanner_yaml = common::file::Yaml::FromFile(scanner_cfg_path, "camera");
@@ -123,22 +143,33 @@ TEST_SUITE("BigSnake dataset") {
 
     auto snake = scanner::joint_model::BigSnake(properties, scan_cfg, std::move(camera_model));
 
-    // Iterate images present locally; skip missing
+    // Build filename -> image entry map
+    std::unordered_map<std::string, DatasetImage> filename_to_image;
+    for (const auto &img : dataset.images) {
+      filename_to_image[std::filesystem::path(img.file_path).filename().string()] = img;
+    }
+
+    // Iterate images present in directory; skip those without mapping/annotations
     int tested = 0;
-    for (const auto &img_entry : dataset.images) {
-      const auto ann_it = dataset.annotations_by_image_id.find(img_entry.id);
+    const auto images_dir = dataset_dir / "images";
+    for (const auto &image_path : ListImageFiles(images_dir)) {
+      const std::string filename = image_path.filename().string();
+      auto it_img                = filename_to_image.find(filename);
+      if (it_img == filename_to_image.end()) {
+        continue;
+      }
+      const auto &img_entry = it_img->second;
+      const auto ann_it     = dataset.annotations_by_image_id.find(img_entry.id);
       if (ann_it == dataset.annotations_by_image_id.end()) {
         continue;
       }
       const auto &annotation = ann_it->second;
 
-      const std::string image_path = (dataset_dir / img_entry.file_path).string();
-      auto gray                    = imread(image_path, cv::IMREAD_GRAYSCALE);
+      auto gray = imread(image_path.string(), cv::IMREAD_GRAYSCALE);
       if (gray.data == nullptr) {
-        // Image not available in repo; skip gracefully
         continue;
       }
-      auto maybe_image = scanner::image::ImageBuilder::From(gray, img_entry.file_path, 0).Finalize();
+      auto maybe_image = scanner::image::ImageBuilder::From(gray, filename, 0).Finalize();
       REQUIRE(maybe_image.has_value());
       auto *image = maybe_image.value().get();
 
