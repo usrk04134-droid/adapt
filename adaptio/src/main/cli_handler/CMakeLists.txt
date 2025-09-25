@@ -3,5 +3,5 @@ target_sources(${ADAPTIO_APPLICATION}
     json_payload.h
     log_level_cli.h
 
-    log_level_cli.cc
+    src/log_level_cli.cc
 )

@@ -8,6 +8,6 @@ target_sources(${ADAPTIO_APPLICATION}
     model_config.h
     src/model_impl.h
     
-    coordinates_translator.cc
+    src/coordinates_translator.cc
     src/model_impl.cc
 )

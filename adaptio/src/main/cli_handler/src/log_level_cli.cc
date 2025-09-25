@@ -1,4 +1,4 @@
-#include "log_level_cli.h"
+#include "cli_handler/log_level_cli.h"
 
 #include <fmt/core.h>
 
@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include "common/logging/application_log.h"
-#include "json_payload.h"
+#include "cli_handler/json_payload.h"
 #include "web_hmi/web_hmi.h"
 
 using cli_handler::LogLevelCli;
@@ -63,3 +63,4 @@ auto LogLevelCli::SetLoglevel(const std::string& loglevel) -> bool {
 
   return true;
 }
+

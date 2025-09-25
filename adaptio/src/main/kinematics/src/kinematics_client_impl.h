@@ -6,7 +6,7 @@
 
 #include "common/messages/kinematics.h"
 #include "common/zevs/zevs_socket.h"
-#include "kinematics_client.h"
+#include "kinematics/kinematics_client.h"
 
 namespace kinematics {
 
@@ -51,3 +51,4 @@ class KinematicsClientImpl : public KinematicsClient {
 };
 
 }  // namespace kinematics
+
