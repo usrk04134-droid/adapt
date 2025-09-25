@@ -1,4 +1,4 @@
-#include "calibration_metrics.h"
+#include "calibration/calibration_metrics.h"
 
 #include <prometheus/counter.h>
 #include <prometheus/registry.h>
@@ -22,3 +22,4 @@ void CalibrationMetrics::IncrementLaserTorchCalCount() { laser_torch_cal_count_.
 void CalibrationMetrics::IncrementWeldObjectCalCount() { weld_object_cal_count_.Increment(); }
 
 }  // namespace calibration
+
