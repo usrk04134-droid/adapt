@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include "common/logging/application_log.h"
-#include "json_payload.h"
+#include "cli_handler/json_payload.h"
 #include "web_hmi/web_hmi.h"
 
 using cli_handler::LogLevelCli;

@@ -22,7 +22,7 @@
 #include "image_logging/src/image_logging_manager_impl.h"
 #include "joint_geometry/src/joint_geometry_provider_impl.h"
 #include "management/management_server.h"
-#include "scanner_client/scanner_client_impl.h"
+#include "scanner_client/src/scanner_client_impl.h"
 #include "slice_translator/coordinates_translator.h"
 #include "slice_translator/src/model_impl.h"
 #include "tracking/src/tracking_manager_impl.h"
