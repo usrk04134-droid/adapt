@@ -15,7 +15,7 @@
 #include "common/zevs/zevs_core.h"
 #include "coordination/activity_status.h"
 #include "joint_geometry/joint_geometry_provider.h"
-#include "json_payload.h"
+#include "cli_handler/json_payload.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
 #include "macs/macs_point.h"

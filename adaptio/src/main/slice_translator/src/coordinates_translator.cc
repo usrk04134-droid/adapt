@@ -1,4 +1,4 @@
-#include "coordinates_translator.h"
+#include "slice_translator/coordinates_translator.h"
 
 #include "common/logging/application_log.h"
 #include "lpcs/lpcs_slice.h"
