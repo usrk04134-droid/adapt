@@ -1,0 +1,108 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["adaptio", "weld-control", "latency"],
+  "templating": {
+    "list": [
+      {
+        "name": "interval",
+        "query": "5m",
+        "type": "constant",
+        "label": "Rate interval",
+        "hide": 0,
+        "current": {"text": "5m", "value": "5m"}
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Adaptio ABW Latency (Camera -> Slides Command)",
+  "uid": "adaptio-abw-latency",
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "p50 latency (ms)",
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(adaptio_abw_latency_lpcs_seconds_bucket[${interval}]))) * 1e3",
+          "legendFormat": "p50"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
+      "fieldConfig": {"defaults": {"unit": "ms", "decimals": 0}, "overrides": []}
+    },
+    {
+      "type": "stat",
+      "title": "p90 latency (ms)",
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.9, sum by (le) (rate(adaptio_abw_latency_lpcs_seconds_bucket[${interval}]))) * 1e3",
+          "legendFormat": "p90"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
+      "fieldConfig": {"defaults": {"unit": "ms", "decimals": 0}, "overrides": []}
+    },
+    {
+      "type": "stat",
+      "title": "p99 latency (ms)",
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(adaptio_abw_latency_lpcs_seconds_bucket[${interval}]))) * 1e3",
+          "legendFormat": "p99"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
+      "fieldConfig": {"defaults": {"unit": "ms", "decimals": 0}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Average latency (ms)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [
+        {
+          "expr": "(rate(adaptio_abw_latency_lpcs_seconds_sum[${interval}]) / rate(adaptio_abw_latency_lpcs_seconds_count[${interval}])) * 1e3",
+          "legendFormat": "avg"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ms", "decimals": 0}, "overrides": []}
+    },
+    {
+      "type": "heatmap",
+      "title": "Latency distribution over time",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "dataFormat": "tsbuckets",
+      "targets": [
+        {
+          "expr": "sum by (le) (rate(adaptio_abw_latency_lpcs_seconds_bucket[${interval}]))",
+          "legendFormat": "le={{le}}",
+          "format": "heatmap"
+        }
+      ],
+      "options": {
+        "legend": {"show": true},
+        "tooltip": {"show": true}
+      },
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []}
+    }
+  ]
+}
+

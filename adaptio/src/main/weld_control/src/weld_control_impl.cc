@@ -3,6 +3,7 @@
 
 #include <prometheus/counter.h>
 #include <prometheus/gauge.h>
+#include <prometheus/histogram.h>
 #include <prometheus/registry.h>
 #include <SQLiteCpp/Database.h>
 
@@ -49,7 +50,6 @@
 #include "web_hmi/web_hmi.h"
 #include "weld_calculations.h"
 #include "weld_control/src/confident_slice_buffer.h"
-#include "weld_control/src/performance_metrics.h"
 #include "weld_control/src/settings_provider.h"
 #include "weld_control/src/weld_metrics.h"
 #include "weld_control/src/weld_sequence_config.h"
@@ -121,7 +121,6 @@ WeldControlImpl::WeldControlImpl(
 },
       system_clock_now_func_(system_clock_now_func),
       steady_clock_now_func_(steady_clock_now_func),
-      perf_metrics_(std::make_unique<PerformanceMetrics>(registry, system_clock_now_func)),
       weld_metrics_(std::make_unique<WeldMetrics>(registry)),
       smooth_weld_speed_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma),
       smooth_ws2_current_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma) {
@@ -305,6 +304,29 @@ void WeldControlImpl::SetupMetrics(prometheus::Registry* registry) {
 
   metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
                                                   static_cast<double>(confident_slice_buffer_.Slots()));
+
+  {
+    const std::vector<double> buckets = {
+        0.030,  // 30 ms
+        0.040,  // 40 ms
+        0.050,  // 50 ms
+        0.060,  // 60 ms
+        0.070,  // 70 ms
+        0.080,  // 80 ms
+        0.090,  // 90 ms
+        0.100,  // 100 ms
+        0.150,  // 150 ms
+        0.200,  // 200 ms
+        0.300,  // 300 ms
+        0.400,  // 400 ms
+    };
+
+    auto& histogram = prometheus::BuildHistogram()
+                          .Name("adaptio_abw_latency_lpcs_seconds")
+                          .Help("ABW data latency from image taken")
+                          .Register(*registry);
+    metrics_.abw_latency_lpcs_seconds = &histogram.Add({}, buckets);
+  }
 }
 
 void WeldControlImpl::UpdateBeadControlParameters() {
@@ -1075,6 +1097,14 @@ void WeldControlImpl::UpdateTrackingPosition() {
       if (state_ == State::WELDING) {
         slide_vertical_velocity = VERTICAL_VELOCITY_ARCING;
       }
+      // Observe latency from image timestamp until we command slides based on that image
+      {
+        auto const now               = system_clock_now_func_();
+        auto const scanner_data_time = std::chrono::system_clock::time_point{
+            std::chrono::nanoseconds{cached_lpcs_.time_stamp}};
+        auto const latency = std::chrono::duration<double>(now - scanner_data_time);
+        metrics_.abw_latency_lpcs_seconds->Observe(latency.count());
+      }
       kinematics_client_->SetSlidesPosition(slides_desired_->horizontal_pos, slides_desired_->vertical_pos,
                                             slide_horizontal_lin_velocity, slide_vertical_velocity);
       break;
@@ -1180,7 +1210,7 @@ void WeldControlImpl::Receive(const macs::Slice& machine_data, const lpcs::Slice
     return;
   }
 
-  perf_metrics_->UpdateABWLatencyLpcs(scanner_data.time_stamp);
+  // latency observed where slides are actually commanded; see UpdateTrackingPosition
 
   slides_actual_ = slides_actual;
 
