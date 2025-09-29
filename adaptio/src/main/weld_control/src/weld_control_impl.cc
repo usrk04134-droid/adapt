@@ -1103,6 +1103,7 @@ void WeldControlImpl::UpdateTrackingPosition() {
         auto const scanner_data_time = std::chrono::system_clock::time_point{
             std::chrono::nanoseconds{cached_lpcs_.time_stamp}};
         auto const latency = std::chrono::duration<double>(now - scanner_data_time);
+        LOG_INFO("Latency from image to slides command: {:.1f} ms", latency.count() * 1000.0);
         metrics_.abw_latency_lpcs_seconds->Observe(latency.count());
       }
       kinematics_client_->SetSlidesPosition(slides_desired_->horizontal_pos, slides_desired_->vertical_pos,
