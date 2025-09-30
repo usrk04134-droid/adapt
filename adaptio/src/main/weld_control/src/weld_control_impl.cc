@@ -49,7 +49,6 @@
 #include "web_hmi/web_hmi.h"
 #include "weld_calculations.h"
 #include "weld_control/src/confident_slice_buffer.h"
-#include "weld_control/src/performance_metrics.h"
 #include "weld_control/src/settings_provider.h"
 #include "weld_control/src/weld_metrics.h"
 #include "weld_control/src/weld_sequence_config.h"
@@ -121,7 +120,6 @@ WeldControlImpl::WeldControlImpl(
 },
       system_clock_now_func_(system_clock_now_func),
       steady_clock_now_func_(steady_clock_now_func),
-      perf_metrics_(std::make_unique<PerformanceMetrics>(registry, system_clock_now_func)),
       weld_metrics_(std::make_unique<WeldMetrics>(registry)),
       smooth_weld_speed_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma),
       smooth_ws2_current_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma) {
@@ -305,6 +303,29 @@ void WeldControlImpl::SetupMetrics(prometheus::Registry* registry) {
 
   metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
                                                   static_cast<double>(confident_slice_buffer_.Slots()));
+
+  {
+    const std::vector<double> buckets = {
+        0.030,
+        0.040,
+        0.050,
+        0.060,
+        0.070,
+        0.080,
+        0.090,
+        0.100,
+        0.150,
+        0.200,
+        0.300,
+        0.400,
+    };
+
+    auto& histogram_family = prometheus::BuildHistogram()
+                                 .Name("adaptio_abw_latency_lpcs_seconds")
+                                 .Help("Latency from scanner image time to tracking output (seconds)")
+                                 .Register(*registry);
+    metrics_.abw_latency_lpcs = &histogram_family.Add({}, buckets);
+  }
 }
 
 void WeldControlImpl::UpdateBeadControlParameters() {
@@ -1180,7 +1201,14 @@ void WeldControlImpl::Receive(const macs::Slice& machine_data, const lpcs::Slice
     return;
   }
 
-  perf_metrics_->UpdateABWLatencyLpcs(scanner_data.time_stamp);
+  {
+    auto const now               = system_clock_now_func_();
+    auto const tp_scanner        = std::chrono::system_clock::time_point{std::chrono::nanoseconds{scanner_data.time_stamp}};
+    std::chrono::duration<double> const latency = now - tp_scanner;
+    if (metrics_.abw_latency_lpcs) {
+      metrics_.abw_latency_lpcs->Observe(latency.count());
+    }
+  }
 
   slides_actual_ = slides_actual;
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <prometheus/registry.h>
+#include <prometheus/histogram.h>
 #include <SQLiteCpp/Database.h>
 
 #include <boost/log/detail/event.hpp>
@@ -22,7 +23,6 @@
 #include "lpcs/lpcs_slice.h"
 #include "macs/macs_point.h"
 #include "macs/macs_slice.h"
-#include "performance_metrics.h"
 #include "scanner_client/scanner_client.h"
 #include "slice_translator/slice_observer.h"
 #include "slice_translator/slice_translator_service_v2.h"
@@ -168,7 +168,6 @@ class WeldControlImpl : public WeldControl,
   std::optional<kinematics::EdgeState> edge_state_;
 
   /* Metrics */
-  std::unique_ptr<PerformanceMetrics> perf_metrics_;
   std::unique_ptr<WeldMetrics> weld_metrics_;
 
   common::filters::GaussianFilter smooth_weld_speed_;
@@ -182,6 +181,7 @@ class WeldControlImpl : public WeldControl,
       prometheus::Counter* translation_failed;
     } confident_slice;
     prometheus::Gauge* confident_slice_buffer_fill_ratio;
+    prometheus::Histogram* abw_latency_lpcs;
   } metrics_;
 
   struct {
