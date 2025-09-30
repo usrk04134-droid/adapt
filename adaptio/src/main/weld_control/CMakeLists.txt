@@ -16,7 +16,7 @@ target_sources(${ADAPTIO_APPLICATION}
     src/sql_table_names.h
     src/weld_sequence_config.h
     src/weld_sequence_config_impl.h
-    src/performance_metrics.h
+    
     src/weld_metrics.h
     src/settings.h
     src/settings_provider.h
@@ -28,7 +28,7 @@ target_sources(${ADAPTIO_APPLICATION}
     src/abp_parameters.cc
     src/weld_program.cc
     src/weld_sequence_config_impl.cc
-    src/performance_metrics.cc
+    
     src/weld_metrics.cc
     src/settings.cc
     src/settings_provider.cc
