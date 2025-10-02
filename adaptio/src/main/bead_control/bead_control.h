@@ -6,7 +6,7 @@
 
 #include "bead_control/src/groove_fit.h"
 #include "bead_control_types.h"
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 #include "tracking/tracking_manager.h"
 
 namespace bead_control {
@@ -27,7 +27,7 @@ class BeadControl {
       double wire_diameter{0.};
       bool twin_wire{false};
     } weld_system1, weld_system2;
-    macs::Groove groove;
+    common::groove::Groove groove;
 
     bool in_horizontal_position{false};
     bool paused{false};
@@ -102,7 +102,7 @@ class BeadControl {
   };
   virtual void SetTopWidthToNumBeads(const std::vector<BeadTopWidthData>& data) = 0;
   virtual void ResetGrooveData()                                                = 0;
-  virtual auto GetEmptyGroove(double pos) -> std::optional<macs::Groove>        = 0;
+  virtual auto GetEmptyGroove(double pos) -> std::optional<common::groove::Groove>        = 0;
 
   using OnCapNotification                                                 = std::function<void()>;
   virtual void RegisterCapNotification(std::chrono::seconds notification_grace, double last_layer_depth,

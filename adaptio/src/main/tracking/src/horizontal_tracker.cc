@@ -4,7 +4,6 @@
 #include <optional>
 
 #include "common/logging/application_log.h"
-#include "macs/macs_groove.h"
 
 using tracking::HorizontalTracker;
 
@@ -24,11 +23,11 @@ auto HorizontalTracker::GetHorizontalMove() const -> std::optional<double> {
   double target_horizontal{};
   double target_left{};
   double target_right{};
-  auto const& left = reference_ == HorizontalTrackingReference::BOTTOM ? joint_.value()[macs::ABW_LOWER_LEFT]
-                                                                       : joint_.value()[macs::ABW_UPPER_LEFT];
+  auto const& left = reference_ == HorizontalTrackingReference::BOTTOM ? joint_.value()[common::groove::ABW_LOWER_LEFT]
+                                                                       : joint_.value()[common::groove::ABW_UPPER_LEFT];
 
-  auto const& right = reference_ == HorizontalTrackingReference::BOTTOM ? joint_.value()[macs::ABW_LOWER_RIGHT]
-                                                                        : joint_.value()[macs::ABW_UPPER_RIGHT];
+  auto const& right = reference_ == HorizontalTrackingReference::BOTTOM ? joint_.value()[common::groove::ABW_LOWER_RIGHT]
+                                                                        : joint_.value()[common::groove::ABW_UPPER_RIGHT];
 
   auto const center = (left.horizontal + right.horizontal) / 2;
 

@@ -6,13 +6,14 @@
 #include <array>
 #include <cassert>
 #include <nlohmann/json.hpp>
+#include <numbers>
 #include <vector>
 
 #include "common/logging/application_log.h"
-#include "macs/macs_math.h"
-#include "macs/macs_point.h"
+#include "common/groove/math.h"
+#include "common/groove/point.h"
 
-namespace macs {
+namespace common::groove {
 
 auto const ABW_POINTS      = 7;
 auto const ABW_UPPER_LEFT  = 0;
@@ -20,7 +21,7 @@ auto const ABW_LOWER_LEFT  = 1;
 auto const ABW_LOWER_RIGHT = 5;
 auto const ABW_UPPER_RIGHT = 6;
 
-class Groove {
+class Groove final {
  public:
   Groove()                    = default;
   Groove(const Groove& other) = default;
@@ -52,7 +53,7 @@ class Groove {
     return groove_.at(index);
   }
 
-  auto Area() const -> double { return groove::PolygonArea({groove_.begin(), groove_.end()}); }
+  auto Area() const -> double { return PolygonArea({groove_.begin(), groove_.end()}); }
 
   auto LeftDepth() const -> double { return (groove_.at(ABW_UPPER_LEFT) - groove_.at(ABW_LOWER_LEFT)).vertical; }
 
@@ -60,22 +61,18 @@ class Groove {
 
   auto AvgDepth() const -> double { return (LeftDepth() + RightDepth()) / 2.0; }
 
-  auto TopWidth() const -> double {
-    return (groove_.at(macs::ABW_UPPER_LEFT) - groove_.at(macs::ABW_UPPER_RIGHT)).horizontal;
-  }
+  auto TopWidth() const -> double { return (groove_.at(ABW_UPPER_LEFT) - groove_.at(ABW_UPPER_RIGHT)).horizontal; }
 
-  auto BottomWidth() const -> double {
-    return (groove_.at(macs::ABW_LOWER_LEFT) - groove_.at(macs::ABW_LOWER_RIGHT)).horizontal;
-  }
+  auto BottomWidth() const -> double { return (groove_.at(ABW_LOWER_LEFT) - groove_.at(ABW_LOWER_RIGHT)).horizontal; }
 
   auto TopSlope() const -> double {
-    return (groove_.at(macs::ABW_UPPER_LEFT) - groove_.at(macs::ABW_UPPER_RIGHT)).vertical /
-           (groove_.at(macs::ABW_UPPER_RIGHT) - groove_.at(macs::ABW_UPPER_LEFT)).horizontal;
+    return (groove_.at(ABW_UPPER_LEFT) - groove_.at(ABW_UPPER_RIGHT)).vertical /
+           (groove_.at(ABW_UPPER_RIGHT) - groove_.at(ABW_UPPER_LEFT)).horizontal;
   }
 
   auto BottomSlope() const -> double {
-    return (groove_.at(macs::ABW_LOWER_LEFT) - groove_.at(macs::ABW_LOWER_RIGHT)).vertical /
-           (groove_.at(macs::ABW_LOWER_RIGHT) - groove_.at(macs::ABW_LOWER_LEFT)).horizontal;
+    return (groove_.at(ABW_LOWER_LEFT) - groove_.at(ABW_LOWER_RIGHT)).vertical /
+           (groove_.at(ABW_LOWER_RIGHT) - groove_.at(ABW_LOWER_LEFT)).horizontal;
   }
 
   auto LeftWallAngle() const -> double {
@@ -98,16 +95,14 @@ class Groove {
     return str;
   }
 
-  void Move(macs::Point adjustment) {
-    std::ranges::for_each(groove_, [adjustment](Point& point) { point += adjustment; });
-  }
+  void Move(Point adjustment) { std::ranges::for_each(groove_, [adjustment](Point& point) { point += adjustment; }); }
 
   auto ToVector() const -> std::vector<Point> { return {groove_.begin(), groove_.end()}; }
 
   auto IsValid() const -> bool {
     auto valid = std::ranges::all_of(
         groove_, [](Point point) { return !std::isnan(point.horizontal) && !std::isnan(point.vertical); });
-    valid &= groove_[macs::ABW_LOWER_LEFT].horizontal > groove_[macs::ABW_LOWER_RIGHT].horizontal;
+    valid &= groove_[ABW_LOWER_LEFT].horizontal > groove_[ABW_LOWER_RIGHT].horizontal;
 
     return valid;
   }
@@ -134,8 +129,8 @@ class Groove {
       for (size_t i = 0; i < ABW_POINTS; ++i) {
         auto const& point_json = json_obj[i];
         groove[i]              = {
-                         .horizontal = point_json.at("horizontal").get<double>(),
-                         .vertical   = point_json.at("vertical").get<double>(),
+            .horizontal = point_json.at("horizontal").get<double>(),
+            .vertical   = point_json.at("vertical").get<double>(),
         };
       }
 
@@ -146,8 +141,6 @@ class Groove {
     }
   }
 
-  // iterator API
-  // NOLINTBEGIN(readability-identifier-naming)
   using iterator       = Point*;
   using const_iterator = const Point*;
 
@@ -157,10 +150,10 @@ class Groove {
   auto end() const -> const_iterator { return groove_.data() + groove_.size(); }
   auto cbegin() const -> const_iterator { return groove_.data(); }
   auto cend() const -> const_iterator { return groove_.data() + groove_.size(); }
-  // NOLINTEND(readability-identifier-naming)
 
  private:
-  std::array<Point, ABW_POINTS> groove_;
+  std::array<Point, ABW_POINTS> groove_{};
 };
 
-}  // namespace macs
+}  // namespace common::groove
+

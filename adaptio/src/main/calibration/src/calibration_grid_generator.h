@@ -6,12 +6,13 @@
 #include <memory>
 #include <numeric>
 #include <vector>
+#include <optional>
 
 #include "calibration/calibration_configuration.h"
 #include "common/geometric_primitives/src/line2d.h"
 #include "common/logging/application_log.h"
 #include "joint_geometry/joint_geometry.h"
-#include "macs/macs_point.h"
+#include "common/groove/point.h"
 
 namespace calibration {
 
@@ -23,9 +24,9 @@ const double HALF             = 0.5;
 
 // Note: In this file we reason about the coordinates for the wire tip in
 // relation to the groove for simplicity. However, GenerateCalibrationDots will be
-// called with macs::Point coordinates which are defined as the location of
+// called with common::groove::Point coordinates which are defined as the location of
 // the tip of the contact tube. This is fine since it is only the relative
-// position values which define the grid.
+// positions and distances that needs to be considered for this method.
 
 struct GridLayout {
   double x_center{};  // Center between c_left and c_right
@@ -34,20 +35,16 @@ struct GridLayout {
 };
 
 struct GridPoint {
-  int index_x{};  // Horizontal index (relative to center)
-  int index_z{};  // Vertical index (upwards)
-  std::shared_ptr<GridLayout> layout;
-
-  auto GetX() const -> double { return layout->x_center + (index_x * layout->spacing); }
-  auto GetZ() const -> double { return layout->z_start + (index_z * layout->spacing); }
+  double horizontal{};
+  double vertical{};
 };
 
 // TODO: Move this function to another file
 inline auto ValidateAndCalculateGrooveTopCenter(const joint_geometry::JointGeometry& joint_geometry,
                                                 double min_touch_width_ratio, double max_touch_width_ratio,
                                                 double wire_diameter, double stickout,
-                                                const macs::Point& left_touch_position,
-                                                const macs::Point& right_touch_position) -> std::optional<macs::Point> {
+                                                const common::groove::Point& left_touch_position,
+                                                const common::groove::Point& right_touch_position) -> std::optional<common::groove::Point> {
   const auto touch_width = left_touch_position.horizontal - right_touch_position.horizontal + wire_diameter;
   auto touch_ratio       = touch_width / joint_geometry.upper_joint_width_mm;
 
@@ -66,16 +63,16 @@ inline auto ValidateAndCalculateGrooveTopCenter(const joint_geometry::JointGeome
     return {};
   }
 
-  return macs::Point{.horizontal = std::midpoint(left_touch_position.horizontal, right_touch_position.horizontal),
+  return common::groove::Point{.horizontal = std::midpoint(left_touch_position.horizontal, right_touch_position.horizontal),
                      .vertical   = left_touch_position.vertical - stickout + touch_depth};
 }
 
 // TODO: Move this function to another file
 inline auto ValidateAndCalculateGrooveTopCenter2(const joint_geometry::JointGeometry& joint_geometry,
                                                  double wire_diameter, double stickout,
-                                                 const macs::Point& left_wall_touch_position,
-                                                 const macs::Point& right_wall_touch_position,
-                                                 const macs::Point& top_touch_position) -> std::optional<macs::Point> {
+                                                 const common::groove::Point& left_wall_touch_position,
+                                                 const common::groove::Point& right_wall_touch_position,
+                                                 const common::groove::Point& top_touch_position) -> std::optional<common::groove::Point> {
   // For now, assume symmetric joint so left and right depths are the same
   // TODO(zachjz): Change the following two lines when asymmetric joints are supported.
   const double groove_depth_left  = joint_geometry.groove_depth_mm;
@@ -148,7 +145,7 @@ inline auto ValidateAndCalculateGrooveTopCenter2(const joint_geometry::JointGeom
   // Compute the top center point
   const Eigen::Vector2d top_center_point = HALF * (top_left_corner_a->ToVector() + top_right_corner_e->ToVector());
 
-  return macs::Point{.horizontal = top_center_point(0), .vertical = top_center_point(1)};
+  return common::groove::Point{.horizontal = top_center_point(0), .vertical = top_center_point(1)};
 }
 
 // depth_c is the vertical distance from the touch points to the groove top
@@ -207,7 +204,7 @@ inline auto GenerateCalibrationDots(const GridConfiguration& grid_config, double
         }
 
         if (inside_area(px, pz)) {
-          raw_points.emplace_back(GridPoint{.index_x = index_x, .index_z = index_z, .layout = layout});
+          raw_points.emplace_back(GridPoint{.horizontal = px, .vertical = pz});
         }
       }
     }
@@ -218,7 +215,7 @@ inline auto GenerateCalibrationDots(const GridConfiguration& grid_config, double
 
       std::map<int, std::vector<GridPoint>> rows;
       for (const auto& point : raw_points) {
-        rows[point.index_z].push_back(point);
+        rows[static_cast<int>(point.vertical)].push_back(point);
       }
 
       ordered_points.clear();
@@ -229,11 +226,11 @@ inline auto GenerateCalibrationDots(const GridConfiguration& grid_config, double
           // Sort in order right to left. Note that x increases from right to left(!)
           // That means low index_x values should be sorted before high index_x values
           std::ranges::sort(row_points,
-                            [](const GridPoint& lhs, const GridPoint& rhs) { return lhs.index_x < rhs.index_x; });
+                            [](const GridPoint& lhs, const GridPoint& rhs) { return lhs.horizontal < rhs.horizontal; });
         } else {
           // Sort in order left to right
           std::ranges::sort(row_points,
-                            [](const GridPoint& lhs, const GridPoint& rhs) { return lhs.index_x > rhs.index_x; });
+                            [](const GridPoint& lhs, const GridPoint& rhs) { return lhs.horizontal > rhs.horizontal; });
         }
         ordered_points.insert(ordered_points.end(), row_points.begin(), row_points.end());
         ++row_index;
@@ -247,5 +244,21 @@ inline auto GenerateCalibrationDots(const GridConfiguration& grid_config, double
 
   return ordered_points;
 }
+
+class CalibrationGridGenerator {
+ public:
+  static auto GenerateCalibrationDots(double upper_width, double left_wall_angle, double right_wall_angle,
+                                      double wire_diameter, double stickout, double horizontal_shift, double vertical_shift)
+      -> std::vector<GridPoint>;
+
+  static auto LineTouch(double upper_width, double left_wall_angle, double right_wall_angle, double wire_diameter,
+                        double stickout, const common::groove::Point& left_touch_position,
+                        const common::groove::Point& right_touch_position) -> std::optional<common::groove::Point>;
+
+  static auto TouchPoint(double upper_width, double left_wall_angle, double right_wall_angle, double wire_diameter,
+                         double stickout, const common::groove::Point& left_wall_touch_position,
+                         const common::groove::Point& right_wall_touch_position,
+                         const common::groove::Point& top_touch_position) -> std::optional<common::groove::Point>;
+};
 
 }  // namespace calibration

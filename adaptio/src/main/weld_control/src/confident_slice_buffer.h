@@ -8,7 +8,7 @@
 
 #include "common/logging/application_log.h"
 #include "common/storage/slot_buffer_storage.h"
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 namespace {}  // namespace
 
@@ -16,7 +16,7 @@ namespace weld_control {
 
 struct ConfidentSliceData {
   double edge_position;
-  macs::Groove groove;
+  common::groove::Groove groove;
 
   auto ToJson() const -> nlohmann::json {
     return nlohmann::json{
@@ -27,7 +27,7 @@ struct ConfidentSliceData {
 
   static auto FromJson(const nlohmann::json& json_obj) -> std::optional<ConfidentSliceData> {
     try {
-      auto groove_opt = macs::Groove::FromJson(json_obj.at("groove"));
+      auto groove_opt = common::groove::Groove::FromJson(json_obj.at("groove"));
       if (!groove_opt.has_value()) {
         return std::nullopt;
       }

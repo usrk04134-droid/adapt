@@ -13,7 +13,7 @@
 #include "common/zevs/zevs_socket.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
+#include "common/groove/point.h"
 
 using calibration::CalibrationSequenceRunner;
 

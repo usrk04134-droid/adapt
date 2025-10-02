@@ -7,14 +7,14 @@
 #include <string>
 #include <vector>
 
-#include "macs_groove.h"
-#include "macs_point.h"
+#include "common/groove/groove.h"
+#include "common/groove/point.h"
 
 namespace macs {
 
 struct Slice {
-  std::optional<Groove> groove;
-  std::vector<Point> line;
+  std::optional<common::groove::Groove> groove;
+  std::vector<common::groove::Point> line;
   uint64_t time_stamp;
 
   auto Describe() const -> std::string;

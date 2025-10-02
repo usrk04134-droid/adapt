@@ -6,7 +6,7 @@
 #include <numbers>
 
 #include "bead_control/src/weld_position_data_storage.h"
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 // NOLINTBEGIN(*-magic-numbers)
 
@@ -14,7 +14,7 @@ namespace bead_control {
 
 TEST_SUITE("GrooveFit") {
   static auto const GROOVES_EQUAL = [](auto const groove1, auto const groove2) {
-    for (auto j = 0; j < macs::ABW_POINTS; ++j) {
+    for (auto j = 0; j < common::groove::ABW_POINTS; ++j) {
       if (groove1[j].horizontal != doctest::Approx(groove2[j].horizontal) ||
           groove1[j].vertical != doctest::Approx(groove2[j].vertical)) {
         return false;
@@ -23,7 +23,7 @@ TEST_SUITE("GrooveFit") {
     return true;
   };
   TEST_CASE("groove10Samples3rdDegreePolynomial") {
-    auto const groove = macs::Groove({.horizontal = 75.0, .vertical = 25.0}, {.horizontal = 25.0, .vertical = -25.0},
+    auto const groove = common::groove::Groove({.horizontal = 75.0, .vertical = 25.0}, {.horizontal = 25.0, .vertical = -25.0},
                                      {.horizontal = 12.5, .vertical = -25.0}, {.horizontal = 0.0, .vertical = -25.0},
                                      {.horizontal = -12.5, .vertical = -25.0}, {.horizontal = -25.0, .vertical = -25.0},
                                      {.horizontal = -75.0, .vertical = 25.0});
@@ -51,7 +51,7 @@ TEST_SUITE("GrooveFit") {
   }
 
   TEST_CASE("groove5Samples8thDegreePolynominal") {
-    auto const groove = macs::Groove({.horizontal = 75.0, .vertical = 25.0}, {.horizontal = 25.0, .vertical = -25.0},
+    auto const groove = common::groove::Groove({.horizontal = 75.0, .vertical = 25.0}, {.horizontal = 25.0, .vertical = -25.0},
                                      {.horizontal = 12.5, .vertical = -25.0}, {.horizontal = 0.0, .vertical = -25.0},
                                      {.horizontal = -12.5, .vertical = -25.0}, {.horizontal = -25.0, .vertical = -25.0},
                                      {.horizontal = -75.0, .vertical = 25.0});

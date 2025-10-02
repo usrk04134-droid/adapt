@@ -168,11 +168,40 @@ inline auto ToJsonLog(const calibration::CalibrationResult& data) -> nlohmann::j
   return obj;
 }
 
-inline auto ToJsonLog(const macs::Point& data) -> nlohmann::json {
+inline auto ToJsonLog(const common::groove::Point& data) -> nlohmann::json {
   nlohmann::json obj = {
-      {"horizontal", Floor(data.horizontal, LOG_4_DECIMALS)},
-      {"vertical",   Floor(data.vertical,   LOG_4_DECIMALS)},
+      {"horizontal", data.horizontal},
+      {"vertical",   data.vertical  },
   };
+
+  return obj;
+}
+
+inline auto ToJsonLog(const lpcs::Point& data) -> nlohmann::json {
+  nlohmann::json obj = {
+      {"x", data.x},
+      {"y", data.y}
+  };
+  return obj;
+}
+
+inline auto ToJsonLog(const lpcs::Slice& data) -> nlohmann::json {
+  nlohmann::json obj;
+  obj["timeStamp"] = data.time_stamp;
+
+  nlohmann::json points;
+  for (const auto& lpcs_point : data.line) {
+    points.push_back(ToJsonLog(lpcs_point));
+  }
+  obj["points"] = points;
+
+  if (data.groove.has_value()) {
+    nlohmann::json groove = nlohmann::json::array();
+    for (const auto& lpcs_point : data.groove.value()) {
+      groove.push_back(ToJsonLog(lpcs_point));
+    }
+    obj["groove"] = groove;
+  }
 
   return obj;
 }

@@ -33,7 +33,7 @@
 #include "joint_geometry/joint_geometry_provider.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
+#include "common/groove/point.h"
 #include "scanner_client/scanner_client.h"
 #include "slice_translator/model_config.h"
 #include "web_hmi/web_hmi.h"

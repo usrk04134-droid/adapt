@@ -20,7 +20,6 @@
 #include "joint_geometry/joint_geometry.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
 #include "macs/macs_slice.h"
 #include "performance_metrics.h"
 #include "scanner_client/scanner_client.h"
@@ -81,10 +80,10 @@ class WeldControlImpl : public WeldControl,
   /* ScannerObserver */
   void OnScannerStarted(bool success) override;
   void OnScannerStopped(bool success) override;
-  void OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position) override {};
+  void OnScannerDataUpdate(const lpcs::Slice& data, const common::groove::Point& axis_position) override {};
 
   /* SliceObserver */
-  void Receive(const macs::Slice& machine_data, const lpcs::Slice& scanner_data, const macs::Point& slides_actual,
+  void Receive(const macs::Slice& machine_data, const lpcs::Slice& scanner_data, const common::groove::Point& slides_actual,
                double angle_from_torch_to_scanner) override;
 
   auto GetMode() const -> Mode { return mode_; }
@@ -143,9 +142,9 @@ class WeldControlImpl : public WeldControl,
   std::optional<std::chrono::steady_clock::time_point> handover_to_abp_cap_timestamp_;
   std::optional<std::chrono::steady_clock::time_point> handover_to_manual_timestamp_;
   double cached_groove_area_{0.0};
-  std::optional<macs::Groove> cached_delayed_mcs_;
+  std::optional<common::groove::Groove> cached_delayed_mcs_;
   std::optional<tracking::TrackingManager::Output> slides_desired_;
-  macs::Point slides_actual_;
+  common::groove::Point slides_actual_;
   double horizontal_offset_{0.0};
   double vertical_offset_{0.0};
   tracking::TrackingMode tracking_mode_{tracking::TrackingMode::TRACKING_LEFT_HEIGHT};
@@ -200,11 +199,11 @@ class WeldControlImpl : public WeldControl,
   void UpdateConfidentSlice();
   void UpdateReadyForABPCap();
   void ProcessInput();
-  auto GetDelayedGrooveMCS(double delay) -> macs::Groove;
+  auto GetDelayedGrooveMCS(double delay) -> common::groove::Groove;
   auto StoreGrooveInDelayBuffer() -> bool;
-  auto GetHybridGrooveMCS() const -> macs::Groove;
+  auto GetHybridGrooveMCS() const -> common::groove::Groove;
   auto GetSampleToTorchDistRad(uint64_t ts_sample, double ang_velocity, double torch_to_scanner_angle) -> double;
-  auto GetSmoothMCS(double smooth_ang_distance) -> std::optional<macs::Groove>;
+  auto GetSmoothMCS(double smooth_ang_distance) -> std::optional<common::groove::Groove>;
   void UpdateTrackingPosition();
   void SetupMetrics(prometheus::Registry* registry);
   void UpdateBeadControlParameters();

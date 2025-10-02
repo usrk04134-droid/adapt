@@ -2,5 +2,8 @@ add_subdirectory(test)
 
 target_sources(${ADAPTIO_APPLICATION}
     PRIVATE
-    macs_slice.h
+    groove.h
+    math.h
+    point.h
 )
+

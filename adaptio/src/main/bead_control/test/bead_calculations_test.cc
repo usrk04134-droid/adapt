@@ -7,7 +7,7 @@
 #include <numbers>
 
 #include "../src/weld_position_data_storage.h"
-#include "macs/macs_point.h"
+#include "common/groove/point.h"
 
 // NOLINTBEGIN(*-magic-numbers, misc-include-cleaner)
 
@@ -23,15 +23,15 @@ enum SliceSize {
 namespace bead_control {
 TEST_SUITE("BeadCalculations") {
   TEST_CASE("MeanLayerAreaLeft") {
-    macs::Point p0 = {.horizontal = 1.5, .vertical = 0.5};
-    macs::Point p1 = {.horizontal = 0.5, .vertical = -0.5};
-    macs::Point p2 = {.horizontal = 0.5, .vertical = -0.5};
-    macs::Point p3 = {.horizontal = 0.5, .vertical = -0.5};
-    macs::Point p4 = {.horizontal = 0.5, .vertical = -0.5};
-    macs::Point p5 = {.horizontal = -0.5, .vertical = -0.5};
-    macs::Point p6 = {.horizontal = -1.5, .vertical = 0.5};
+    common::groove::Point p0 = {.horizontal = 1.5, .vertical = 0.5};
+    common::groove::Point p1 = {.horizontal = 0.5, .vertical = -0.5};
+    common::groove::Point p2 = {.horizontal = 0.5, .vertical = -0.5};
+    common::groove::Point p3 = {.horizontal = 0.5, .vertical = -0.5};
+    common::groove::Point p4 = {.horizontal = 0.5, .vertical = -0.5};
+    common::groove::Point p5 = {.horizontal = -0.5, .vertical = -0.5};
+    common::groove::Point p6 = {.horizontal = -1.5, .vertical = 0.5};
 
-    auto const empty_groove = macs::Groove(p0, p1, p2, p3, p4, p5, p6);
+    auto const empty_groove = common::groove::Groove(p0, p1, p2, p3, p4, p5, p6);
 
     // We would like an bead height of 0.5
     auto bead_area = pow(0.5 / 0.8, 2.) / 2. * std::numbers::pi;
@@ -41,17 +41,17 @@ TEST_SUITE("BeadCalculations") {
   }
 
   TEST_CASE("MeanGrooveWidth") {
-    macs::Point p0 = {.horizontal = 1.5, .vertical = 0.5};
-    macs::Point p1 = {.horizontal = 0.5, .vertical = -0.5};
-    macs::Point p2 = {.horizontal = 0.5, .vertical = -0.5};
-    macs::Point p3 = {.horizontal = 0.0, .vertical = -0.5};
-    macs::Point p4 = {.horizontal = -0.5, .vertical = -0.5};
-    macs::Point p5 = {.horizontal = -0.5, .vertical = -0.5};
-    macs::Point p6 = {.horizontal = -1.5, .vertical = 0.5};
+    common::groove::Point p0 = {.horizontal = 1.5, .vertical = 0.5};
+    common::groove::Point p1 = {.horizontal = 0.5, .vertical = -0.5};
+    common::groove::Point p2 = {.horizontal = 0.5, .vertical = -0.5};
+    common::groove::Point p3 = {.horizontal = 0.0, .vertical = -0.5};
+    common::groove::Point p4 = {.horizontal = -0.5, .vertical = -0.5};
+    common::groove::Point p5 = {.horizontal = -0.5, .vertical = -0.5};
+    common::groove::Point p6 = {.horizontal = -1.5, .vertical = 0.5};
 
-    auto const empty_groove = macs::Groove(p0, p1, p2, p3, p4, p5, p6);
+    auto const empty_groove = common::groove::Groove(p0, p1, p2, p3, p4, p5, p6);
     auto const empty_groove1 =
-        macs::Groove({.horizontal = 1.0, .vertical = 0.5}, {.horizontal = 0.25, .vertical = -0.5}, p2, p3, p4,
+        common::groove::Groove({.horizontal = 1.0, .vertical = 0.5}, {.horizontal = 0.25, .vertical = -0.5}, p2, p3, p4,
                      {.horizontal = -0.25, .vertical = -0.5}, {.horizontal = -1.0, .vertical = 0.5});
 
     boost::circular_buffer<WeldPositionDataStorage::Entry> cur_bead(2);
@@ -123,7 +123,7 @@ TEST_SUITE("BeadCalculations") {
   }
 
   TEST_CASE("BeadSliceAreaRatio") {
-    auto const tests = std::vector<std::pair<SliceSize, macs::Groove>>{
+    auto const tests = std::vector<std::pair<SliceSize, common::groove::Groove>>{
         // Top line horizontal
         // Bottom line horizontal
         {
@@ -172,10 +172,10 @@ TEST_SUITE("BeadCalculations") {
          SliceSize::INCREASING,
          {
                 {.horizontal = 75., .vertical = 25.},
-                {.horizontal = 25., .vertical = -25.},
-                {.horizontal = 12.5, .vertical = -26.},
-                {.horizontal = 0., .vertical = -27.},
-                {.horizontal = -12.5, .vertical = -28.},
+                {.horizontal = 25., .vertical = -26.},
+                {.horizontal = 12.5, .vertical = -27.},
+                {.horizontal = 0., .vertical = -28.},
+                {.horizontal = -12.5, .vertical = -29.},
                 {.horizontal = -25, .vertical = -29.},
                 {.horizontal = -75, .vertical = 25.},
             }, },
@@ -231,8 +231,8 @@ TEST_SUITE("BeadCalculations") {
                 {.horizontal = 25., .vertical = -10.},
                 {.horizontal = 12.5, .vertical = -11.},
                 {.horizontal = 0., .vertical = -15.},
-                {.horizontal = -12.5, .vertical = -30.},
-                {.horizontal = -25, .vertical = -35.},
+                {.horizontal = -12.5, .vertical = -20.},
+                {.horizontal = -25, .vertical = -22.},
                 {.horizontal = -75, .vertical = 25.},
             }, },
     };
@@ -263,7 +263,7 @@ TEST_SUITE("BeadCalculations") {
   }
 
   TEST_CASE("BeadPositionAdjustment") {
-    auto const tests = std::vector<std::pair<SliceSize, macs::Groove>>{
+    auto const tests = std::vector<std::pair<SliceSize, common::groove::Groove>>{
         // Top line horizontal
         // Bottom line horizontal
         {

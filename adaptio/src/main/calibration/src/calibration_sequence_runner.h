@@ -10,7 +10,7 @@
 #include "common/zevs/zevs_socket.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
+#include "common/groove/point.h"
 
 namespace calibration {
 
@@ -30,7 +30,7 @@ class CalibrationSequenceRunner {
                             OnProgress on_progress, RunnerConfiguration sequence_config);
 
   void Start();
-  void OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position);
+  void OnScannerDataUpdate(const lpcs::Slice& data, const common::groove::Point& axis_position);
   auto Busy() const -> bool;
 
  private:

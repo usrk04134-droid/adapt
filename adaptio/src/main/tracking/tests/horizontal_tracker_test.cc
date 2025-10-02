@@ -4,8 +4,8 @@
 
 #include <optional>
 
-#include "macs/macs_groove.h"
-#include "macs/macs_point.h"
+#include "common/groove/groove.h"
+#include "common/groove/point.h"
 
 using tracking::HorizontalTracker;
 using tracking::HorizontalTrackingMode;
@@ -15,11 +15,11 @@ using tracking::HorizontalTrackingReference;
 
 TEST_SUITE("HorizontalTracker") {
   TEST_CASE("Basic tracking") {
-    auto const joint = macs::Groove(
-        macs::Point{.horizontal = 50.0, .vertical = 20.0}, macs::Point{.horizontal = 40.0, .vertical = 15.0},
-        macs::Point{.horizontal = 30.0, .vertical = 10.0}, macs::Point{.horizontal = 30.0, .vertical = 10.0},
-        macs::Point{.horizontal = 30.0, .vertical = 10.0}, macs::Point{.horizontal = 20.0, .vertical = 15.0},
-        macs::Point{.horizontal = 10.0, .vertical = 20.0});
+    auto const joint = common::groove::Groove(
+        common::groove::Point{.horizontal = 50.0, .vertical = 20.0}, common::groove::Point{.horizontal = 40.0, .vertical = 15.0},
+        common::groove::Point{.horizontal = 30.0, .vertical = 10.0}, common::groove::Point{.horizontal = 30.0, .vertical = 10.0},
+        common::groove::Point{.horizontal = 30.0, .vertical = 10.0}, common::groove::Point{.horizontal = 20.0, .vertical = 15.0},
+        common::groove::Point{.horizontal = 10.0, .vertical = 20.0});
 
     auto tracker = HorizontalTracker(HorizontalTrackingMode::LEFT);
     tracker.SetTrackingReference(HorizontalTrackingReference::BOTTOM);
@@ -41,11 +41,11 @@ TEST_SUITE("HorizontalTracker") {
   }
 
   TEST_CASE("Switching modes") {
-    auto const joint = macs::Groove(
-        macs::Point{.horizontal = 50.0, .vertical = 20.0}, macs::Point{.horizontal = 40.0, .vertical = 15.0},
-        macs::Point{.horizontal = 30.0, .vertical = 10.0}, macs::Point{.horizontal = 30.0, .vertical = 10.0},
-        macs::Point{.horizontal = 30.0, .vertical = 10.0}, macs::Point{.horizontal = 20.0, .vertical = 15.0},
-        macs::Point{.horizontal = 10.0, .vertical = 20.0});
+    auto const joint = common::groove::Groove(
+        common::groove::Point{.horizontal = 50.0, .vertical = 20.0}, common::groove::Point{.horizontal = 40.0, .vertical = 15.0},
+        common::groove::Point{.horizontal = 30.0, .vertical = 10.0}, common::groove::Point{.horizontal = 30.0, .vertical = 10.0},
+        common::groove::Point{.horizontal = 30.0, .vertical = 10.0}, common::groove::Point{.horizontal = 20.0, .vertical = 15.0},
+        common::groove::Point{.horizontal = 10.0, .vertical = 20.0});
 
     auto tracker = HorizontalTracker(HorizontalTrackingMode::LEFT);
     tracker.SetTrackingReference(HorizontalTrackingReference::BOTTOM);
@@ -69,11 +69,11 @@ TEST_SUITE("HorizontalTracker") {
 
   TEST_CASE("Tracking narrow joint") {
     // When joint is smaller than offset*2, the position shoud be the center of the groove.
-    auto const joint = macs::Groove(
-        macs::Point{.horizontal = 50.0, .vertical = 40.0}, macs::Point{.horizontal = 27.0, .vertical = 10.0},
-        macs::Point{.horizontal = 26.0, .vertical = 8.0}, macs::Point{.horizontal = 25.0, .vertical = 7.0},
-        macs::Point{.horizontal = 24.0, .vertical = 8.0}, macs::Point{.horizontal = 23.0, .vertical = 10.0},
-        macs::Point{.horizontal = 0.0, .vertical = 40.0});
+    auto const joint = common::groove::Groove(
+        common::groove::Point{.horizontal = 50.0, .vertical = 40.0}, common::groove::Point{.horizontal = 27.0, .vertical = 10.0},
+        common::groove::Point{.horizontal = 26.0, .vertical = 8.0}, common::groove::Point{.horizontal = 25.0, .vertical = 7.0},
+        common::groove::Point{.horizontal = 24.0, .vertical = 8.0}, common::groove::Point{.horizontal = 23.0, .vertical = 10.0},
+        common::groove::Point{.horizontal = 0.0, .vertical = 40.0});
 
     auto tracker = HorizontalTracker(HorizontalTrackingMode::LEFT);
     tracker.SetTrackingReference(HorizontalTrackingReference::BOTTOM);
@@ -91,11 +91,11 @@ TEST_SUITE("HorizontalTracker") {
   }
 
   TEST_CASE("Tracking with TOP reference") {
-    auto const joint = macs::Groove(
-        macs::Point{.horizontal = 50.0, .vertical = 20.0}, macs::Point{.horizontal = 40.0, .vertical = 15.0},
-        macs::Point{.horizontal = 30.0, .vertical = 10.0}, macs::Point{.horizontal = 30.0, .vertical = 10.0},
-        macs::Point{.horizontal = 30.0, .vertical = 10.0}, macs::Point{.horizontal = 20.0, .vertical = 15.0},
-        macs::Point{.horizontal = 10.0, .vertical = 20.0});
+    auto const joint = common::groove::Groove(
+        common::groove::Point{.horizontal = 50.0, .vertical = 20.0}, common::groove::Point{.horizontal = 40.0, .vertical = 15.0},
+        common::groove::Point{.horizontal = 30.0, .vertical = 10.0}, common::groove::Point{.horizontal = 30.0, .vertical = 10.0},
+        common::groove::Point{.horizontal = 30.0, .vertical = 10.0}, common::groove::Point{.horizontal = 20.0, .vertical = 15.0},
+        common::groove::Point{.horizontal = 10.0, .vertical = 20.0});
 
     auto tracker = HorizontalTracker(HorizontalTrackingMode::LEFT);
     tracker.SetTrackingReference(HorizontalTrackingReference::TOP);

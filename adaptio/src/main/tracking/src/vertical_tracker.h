@@ -2,20 +2,20 @@
 
 #include <optional>
 
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 namespace tracking {
 
 class VerticalTracker {
  public:
   explicit VerticalTracker() = default;
-  void SetLine(const macs::Groove& line) { line_ = line; };
+  void SetLine(const common::groove::Groove& line) { line_ = line; };
   void SetOffset(double offset) { offset_ = offset; };
   auto GetVerticalMove(double current_horizontal) const -> std::optional<double>;
   void Reset();
 
  private:
   std::optional<double> offset_;
-  std::optional<macs::Groove> line_;
+  std::optional<common::groove::Groove> line_;
 };
 }  // namespace tracking

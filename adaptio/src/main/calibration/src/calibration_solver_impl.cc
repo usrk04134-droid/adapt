@@ -20,7 +20,7 @@
 #include "common/types/vector_3d.h"
 #include "common/types/vector_3d_helpers.h"
 #include "lpcs/lpcs_point.h"
-#include "macs/macs_point.h"
+#include "common/groove/point.h"
 #include "slice_translator/model_extract.h"
 
 namespace {
