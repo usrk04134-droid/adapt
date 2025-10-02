@@ -3,7 +3,8 @@
 #include <cstdint>
 #include <optional>
 
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
+#include "common/groove/point.h"
 
 namespace tracking {
 
@@ -56,8 +57,8 @@ class TrackingManager {
     TrackingReference reference{TrackingReference::BOTTOM};
     double horizontal_offset{0.};
     double vertical_offset{0.};
-    macs::Groove groove;
-    macs::Point axis_position{.horizontal = 0., .vertical = 0.};
+    common::groove::Groove groove;
+    common::groove::Point axis_position{.horizontal = 0., .vertical = 0.};
     bool smooth_vertical_motion{};
   };
 

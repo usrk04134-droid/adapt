@@ -20,14 +20,14 @@
 
 #include "bead_control/bead_control.h"
 #include "bead_control/bead_control_types.h"
-#include "bead_control/src/bead_calculations.h"
+#include "bead_calculations.h"
 #include "bead_control/src/weld_position_data_storage.h"
 #include "common/clock_functions.h"
 #include "common/logging/application_log.h"
 #include "common/math/math.h"
 #include "groove_fit.h"
-#include "macs/macs_groove.h"
-#include "macs/macs_point.h"
+#include "common/groove/groove.h"
+#include "common/groove/point.h"
 #include "tracking/tracking_manager.h"
 
 namespace {
@@ -109,7 +109,7 @@ auto BeadControlImpl::OnFillLayerFirstBead() -> bool {
            empty_layer_.Size(),
            std::chrono::duration_cast<std::chrono::milliseconds>(steady_clock_now_func_() - start).count());
 
-  average_empty_groove_ = macs::Groove();
+  average_empty_groove_ = common::groove::Groove();
 
   if (!empty_groove_buffer_.has_value() && !empty_layer_groove_buffer_.Empty()) {
     empty_groove_buffer_ = empty_layer_groove_buffer_;
@@ -126,7 +126,7 @@ auto BeadControlImpl::OnFillLayerFirstBead() -> bool {
 
     empty_layer_average_groove_area_ += data.groove.Area() / samples;
 
-    for (auto abw_point = 0; abw_point < macs::ABW_POINTS; ++abw_point) {
+    for (auto abw_point = 0; abw_point < common::groove::ABW_POINTS; ++abw_point) {
       average_empty_groove_.value()[abw_point] += {
           .horizontal = data.groove[abw_point].horizontal / samples,
           .vertical   = data.groove[abw_point].vertical / samples,
@@ -230,8 +230,8 @@ auto GetRepositionHorizontalVelocity(double angular_velocity, double radius, dou
   return angular_velocity * radius * tan(angle);
 }
 
-auto BeadControlImpl::CalculateBeadPosition(const macs::Groove& groove,
-                                            const std::optional<macs::Groove>& maybe_empty_groove)
+auto BeadControlImpl::CalculateBeadPosition(const common::groove::Groove& groove,
+                                            const std::optional<common::groove::Groove>& maybe_empty_groove)
     -> std::tuple<double, tracking::TrackingMode, tracking::TrackingReference> {
   std::tuple<double, tracking::TrackingMode, tracking::TrackingReference> result;
 
@@ -239,9 +239,9 @@ auto BeadControlImpl::CalculateBeadPosition(const macs::Groove& groove,
   auto right_tracking_offset_adjustment = 0.0;
   if (locked_groove_.has_value()) {
     left_tracking_offset_adjustment =
-        (groove[macs::ABW_LOWER_LEFT] - locked_groove_.value()[macs::ABW_LOWER_LEFT]).horizontal;
+        (groove[common::groove::ABW_LOWER_LEFT] - locked_groove_.value()[common::groove::ABW_LOWER_LEFT]).horizontal;
     right_tracking_offset_adjustment =
-        (locked_groove_.value()[macs::ABW_LOWER_RIGHT] - groove[macs::ABW_LOWER_RIGHT]).horizontal;
+        (locked_groove_.value()[common::groove::ABW_LOWER_RIGHT] - groove[common::groove::ABW_LOWER_RIGHT]).horizontal;
     LOG_TRACE("{} diff compared to locked abw1/5: {:.3f}/{:.3f}", StateToString(state_),
               left_tracking_offset_adjustment, right_tracking_offset_adjustment);
   }
@@ -339,7 +339,7 @@ auto BeadControlImpl::CalculateBeadPosition(const macs::Groove& groove,
   return result;
 }
 
-auto BeadControlImpl::CalculateBeadSliceAreaRatio(const macs::Groove& empty_groove) -> double {
+auto BeadControlImpl::CalculateBeadSliceAreaRatio(const common::groove::Groove& empty_groove) -> double {
   auto bead_number_l_to_r = 0;
 
   /* if total_beads_in_full_layer_ has not yet been calculated for the current layer -> use previous layers number of
@@ -410,7 +410,7 @@ auto BeadControlImpl::Update(const Input& input) -> std::pair<Result, Output> {
     UpdateGrooveLocking(input);
   }
 
-  std::optional<macs::Groove> layer_empty_groove_fit;
+  std::optional<common::groove::Groove> layer_empty_groove_fit;
   if (empty_layer_groove_fit_.has_value()) {
     auto const groove = empty_layer_groove_fit_->Fit(input.weld_object_angle);
     if (groove.IsValid()) {
@@ -622,7 +622,7 @@ void BeadControlImpl::ResetGrooveData() {
   empty_layer_groove_buffer_.Clear();
 }
 
-auto BeadControlImpl::GetEmptyGroove(double pos) -> std::optional<macs::Groove> {
+auto BeadControlImpl::GetEmptyGroove(double pos) -> std::optional<common::groove::Groove> {
   if (empty_groove_buffer_.has_value()) {
     return empty_groove_buffer_->Get(pos);
   }

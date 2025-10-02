@@ -3,7 +3,7 @@
 #include <boost/range/combine.hpp>
 
 #include "bead_control/src/weld_position_data_storage.h"
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 namespace bead_control {
 

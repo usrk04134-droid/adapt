@@ -4,7 +4,6 @@
 #include <optional>
 
 #include "common/logging/application_log.h"
-#include "macs/macs_point.h"
 
 using tracking::VerticalTracker;
 
@@ -23,7 +22,7 @@ auto VerticalTracker::GetVerticalMove(double current_horizontal) const -> std::o
   // Find the two points between which the horizontal value lies
   auto iter = std::lower_bound(
       line_->begin(), line_->end(), current_horizontal,
-      [](const macs::Point& coord, double target_horizontal) { return coord.horizontal > target_horizontal; });
+      [](const common::groove::Point& coord, double target_horizontal) { return coord.horizontal > target_horizontal; });
   double joint_height{};
 
   if (iter == line_->begin()) {
@@ -32,8 +31,8 @@ auto VerticalTracker::GetVerticalMove(double current_horizontal) const -> std::o
     joint_height = (iter - 1)->vertical;
   } else {
     // Linear interpolation between the two coordinates
-    const macs::Point& first  = *(iter - 1);
-    const macs::Point& second = *iter;
+    const common::groove::Point& first  = *(iter - 1);
+    const common::groove::Point& second = *iter;
 
     if (second.horizontal == first.horizontal) {
       return std::nullopt;

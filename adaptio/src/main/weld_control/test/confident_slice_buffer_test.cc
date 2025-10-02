@@ -2,7 +2,7 @@
 
 #include <doctest/doctest.h>
 
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 // NOLINTBEGIN(*-magic-numbers)
 namespace weld_control {
@@ -11,7 +11,7 @@ TEST_SUITE("ConfidentSliceBuffer") {
   TEST_CASE("JsonRoundtrip") {
     auto original_slice = ConfidentSliceData{
         .edge_position = 10.5,
-        .groove        = macs::Groove({.horizontal = 75., .vertical = 25.}, {.horizontal = 25., .vertical = -25.},
+        .groove        = common::groove::Groove({.horizontal = 75., .vertical = 25.}, {.horizontal = 25., .vertical = -25.},
                                       {.horizontal = 12.5, .vertical = -25.}, {.horizontal = 0., .vertical = -25.},
                                       {.horizontal = -12.5, .vertical = -25.}, {.horizontal = -25, .vertical = -25.},
                                       {.horizontal = -75, .vertical = 25.})};
@@ -24,7 +24,7 @@ TEST_SUITE("ConfidentSliceBuffer") {
 
     REQUIRE(original_slice.edge_position == doctest::Approx(restored_slice.edge_position));
 
-    for (auto i = 0; i < macs::ABW_POINTS; ++i) {
+    for (auto i = 0; i < common::groove::ABW_POINTS; ++i) {
       REQUIRE(original_slice.groove[i].horizontal == doctest::Approx(restored_slice.groove[i].horizontal));
       REQUIRE(original_slice.groove[i].vertical == doctest::Approx(restored_slice.groove[i].vertical));
     }

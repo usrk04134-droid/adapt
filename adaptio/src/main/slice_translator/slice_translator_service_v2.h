@@ -1,24 +1,39 @@
 #pragma once
 
-#include <optional>
-#include <vector>
+#include <nlohmann/json.hpp>
 
-#include "lpcs/lpcs_point.h"
-#include "macs/macs_point.h"
+#include <optional>
+
+#include "common/logging/application_log.h"
+#include "kinematics/kinematics_client.h"
+#include "lpcs/lpcs_slice.h"
+#include "slice_translator/coordinates_translator.h"
+#include "slice_translator/model.h"
+#include "slice_translator/model_config.h"
+#include "slice_translator/slice_translator.h"
 
 namespace slice_translator {
 
-class SliceTranslatorServiceV2 {
+class SliceTranslatorServiceV2 : public SliceTranslator {
  public:
-  virtual ~SliceTranslatorServiceV2() = default;
+  explicit SliceTranslatorServiceV2(Model* model, ModelConfig* model_config, kinematics::KinematicsClient* kinematics)
+      : model_(model), model_config_(model_config), kinematics_(kinematics) {}
 
-  virtual auto LPCSToMCS(const std::vector<lpcs::Point>& lpcs_points, const macs::Point& slide_position)
-      -> std::optional<std::vector<macs::Point>> = 0;
-  virtual auto MCSToLPCS(const std::vector<macs::Point>& macs_points, const macs::Point& slide_position)
-      -> std::optional<std::vector<lpcs::Point>> = 0;
-  virtual auto AngleFromTorchToScanner(const std::vector<lpcs::Point>& lpcs_points, const macs::Point& axis_position)
-      -> std::optional<double>           = 0;
-  virtual auto Available() const -> bool = 0;
+  void AddObserver(SliceObserver* observer) override;
+  auto LPCSToMCS(const std::vector<lpcs::Point>& vec, const common::groove::Point& axis_position)
+      -> std::optional<std::vector<macs::Point>> override;
+  auto LPCSToMCS(const lpcs::Groove& groove, const common::groove::Point& axis_position)
+      -> std::optional<std::vector<macs::Point>> override;
+  auto MCSToLPCS(const std::vector<macs::Point>& vec, const common::groove::Point& axis_position)
+      -> std::optional<std::vector<lpcs::Point>> override;
+  auto AngleFromTorchToScanner(const lpcs::Groove& groove, const common::groove::Point& axis_position)
+      -> std::optional<double> override;
+
+ private:
+  Model* model_;
+  ModelConfig* model_config_;
+  kinematics::KinematicsClient* kinematics_;
+  std::vector<SliceObserver*> observers_;
 };
 
 }  // namespace slice_translator

@@ -6,7 +6,7 @@
 
 #include "calibration/calibration_types.h"
 #include "coordination/activity_status.h"
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 inline auto VersionToPayload(const std::string& version) -> nlohmann::json {
   auto json_obj = nlohmann::json{
@@ -42,7 +42,7 @@ inline auto ActivityStatusToPayload(coordination::ActivityStatusE activity_statu
   return payload;
 }
 
-inline auto GrooveToPayload(const macs::Groove& groove) -> nlohmann::json {
+inline auto GrooveToPayload(const common::groove::Groove& groove) -> nlohmann::json {
   auto json_groove = nlohmann::json::array();
   for (auto const& coordinate : groove) {
     nlohmann::json const json_coordinate = {

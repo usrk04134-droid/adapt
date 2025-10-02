@@ -4,7 +4,7 @@
 #include <cstdint>
 
 #include "common/containers/relative_position_buffer.h"
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 namespace bead_control {
 
@@ -18,7 +18,7 @@ const uint32_t MAX_BUFFER_SIZE = 220000;
 
 struct WeldPositionData {
   double weld_object_lin_velocity{};
-  macs::Groove groove;
+  common::groove::Groove groove;
   struct {
     double current{0.};
     double wire_lin_velocity{0.};

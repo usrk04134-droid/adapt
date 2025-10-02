@@ -4,7 +4,7 @@
 
 #include <optional>
 
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 using tracking::VerticalTracker;
 
@@ -12,7 +12,7 @@ using tracking::VerticalTracker;
 
 TEST_SUITE("VerticalTracker") {
   TEST_CASE("Basic tracking") {
-    auto const line = macs::Groove({.horizontal = 70.0, .vertical = 20.0}, {.horizontal = 60.0, .vertical = 15.0},
+    auto const line = common::groove::Groove({.horizontal = 70.0, .vertical = 20.0}, {.horizontal = 60.0, .vertical = 15.0},
                                    {.horizontal = 50.0, .vertical = 12.5}, {.horizontal = 40.0, .vertical = 10.0},
                                    {.horizontal = 30.0, .vertical = 12.5}, {.horizontal = 20.0, .vertical = 15.0},
                                    {.horizontal = 10.0, .vertical = 20.0});
@@ -40,7 +40,7 @@ TEST_SUITE("VerticalTracker") {
 
     tracker = VerticalTracker();
 
-    auto const line = macs::Groove({.horizontal = 50.0, .vertical = 20.0}, {.horizontal = 40.0, .vertical = 15.0},
+    auto const line = common::groove::Groove({.horizontal = 50.0, .vertical = 20.0}, {.horizontal = 40.0, .vertical = 15.0},
                                    {.horizontal = 30.0, .vertical = 10.0}, {.horizontal = 27.0, .vertical = 10.0},
                                    {.horizontal = 23.0, .vertical = 10.0}, {.horizontal = 20.0, .vertical = 15.0},
                                    {.horizontal = 10.0, .vertical = 20.0});

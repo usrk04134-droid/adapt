@@ -18,7 +18,6 @@
 #include "common/types/vector_3d.h"
 #include "common/types/vector_3d_helpers.h"
 #include "lpcs/lpcs_point.h"
-#include "macs/macs_point.h"
 
 using Eigen::Matrix3d;
 using Eigen::Vector3d;
@@ -33,7 +32,7 @@ using slice_translator::ModelImpl;
 
 namespace slice_translator {
 
-auto ModelImpl::LPCSToMCS(const std::vector<lpcs::Point>& lpcs_points, const macs::Point& slide_position)
+auto ModelImpl::LPCSToMCS(const std::vector<lpcs::Point>& lpcs_points, const common::groove::Point& slide_position)
     -> std::optional<std::vector<macs::Point>> {
   std::vector<macs::Point> mcs_points;
   macs::Point mcs_point;
@@ -48,7 +47,7 @@ auto ModelImpl::LPCSToMCS(const std::vector<lpcs::Point>& lpcs_points, const mac
   return mcs_points;
 }
 
-auto ModelImpl::MCSToLPCS(const std::vector<macs::Point>& mcs_points, const macs::Point& slide_position)
+auto ModelImpl::MCSToLPCS(const std::vector<macs::Point>& mcs_points, const common::groove::Point& slide_position)
     -> std::optional<std::vector<lpcs::Point>> {
   std::vector<lpcs::Point> lpcs_points;
   lpcs::Point lpcs_point;
@@ -62,10 +61,11 @@ auto ModelImpl::MCSToLPCS(const std::vector<macs::Point>& mcs_points, const macs
 
   return lpcs_points;
 }
+
 auto ModelImpl::TransformAndRotateToLaserPlane(const common::Vector3D& rot_center, std::array<double, 3> scanner_angles,
                                                const common::Vector3D& weld_object_rotation_axis,
                                                const common::Vector3D& torch_to_laser_translation,
-                                               macs::Point point_macs, macs::Point slide_position) const
+                                               macs::Point point_macs, common::groove::Point slide_position) const
     -> lpcs::Point {
   // Define laser plane to project/rotate onto (MACS)
   Point3d laser_plane_point_macs =
@@ -92,7 +92,7 @@ auto ModelImpl::TransformAndRotateToLaserPlane(const common::Vector3D& rot_cente
 auto ModelImpl::TransformAndRotateToTorchPlane(const common::Vector3D& rot_center, std::array<double, 3> scanner_angles,
                                                const common::Vector3D& weld_object_rotation_axis,
                                                const common::Vector3D& torch_to_laser_translation,
-                                               lpcs::Point point_lpcs, macs::Point slide_position) const
+                                               lpcs::Point point_lpcs, common::groove::Point slide_position) const
     -> macs::Point {
   // Torch plane to project/rotate onto (MACS)
   Point3d point_in_torch_plane{0.0, 0.0, 0.0, CoordinateSystem::MACS};
@@ -149,7 +149,7 @@ auto ModelImpl::RotateToPlane(const Circle3d& projection_circle, Plane3d& target
 }
 
 auto ModelImpl::TransformMACStoLPCS(std::array<double, 3> scanner_angles,
-                                    const common::Vector3D& torch_to_laser_translation, macs::Point slide_position,
+                                    const common::Vector3D& torch_to_laser_translation, common::groove::Point slide_position,
                                     Point3d point_macs, bool use_translation) const -> Point3d {
   // Orientation matrices
   Matrix3d R_1to4 = ComputeLpcsOrientation(scanner_angles.at(0), scanner_angles.at(1), scanner_angles.at(2));
@@ -170,7 +170,7 @@ auto ModelImpl::TransformMACStoLPCS(std::array<double, 3> scanner_angles,
 }
 
 auto ModelImpl::TransformLPCStoMACS(std::array<double, 3> scanner_angles,
-                                    const common::Vector3D& torch_to_laser_translation, macs::Point slide_position,
+                                    const common::Vector3D& torch_to_laser_translation, common::groove::Point slide_position,
                                     Point3d point_lpcs, bool use_translation) const -> Point3d {
   // Orientation matrices
   Matrix3d R_1to4 = ComputeLpcsOrientation(scanner_angles.at(0), scanner_angles.at(1), scanner_angles.at(2));
@@ -211,7 +211,7 @@ auto ModelImpl::FindClosestPoint(std::vector<Point3d> points, Point3d ref_point)
   return points.at(min_idx);
 }
 
-auto ModelImpl::AngleFromTorchToScanner(const std::vector<lpcs::Point>& lpcs_points, const macs::Point& axis_position)
+auto ModelImpl::AngleFromTorchToScanner(const std::vector<lpcs::Point>& lpcs_points, const common::groove::Point& axis_position)
     -> std::optional<double> {
   // Here we calculate the angle between the laser plane point and its projection onto torch plane
 

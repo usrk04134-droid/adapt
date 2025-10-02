@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "common/containers/relative_position_buffer.h"
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 // The buffer size is set to worst case
 // radius on weld object: 7000mm
@@ -14,6 +14,6 @@
 namespace weld_control {
 const uint32_t DELAY_BUFFER_SIZE = 25000;
 
-using DelayBuffer = common::containers::RelativePositionBuffer<macs::Groove>;
+using DelayBuffer = common::containers::RelativePositionBuffer<common::groove::Groove>;
 
 }  // namespace weld_control

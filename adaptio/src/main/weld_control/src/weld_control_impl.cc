@@ -40,8 +40,6 @@
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_point.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_groove.h"
-#include "macs/macs_point.h"
 #include "macs/macs_slice.h"
 #include "scanner_client/scanner_client.h"
 #include "slice_translator/slice_translator_service_v2.h"
@@ -115,10 +113,7 @@ WeldControlImpl::WeldControlImpl(
       bead_control_(bead_control),
       delay_buffer_(delay_buffer),
       confident_slice_buffer_(config.weld_data_persistent_storage ? db : nullptr),
-      weld_systems_{
-          {weld_system::WeldSystemId::ID1, {}},
-          {weld_system::WeldSystemId::ID2, {}}
-},
+      weld_systems_{{weld_system::WeldSystemId::ID1, {}}, {weld_system::WeldSystemId::ID2, {}}},
       system_clock_now_func_(system_clock_now_func),
       steady_clock_now_func_(steady_clock_now_func),
       perf_metrics_(std::make_unique<PerformanceMetrics>(registry, system_clock_now_func)),
@@ -222,15 +217,10 @@ WeldControlImpl::WeldControlImpl(
     if (ok) {
       ClearWeldSession();
 
-      response_payload = {
-          {"result", "ok"}
-      };
+      response_payload = {{"result", "ok"}};
     } else {
       LOG_ERROR("Failed to clear weld session ({})", msg);
-      response_payload = {
-          {"result",  "fail"},
-          {"message", msg   }
-      };
+      response_payload = {{"result", "fail"}, {"message", msg}};
     }
 
     web_hmi_->Send("ClearWeldSessionRsp", response_payload);
@@ -754,7 +744,7 @@ void WeldControlImpl::UpdateConfidentSlice() {
   auto groove                       = data.value().second.groove;
   auto const edge_sensor_adjustment = data.value().second.edge_position - cached_edge_position_;
 
-  groove.Move(macs::Point{
+  groove.Move(common::groove::Point{
       .horizontal = settings_.EdgeSensorPlacementValue() == Settings::EdgeSensorPlacement::RIGHT
                         ? -edge_sensor_adjustment
                         : edge_sensor_adjustment,
@@ -778,8 +768,8 @@ void WeldControlImpl::UpdateConfidentSlice() {
       .left_wall_angle  = left_wall_angle,
       .right_wall_angle = right_wall_angle,
       .tolerance{.upper_width = upper_width_tolerance, .wall_angle = wall_angle_tolerance},
-      .abw0_horizontal = lpcs_groove ? lpcs_groove.value()[macs::ABW_UPPER_LEFT].x : 0.0,
-      .abw6_horizontal = lpcs_groove ? lpcs_groove.value()[macs::ABW_UPPER_RIGHT].x : 0.0,
+      .abw0_horizontal = lpcs_groove ? lpcs_groove.value()[common::groove::ABW_UPPER_LEFT].x : 0.0,
+      .abw6_horizontal = lpcs_groove ? lpcs_groove.value()[common::groove::ABW_UPPER_RIGHT].x : 0.0,
   });
 
   if (lpcs_groove.has_value()) {
@@ -876,13 +866,13 @@ auto WeldControlImpl::StoreGrooveInDelayBuffer() -> bool {
   return false;
 }
 
-auto WeldControlImpl::GetDelayedGrooveMCS(double delay) -> macs::Groove {
+auto WeldControlImpl::GetDelayedGrooveMCS(double delay) -> common::groove::Groove {
   auto const current = cached_mcs_.groove.value();
   return cached_weld_axis_ang_velocity_ < 0. ? current
                                              : delay_buffer_->Get(delay, common::containers::MIN).value_or(current);
 }
 
-auto WeldControlImpl::GetHybridGrooveMCS() const -> macs::Groove {
+auto WeldControlImpl::GetHybridGrooveMCS() const -> common::groove::Groove {
   auto const angle_distance_from_torch_to_scanner = cached_torch_to_scanner_angle_;
 
   auto const current_groove = cached_mcs_.groove.value();
@@ -902,15 +892,15 @@ auto WeldControlImpl::GetHybridGrooveMCS() const -> macs::Groove {
 
   auto merged = current_groove;
   auto idx =
-      fabs(current_groove[macs::ABW_UPPER_LEFT].vertical - delayed_groove[macs::ABW_UPPER_LEFT].vertical) <
-              fabs(current_groove[macs::ABW_UPPER_RIGHT].vertical - delayed_groove[macs::ABW_UPPER_RIGHT].vertical)
-          ? macs::ABW_UPPER_LEFT
-          : macs::ABW_UPPER_RIGHT;
+      fabs(current_groove[common::groove::ABW_UPPER_LEFT].vertical - delayed_groove[common::groove::ABW_UPPER_LEFT].vertical) <
+              fabs(current_groove[common::groove::ABW_UPPER_RIGHT].vertical - delayed_groove[common::groove::ABW_UPPER_RIGHT].vertical)
+          ? common::groove::ABW_UPPER_LEFT
+          : common::groove::ABW_UPPER_RIGHT;
 
   const double dx = current_groove[idx].horizontal - delayed_groove[idx].horizontal;
   const double dy = current_groove[idx].vertical - delayed_groove[idx].vertical;
 
-  for (int i = macs::ABW_LOWER_LEFT; i <= macs::ABW_LOWER_RIGHT; i++) {
+  for (int i = common::groove::ABW_LOWER_LEFT; i <= common::groove::ABW_LOWER_RIGHT; i++) {
     merged[i].horizontal = delayed_groove[i].horizontal + dx;
     merged[i].vertical   = delayed_groove[i].vertical + dy;
   }
@@ -919,10 +909,10 @@ auto WeldControlImpl::GetHybridGrooveMCS() const -> macs::Groove {
       "Delay: torch_to_scanner(rad/mm): {:.4f}/{:.2f}. ABW1 ({:4f},{:4f},{:4f},{:4f}), ABW5 "
       "({:4f},{:4f},{:4f},{:4f})",
       angle_distance_from_torch_to_scanner, angle_distance_from_torch_to_scanner * cached_weld_object_radius_,
-      delayed_groove[macs::ABW_LOWER_LEFT].horizontal, merged[macs::ABW_LOWER_LEFT].horizontal,
-      delayed_groove[macs::ABW_LOWER_LEFT].vertical, merged[macs::ABW_LOWER_LEFT].vertical,
-      delayed_groove[macs::ABW_LOWER_RIGHT].horizontal, merged[macs::ABW_LOWER_RIGHT].horizontal,
-      delayed_groove[macs::ABW_LOWER_RIGHT].vertical, merged[macs::ABW_LOWER_RIGHT].vertical);
+      delayed_groove[common::groove::ABW_LOWER_LEFT].horizontal, merged[common::groove::ABW_LOWER_LEFT].horizontal,
+      delayed_groove[common::groove::ABW_LOWER_LEFT].vertical, merged[common::groove::ABW_LOWER_LEFT].vertical,
+      delayed_groove[common::groove::ABW_LOWER_RIGHT].horizontal, merged[common::groove::ABW_LOWER_RIGHT].horizontal,
+      delayed_groove[common::groove::ABW_LOWER_RIGHT].vertical, merged[common::groove::ABW_LOWER_RIGHT].vertical);
 
   return merged;
 }
@@ -1165,8 +1155,8 @@ auto WeldControlImpl::UpdateSliceConfidence() -> bool {
   return true;
 }
 
-void WeldControlImpl::Receive(const macs::Slice& machine_data, const lpcs::Slice& scanner_data,
-                              const macs::Point& slides_actual, const double angle_from_torch_to_scanner) {
+void WeldControlImpl::Receive(const common::groove::Slice& machine_data, const lpcs::Slice& scanner_data,
+                              const common::groove::Point& slides_actual, const double angle_from_torch_to_scanner) {
   if (mode_ == Mode::IDLE) {
     return;
   }

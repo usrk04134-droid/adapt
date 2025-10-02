@@ -11,7 +11,7 @@
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_point.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
+#include "common/groove/point.h"
 #include "scanner_client.h"
 #include "scanner_client/scanner_client.h"
 
@@ -121,7 +121,7 @@ void ScannerClientImpl::AddObserver(ScannerObserver* observer) { observers_.push
 void ScannerClientImpl::OnGetSlidesPosition(std::uint64_t time_stamp, double horizontal, double vertical) {
   LOG_TRACE("Scannerdata: {}, slides position: {:.2f}, {:.2f}", scanner_data_in_process_.Describe(), horizontal,
             vertical);
-  macs::Point position{.horizontal = horizontal, .vertical = vertical};
+  common::groove::Point position{.horizontal = horizontal, .vertical = vertical};
 
   if (scanner_data_in_process_.time_stamp == time_stamp) {
     for (auto& observer : observers_) {

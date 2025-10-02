@@ -15,10 +15,10 @@ class CoordinatesTranslator : public scanner_client::ScannerObserver {
   // ScannerObserver
   void OnScannerStarted(bool success) override {};
   void OnScannerStopped(bool success) override {};
-  void OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position) override;
+  void OnScannerDataUpdate(const lpcs::Slice& data, const common::groove::Point& axis_position) override;
 
  private:
-  void OnScannerDataUpdateV2(const lpcs::Slice& data, const macs::Point& axis_position);
+  void OnScannerDataUpdateV2(const lpcs::Slice& data, const common::groove::Point& axis_position);
 
   SliceTranslatorServiceV2* slice_translator_v2_;
   std::vector<SliceObserver*> observers_;

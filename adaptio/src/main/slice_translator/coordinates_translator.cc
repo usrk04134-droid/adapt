@@ -2,8 +2,7 @@
 
 #include "common/logging/application_log.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_groove.h"
-#include "macs/macs_point.h"
+#include "common/groove/groove.h"
 #include "macs/macs_slice.h"
 #include "slice_translator/slice_observer.h"
 #include "slice_translator/slice_translator_service_v2.h"
@@ -15,18 +14,18 @@ CoordinatesTranslator::CoordinatesTranslator(SliceTranslatorServiceV2* slice_tra
 
 void CoordinatesTranslator::AddObserver(SliceObserver* observer) { observers_.push_back(observer); }
 
-void CoordinatesTranslator::OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position) {
+void CoordinatesTranslator::OnScannerDataUpdate(const lpcs::Slice& data, const common::groove::Point& axis_position) {
   OnScannerDataUpdateV2(data, axis_position);
 }
 
-void CoordinatesTranslator::OnScannerDataUpdateV2(const lpcs::Slice& data, const macs::Point& axis_position) {
+void CoordinatesTranslator::OnScannerDataUpdateV2(const lpcs::Slice& data, const common::groove::Point& axis_position) {
   macs::Slice machine_slice{.time_stamp = data.time_stamp};
   double angle_from_torch_to_scanner = 0.0;
 
   if (data.groove.has_value()) {
     auto groove_mcs = slice_translator_v2_->LPCSToMCS(data.groove.value(), axis_position);
     if (groove_mcs.has_value()) {
-      machine_slice.groove = macs::Groove(groove_mcs.value());
+      machine_slice.groove = common::groove::Groove(groove_mcs.value());
       LOG_DEBUG("Transformed points with axis positions hori: {:.2f}, vert: {:.2f}", axis_position.horizontal,
                 axis_position.vertical);
       LOG_DEBUG("Machine points: {}", machine_slice.Describe());

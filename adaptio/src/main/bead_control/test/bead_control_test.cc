@@ -7,8 +7,8 @@
 
 #include "../src/bead_control_impl.h"
 #include "bead_control/bead_control_types.h"
-#include "macs/macs_groove.h"
-#include "macs/macs_point.h"
+#include "common/groove/groove.h"
+#include "common/groove/point.h"
 #include "test_utils/testlog.h"
 #include "tracking/tracking_manager.h"
 
@@ -52,15 +52,15 @@ TEST_SUITE("BeadControl") {
     // Groove width: 150mm
     // Groove lower width: 50mm
     // Wall angle: 45 degrees
-    macs::Point p0 = {.horizontal = 75., .vertical = 25.};
-    macs::Point p1 = {.horizontal = 25., .vertical = -25.};
-    macs::Point p2 = {.horizontal = 12.5, .vertical = -25.};
-    macs::Point p3 = {.horizontal = 0., .vertical = -25.};
-    macs::Point p4 = {.horizontal = -12.5, .vertical = -25.};
-    macs::Point p5 = {.horizontal = -25, .vertical = -25.};
-    macs::Point p6 = {.horizontal = -75, .vertical = 25.};
+    common::groove::Point p0 = {.horizontal = 75., .vertical = 25.};
+    common::groove::Point p1 = {.horizontal = 25., .vertical = -25.};
+    common::groove::Point p2 = {.horizontal = 12.5, .vertical = -25.};
+    common::groove::Point p3 = {.horizontal = 0., .vertical = -25.};
+    common::groove::Point p4 = {.horizontal = -12.5, .vertical = -25.};
+    common::groove::Point p5 = {.horizontal = -25, .vertical = -25.};
+    common::groove::Point p6 = {.horizontal = -75, .vertical = 25.};
 
-    auto const groove = macs::Groove(p0, p1, p2, p3, p4, p5, p6);
+    auto const groove = common::groove::Groove(p0, p1, p2, p3, p4, p5, p6);
 
     auto weld_object_lin_velocity          = 1000. / 60.;  // mm/sec
     auto wire_lin_velocity                 = 6000. / 60.;  // mm/sec
@@ -168,7 +168,7 @@ TEST_SUITE("BeadControl") {
     bead_control::WeldPositionDataStorage storage(bead_control::MAX_BUFFER_SIZE);
     bead_control::BeadControlImpl control(&storage, std::chrono::steady_clock::now);
 
-    auto const groove = macs::Groove({.horizontal = 75., .vertical = 25.}, {.horizontal = 25., .vertical = -25.},
+    auto const groove = common::groove::Groove({.horizontal = 75., .vertical = 25.}, {.horizontal = 25., .vertical = -25.},
                                      {.horizontal = 12.5, .vertical = -25.}, {.horizontal = 0., .vertical = -25.},
                                      {.horizontal = -12.5, .vertical = -25.}, {.horizontal = -25, .vertical = -25.},
                                      {.horizontal = -75, .vertical = 25.});
@@ -338,7 +338,7 @@ TEST_SUITE("BeadControl") {
       double k_gain;
       double bead3_pos;
       double wall_offset;
-      macs::Groove groove;
+      common::groove::Groove groove;
       std::vector<double> bead_slice_area_ratio;
     };
 
@@ -507,7 +507,7 @@ TEST_SUITE("BeadControl") {
                              1.);
 
       auto const bot_groove_width =
-          (test.groove[macs::ABW_LOWER_LEFT].horizontal - test.groove[macs::ABW_LOWER_RIGHT].horizontal) -
+          (test.groove[common::groove::ABW_LOWER_LEFT].horizontal - test.groove[common::groove::ABW_LOWER_RIGHT].horizontal) -
           (2 * test.wall_offset);
       auto const horizontal_offset = (bot_groove_width * test.bead3_pos) - (bot_groove_width / 2.);
       test_controller_update(3, 1, tracking::TrackingMode::TRACKING_CENTER_HEIGHT, bead_control::State::REPOSITIONING,
@@ -530,7 +530,7 @@ TEST_SUITE("BeadControl") {
   TEST_CASE("CAP bead placement") {
     struct TestParams {
       std::string info;
-      macs::Groove groove;
+      common::groove::Groove groove;
       double cap_corner_offset;
       int cap_beads;
       std::vector<double> bead_positions;
