@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "common/clock_functions.h"
+#include "common/logging/application_log.h"
 
 namespace weld_control {
 
@@ -25,6 +26,11 @@ void PerformanceMetrics::UpdateABWLatencyLpcs(uint64_t time_stamp) {
   auto scanner_data_time    = std::chrono::system_clock::time_point{std::chrono::nanoseconds{time_stamp}};
   auto latency              = now - scanner_data_time;
   auto latency_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(latency).count();
+
+  auto now_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+  auto latency_seconds = std::chrono::duration<double>(latency).count();
+  LOG_DEBUG("ABW latency timestamps: now_ns={} scanner_ns={} latency_ms={} latency_s={}", now_nanoseconds,
+            time_stamp, latency_milliseconds, latency_seconds);
 
   abw_latency_lpcs_.Set(static_cast<double>(latency_milliseconds / 1000.0));
 }
