@@ -39,14 +39,6 @@ void CoordinatesTranslator::OnScannerDataUpdateV2(const lpcs::Slice& data, const
     }
   }
 
-  auto line_mcs = slice_translator_v2_->LPCSToMCS(data.line, axis_position);
-  if (!line_mcs.has_value()) {
-    LOG_TRACE("LPCSToMCS() for line failed");
-    return;
-  }
-
-  machine_slice.line = line_mcs.value();
-
   for (auto* observer : observers_) {
     observer->Receive(machine_slice, data, axis_position, angle_from_torch_to_scanner);
   }

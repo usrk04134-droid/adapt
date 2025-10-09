@@ -335,14 +335,6 @@ ScannerDataWrapper::ScannerDataWrapper() {
   data_.groove[6] = {22, TOP_LEVEL};
 
   data_.confidence = common::msg::scanner::SliceConfidence::HIGH;
-
-  data_.line[0] = {-22, TOP_LEVEL};
-  data_.line[1] = {-15, BOTTOM_LEVEL};
-  data_.line[2] = {-10, BOTTOM_LEVEL};
-  data_.line[3] = {0, BOTTOM_LEVEL};
-  data_.line[4] = {10, BOTTOM_LEVEL};
-  data_.line[5] = {15, BOTTOM_LEVEL};
-  data_.line[6] = {22, TOP_LEVEL};
 }
 
 auto ScannerDataWrapper::Get() const -> common::msg::scanner::SliceData { return data_; }
@@ -359,19 +351,11 @@ auto ScannerDataWrapper::ShiftHorizontal(double value) -> ScannerDataWrapper& {
     coord.x += value;
   }
 
-  for (auto& coord : data_.line) {
-    coord.x += value;
-  }
-
   return *this;
 }
 
 auto ScannerDataWrapper::FillUp(double value) -> ScannerDataWrapper& {
   for (auto& coord : data_.groove) {
-    if (coord.y < TOP_LEVEL) coord.y += value;
-  }
-
-  for (auto& coord : data_.line) {
     if (coord.y < TOP_LEVEL) coord.y += value;
   }
 

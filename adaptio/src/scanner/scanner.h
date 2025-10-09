@@ -21,8 +21,7 @@ enum class ScannerErrorCode : uint32_t {
 
 class ScannerOutputCB {
  public:
-  virtual void ScannerOutput(const joint_tracking::JointSlice& joint_slice,
-                             const std::array<joint_tracking::Coord, 15>& line, const std::optional<double> area,
+  virtual void ScannerOutput(const joint_tracking::JointSlice& joint_slice, const std::optional<double> area,
                              uint64_t time_stamp, joint_tracking::SliceConfidence confidence) = 0;
 };
 
