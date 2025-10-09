@@ -2,6 +2,7 @@
 
 #include <doctest/doctest.h>
 #include <prometheus/exposer.h>
+#include <prometheus/gateway.h>
 #include <prometheus/registry.h>
 #include <SQLiteCpp/Database.h>
 
@@ -21,6 +22,8 @@
 #include <vector>
 #include <mutex>
 #include <cstdlib>
+#include <cstring>
+#include <unistd.h>
 
 #include "application.h"
 #include "calibration/calibration_configuration.h"
@@ -70,6 +73,7 @@ void ApplicationWrapper::Start() {
   // Start a Prometheus exposer for block tests (once per process) and
   // register this test's registry so Prometheus can scrape metrics.
   static std::unique_ptr<prometheus::Exposer> exposer;
+  static std::unique_ptr<prometheus::Gateway> gateway;
   static std::once_flag exposer_once;
 
   std::call_once(exposer_once, []() {
@@ -87,12 +91,47 @@ void ApplicationWrapper::Start() {
     } catch (const std::exception& e) {
       LOG_ERROR("Failed to start Prometheus Exposer: {}", e.what());
     }
+
+    // Optional: configure Pushgateway if env present
+    if (const char* gw = std::getenv("ADAPTIO_PROMETHEUS_PUSHGATEWAY")) {
+      try {
+        std::string address = gw; // accepts host:port or http(s)://host:port
+        if (address.rfind("http://", 0) == 0) address = address.substr(7);
+        else if (address.rfind("https://", 0) == 0) address = address.substr(8);
+
+        std::string job = "adaptio-block-tests";
+        if (const char* job_env = std::getenv("ADAPTIO_PROMETHEUS_JOB")) job = job_env;
+
+        char hostname[256]{};
+        if (gethostname(hostname, sizeof(hostname) - 1) != 0) std::strncpy(hostname, "unknown", sizeof(hostname) - 1);
+        std::string instance = hostname;
+        if (const char* inst_env = std::getenv("ADAPTIO_PROMETHEUS_INSTANCE")) instance = inst_env;
+
+        gateway = std::make_unique<prometheus::Gateway>(address, job, std::map<std::string, std::string>{{"instance", instance}});
+        LOG_INFO("Configured Prometheus Pushgateway: address={}, job={}, instance={}", address, job, instance);
+      } catch (const std::exception& e) {
+        LOG_ERROR("Failed to create Prometheus Pushgateway: {}", e.what());
+      }
+    }
   });
 
   if (exposer) {
     exposer->RegisterCollectable(registry_);
   } else {
     LOG_ERROR("Prometheus Exposer not available; block-tests metrics will not be exposed");
+  }
+
+  if (gateway) {
+    try {
+      gateway->RegisterCollectable(*registry_);
+      // Push once on start to create metrics in remote DB sooner
+      gateway->Push();
+      test_metrics::SetPushHandler([g = gateway.get()](){
+        try { g->Push(); } catch (...) {}
+      });
+    } catch (const std::exception& e) {
+      LOG_ERROR("Pushgateway registration/push failed: {}", e.what());
+    }
   }
 
   // Initialize test metrics in the shared registry so counters are exported

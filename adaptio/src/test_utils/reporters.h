@@ -48,6 +48,7 @@ struct ConsoleExtReporter : public doctest::IReporter {
       test_metrics::AddPasses(static_cast<size_t>(in.m_numAsserts - in.m_numAssertsFailed));
     }
     test_metrics::AddFails(static_cast<size_t>(in.m_numAssertsFailed));
+    test_metrics::FlushPush();
   }
 
   void test_case_start(const doctest::TestCaseData& in) override {
