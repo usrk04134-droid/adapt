@@ -3,6 +3,7 @@
 #include <doctest/doctest.h>
 
 #include <boost/log/expressions/attr.hpp>
+#include "metrics.h"
 #include <string>
 #include <vector>
 
@@ -49,7 +50,15 @@ struct ConsoleExtReporter : public doctest::IReporter {
 
   void test_case_reenter(const doctest::TestCaseData& /*in*/) override {}
 
-  void test_case_end(const doctest::CurrentTestCaseStats& /*in*/) override {}
+  void test_case_end(const doctest::CurrentTestCaseStats& in) override {
+    if (tc == nullptr) return;
+
+    if (in.m_numAssertsFailed == 0) {
+      test_metrics::IncPass(tc->m_test_suite, tc->m_name);
+    } else {
+      test_metrics::IncFail(tc->m_test_suite, tc->m_name);
+    }
+  }
 
   void test_case_exception(const doctest::TestCaseException& in) override {
     failed_tests.push_back(FailedTest{

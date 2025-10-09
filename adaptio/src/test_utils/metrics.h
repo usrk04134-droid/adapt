@@ -1,0 +1,17 @@
+#pragma once
+
+#include <prometheus/counter.h>
+#include <prometheus/registry.h>
+
+#include <memory>
+#include <string>
+
+namespace test_metrics {
+
+// Lazily initialized global metrics for block tests.
+// Safe to call from test reporter even if not yet initialized (no-ops).
+void Initialize(prometheus::Registry* registry);
+void IncPass(const std::string& suite, const std::string& test_case);
+void IncFail(const std::string& suite, const std::string& test_case);
+
+}  // namespace test_metrics

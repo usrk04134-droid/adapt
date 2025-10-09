@@ -1,6 +1,7 @@
 #include "helpers.h"
 
 #include <doctest/doctest.h>
+#include <prometheus/exposer.h>
 #include <prometheus/registry.h>
 #include <SQLiteCpp/Database.h>
 
@@ -18,6 +19,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <mutex>
+#include <cstdlib>
 
 #include "application.h"
 #include "calibration/calibration_configuration.h"
@@ -34,6 +37,7 @@
 #include "scanner/image_provider/image_provider_configuration.h"
 #include "scanner/scanner_configuration.h"
 #include "test_utils/testlog.h"
+#include "test_utils/metrics.h"
 #include "weld_control/weld_control_types.h"
 
 const uint32_t TIMER_INSTANCE       = 1;
@@ -63,6 +67,37 @@ ApplicationWrapper::ApplicationWrapper(SQLite::Database* database, configuration
 }
 
 void ApplicationWrapper::Start() {
+  // Start a Prometheus exposer for block tests (once per process) and
+  // register this test's registry so Prometheus can scrape metrics.
+  static std::unique_ptr<prometheus::Exposer> exposer;
+  static std::once_flag exposer_once;
+
+  std::call_once(exposer_once, []() {
+    int port = 9092;  // default (differs from main app). Override via env.
+    if (const char* env = std::getenv("ADAPTIO_BLOCK_TESTS_PROMETHEUS_PORT")) {
+      try {
+        port = std::stoi(env);
+      } catch (...) {
+        LOG_ERROR("Invalid ADAPTIO_BLOCK_TESTS_PROMETHEUS_PORT value: {}", env);
+      }
+    }
+    try {
+      exposer = std::make_unique<prometheus::Exposer>("0.0.0.0:" + std::to_string(port));
+      LOG_INFO("Block tests Prometheus Exposer listening on port {}", port);
+    } catch (const std::exception& e) {
+      LOG_ERROR("Failed to start Prometheus Exposer: {}", e.what());
+    }
+  });
+
+  if (exposer) {
+    exposer->RegisterCollectable(registry_);
+  } else {
+    LOG_ERROR("Prometheus Exposer not available; block-tests metrics will not be exposed");
+  }
+
+  // Initialize test metrics in the shared registry so counters are exported
+  test_metrics::Initialize(registry_.get());
+
   // Create the Application instance
   application_ = std::make_unique<Application>(configuration_, events_path_, database_, logs_path_,
                                                system_clock_now_func_, steady_clock_now_func_, registry_.get(), -1);

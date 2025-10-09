@@ -3,6 +3,7 @@
 
 #include <doctest/doctest.h>
 #include <fmt/core.h>
+#include "metrics.h"
 
 #include <string>
 
@@ -35,6 +36,10 @@ auto main(int argc, char** argv) -> int {
   }
 
   context.applyCommandLine(argc, argv);
+
+  // Metrics are initialized when the test Application starts, but in case
+  // some tests do not start it, keep reporter hooks safe by lazy init to null.
+  // No-op here; initialization happens in helpers.cc once registry exists.
 
   auto const res = context.run();
 
