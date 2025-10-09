@@ -305,6 +305,19 @@ void WeldControlImpl::SetupMetrics(prometheus::Registry* registry) {
 
   metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
                                                   static_cast<double>(confident_slice_buffer_.Slots()));
+
+  {
+    auto& gauge_family = prometheus::BuildGauge()
+                             .Name("weld_control_groove_characteristics_mm")
+                             .Help("Groove characteristics in mm")
+                             .Register(*registry);
+
+    metrics_.groove.top_width_mm   = &gauge_family.Add({{"type", "top_width"}});
+    metrics_.groove.top_corner_dz_mm = &gauge_family.Add({{"type", "top_corner_dz"}});
+    metrics_.groove.avg_depth_mm   = &gauge_family.Add({{"type", "avg_depth"}});
+    metrics_.groove.left_depth_mm  = &gauge_family.Add({{"type", "left_depth"}});
+    metrics_.groove.right_depth_mm = &gauge_family.Add({{"type", "right_depth"}});
+  }
 }
 
 void WeldControlImpl::UpdateBeadControlParameters() {
@@ -386,6 +399,18 @@ void WeldControlImpl::GetWeldControlStatus() const {
 
   if (bead_control_status.total_beads.has_value()) {
     response["totalBeads"] = bead_control_status.total_beads.value();
+  }
+
+  // Add groove metrics snapshot when available
+  if (cached_mcs_.groove.has_value()) {
+    auto const& g = cached_mcs_.groove.value();
+    response["groove"] = {
+        {"topWidth", g.TopWidth()},
+        {"leftDepth", g.LeftDepth()},
+        {"rightDepth", g.RightDepth()},
+        {"avgDepth", g.AvgDepth()},
+        {"topCornerDz", g[macs::ABW_UPPER_LEFT].vertical - g[macs::ABW_UPPER_RIGHT].vertical}
+    };
   }
 
   web_hmi_->Send("GetWeldControlStatusRsp", response);
@@ -763,6 +788,10 @@ void WeldControlImpl::UpdateConfidentSlice() {
   auto const upper_width           = groove.TopWidth();
   auto const left_wall_angle       = groove.LeftWallAngle();
   auto const right_wall_angle      = groove.RightWallAngle();
+  auto const left_depth            = groove.LeftDepth();
+  auto const right_depth           = groove.RightDepth();
+  auto const avg_depth             = groove.AvgDepth();
+  auto const top_corner_dz         = groove[macs::ABW_UPPER_LEFT].vertical - groove[macs::ABW_UPPER_RIGHT].vertical;
   auto const upper_width_tolerance = config_.scanner_groove_geometry_update.tolerance.upper_width;
   auto const wall_angle_tolerance  = config_.scanner_groove_geometry_update.tolerance.wall_angle;
   auto const lpcs_groove =
@@ -781,6 +810,13 @@ void WeldControlImpl::UpdateConfidentSlice() {
       .abw0_horizontal = lpcs_groove ? lpcs_groove.value()[macs::ABW_UPPER_LEFT].x : 0.0,
       .abw6_horizontal = lpcs_groove ? lpcs_groove.value()[macs::ABW_UPPER_RIGHT].x : 0.0,
   });
+
+  // Update groove gauges (values in mm as macs::Point is mm-based)
+  metrics_.groove.top_width_mm->Set(upper_width);
+  metrics_.groove.left_depth_mm->Set(left_depth);
+  metrics_.groove.right_depth_mm->Set(right_depth);
+  metrics_.groove.avg_depth_mm->Set(avg_depth);
+  metrics_.groove.top_corner_dz_mm->Set(top_corner_dz);
 
   if (lpcs_groove.has_value()) {
     metrics_.confident_slice.ok->Increment();
