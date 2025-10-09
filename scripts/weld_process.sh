@@ -180,6 +180,23 @@ def save_ppm_ascii(path: Path, img_rgb):
                 parts.append(f'{int(r)} {int(g)} {int(b)}')
             f.write(' '.join(parts) + '\n')
 
+# --- Optional OpenCV loader (if available) ---
+def read_with_cv2(path: Path):
+    try:
+        import cv2  # type: ignore
+    except Exception:
+        return None
+    try:
+        img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    except Exception:
+        return None
+    if img is None:
+        return None
+    # Convert numpy array to list of lists
+    h, w = img.shape[0], img.shape[1]
+    data = [[int(img[y, x]) for x in range(w)] for y in range(h)]
+    return {'mode': 'L', 'width': w, 'height': h, 'data': data}
+
 # --- Image generation ---
 
 def generate_sample(width: int, height: int, seam_direction: str) -> list:
@@ -307,7 +324,12 @@ def estimate_line_angle_deg(points, seam_direction: str):
 
 # --- Load or generate image ---
 input_path = Path(input_image_path) if input_image_path else None
-loaded = read_pnm_ascii(input_path) if input_path else None
+loaded = None
+if input_path:
+    # Prefer OpenCV loader (handles TIFF/PNG/JPEG), fallback to ASCII PNM reader
+    loaded = read_with_cv2(input_path)
+    if loaded is None:
+        loaded = read_pnm_ascii(input_path)
 
 if loaded is not None:
     if loaded['mode'] == 'L':
