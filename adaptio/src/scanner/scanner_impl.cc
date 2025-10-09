@@ -333,8 +333,7 @@ void ScannerImpl::Update() {
   if (tracking_data.has_value()) {
     auto [slice, time_stamp, area] = tracking_data.value();
 
-    scanner_output_->ScannerOutput(slice, std::array<joint_tracking::Coord, 15>{}, area, time_stamp,
-                                   slice.GetConfidence());
+    scanner_output_->ScannerOutput(slice, area, time_stamp, slice.GetConfidence());
   } else {
     // This should not happen
     LOG_ERROR("No slice sent due to missing ABW points.");

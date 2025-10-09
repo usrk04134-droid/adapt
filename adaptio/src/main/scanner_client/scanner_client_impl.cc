@@ -142,10 +142,6 @@ void ScannerClientImpl::OnSliceData(common::msg::scanner::SliceData slice_data) 
       scanner_data_in_process_.groove->push_back({abws.x, abws.y});
     }
 
-    for (auto& line : slice_data.line) {
-      scanner_data_in_process_.line.push_back({line.x, line.y});
-    }
-
     scanner_data_in_process_.time_stamp  = slice_data.time_stamp;
     scanner_data_in_process_.groove_area = slice_data.groove_area;
 

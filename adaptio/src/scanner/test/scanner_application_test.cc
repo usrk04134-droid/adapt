@@ -78,8 +78,7 @@ TEST_SUITE("Test Scanner Adapter Scanner") {
     std::array<joint_tracking::Coord, 7> points;
     joint_tracking::JointSlice joint_slice(points, joint_tracking::SliceConfidence::HIGH);
 
-    factory.GetScannerOutput()->ScannerOutput(joint_slice, std::array<joint_tracking::Coord, 15>(), 0, 1,
-                                              joint_tracking::SliceConfidence::HIGH);
+    factory.GetScannerOutput()->ScannerOutput(joint_slice, 0, 1, joint_tracking::SliceConfidence::HIGH);
 
     auto output_msg = scanner_mocket->Receive<common::msg::scanner::SliceData>();
 
