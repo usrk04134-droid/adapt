@@ -5,6 +5,7 @@
 #include <SQLiteCpp/Database.h>
 
 #include <array>
+#include <cstdlib>
 #include <boost/outcome.hpp>
 #include <boost/outcome/result.hpp>
 #include <boost/outcome/success_failure.hpp>
@@ -272,7 +273,13 @@ void TestFixture::StopApplication() { application_sut_->Exit(); }
 
 TestFixture::TestFixture()
     :  // NOLINTNEXTLINE(hicpp-signed-bitwise)
-      database_(SQLite::Database(":memory:", SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE)) {
+      database_(SQLite::Database(std::getenv("ADAPTIO_BLOCK_TEST_DB") ? std::getenv("ADAPTIO_BLOCK_TEST_DB") : ":memory:",
+                                  SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE)) {
+  if (std::getenv("ADAPTIO_BLOCK_TEST_DB") != nullptr) {
+    // Use WAL for better real-time visibility and durability guarantees during tests
+    database_.exec("PRAGMA journal_mode=WAL");
+    database_.exec("PRAGMA synchronous=FULL");
+  }
   database_.exec("PRAGMA foreign_keys=on");
 
   clock_now_func_wrapper_            = std::make_shared<ClockNowFuncWrapper>();
