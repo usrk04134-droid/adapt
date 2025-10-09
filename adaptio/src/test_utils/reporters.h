@@ -20,13 +20,14 @@ struct ConsoleExtReporter : public doctest::IReporter {
   std::vector<FailedTest> failed_tests;
 
   const doctest::TestCaseData* tc{};
+  bool current_case_failed{false};
   explicit ConsoleExtReporter(const doctest::ContextOptions& /*in*/) {}
 
   void report_query(const doctest::QueryData& /*in*/) override {}
 
   void test_run_start() override {}
 
-  void test_run_end(const doctest::TestRunStats& /*in*/) override {
+  void test_run_end(const doctest::TestRunStats& in) override {
     if (!failed_tests.empty()) {
       TESTLOG_NOHDR("\nFailed tests:");
 
@@ -39,10 +40,19 @@ struct ConsoleExtReporter : public doctest::IReporter {
         TESTLOG_NOHDR("  Msg:       {}\n", ft.error_msg);
       }
     }
+
+    // Fallback aggregate counters based on doctest run stats
+    // Note: fields may differ by version; guard with ifdefs would be better,
+    // here we compute from visible members across versions.
+    if (in.m_numAsserts >= in.m_numAssertsFailed) {
+      test_metrics::AddPasses(static_cast<size_t>(in.m_numAsserts - in.m_numAssertsFailed));
+    }
+    test_metrics::AddFails(static_cast<size_t>(in.m_numAssertsFailed));
   }
 
   void test_case_start(const doctest::TestCaseData& in) override {
     tc = &in;
+    current_case_failed = false;
     TESTLOG_NOHDR("\n  Starting test: {}::{}", tc->m_test_suite, tc->m_name);
     TESTLOG_NOHDR("  File location: {}", tc->m_file.c_str());
     TESTLOG_NOHDR("  ------------------------------------------------------");
@@ -50,14 +60,10 @@ struct ConsoleExtReporter : public doctest::IReporter {
 
   void test_case_reenter(const doctest::TestCaseData& /*in*/) override {}
 
-  void test_case_end(const doctest::CurrentTestCaseStats& in) override {
+  void test_case_end(const doctest::CurrentTestCaseStats& /*in*/) override {
     if (tc == nullptr) return;
-
-    if (in.m_numAssertsFailed == 0) {
-      test_metrics::IncPass(tc->m_test_suite, tc->m_name);
-    } else {
-      test_metrics::IncFail(tc->m_test_suite, tc->m_name);
-    }
+    if (!current_case_failed) test_metrics::IncPass(tc->m_test_suite, tc->m_name);
+    else test_metrics::IncFail(tc->m_test_suite, tc->m_name);
   }
 
   void test_case_exception(const doctest::TestCaseException& in) override {
@@ -67,6 +73,7 @@ struct ConsoleExtReporter : public doctest::IReporter {
         .test_case  = tc->m_name,
         .error_msg  = in.error_string.c_str(),
     });
+    current_case_failed = true;
   }
 
   void subcase_start([[maybe_unused]] const doctest::SubcaseSignature& in) override {
@@ -84,6 +91,7 @@ struct ConsoleExtReporter : public doctest::IReporter {
               fmt::format("{} {} ( {} )", doctest::failureString(in.m_at), doctest::assertString(in.m_at), in.m_expr),
           .line = in.m_line,
       });
+      current_case_failed = true;
     }
   }
 

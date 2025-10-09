@@ -2,7 +2,8 @@
 
 #include <mutex>
 #include <optional>
-#include <prometheus/builders.h>
+#include <prometheus/counter.h>
+#include <prometheus/registry.h>
 
 namespace test_metrics {
 
@@ -44,6 +45,18 @@ void IncPass(const std::string& /*suite*/, const std::string& /*test_case*/) {
 void IncFail(const std::string& /*suite*/, const std::string& /*test_case*/) {
   if (state && (*state).fail_total) {
     (*state).fail_total->Increment();
+  }
+}
+
+void AddPasses(size_t count) {
+  if (state && (*state).pass_total) {
+    (*state).pass_total->Increment(static_cast<double>(count));
+  }
+}
+
+void AddFails(size_t count) {
+  if (state && (*state).fail_total) {
+    (*state).fail_total->Increment(static_cast<double>(count));
   }
 }
 
