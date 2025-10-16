@@ -84,6 +84,13 @@ void BaslerCameraUpstreamImageEventHandler::OnImageGrabbed(CInstantCamera& camer
 
     image->SetTimestamp(std::chrono::high_resolution_clock::now() - delay);
 
+    // Detailed ROI log with finalized image
+    auto offset_x_abs = grab_result->GetOffsetX();
+    auto offset_y_abs = offset;  // grab_result->GetOffsetY();
+    auto offset_y_rel = offset - original_offset_;
+    LOG_TRACE("Image finalized ROI: width {} height {} | offX_abs {} offY_abs {} | offY_rel {}",
+              width, height, offset_x_abs, offset_y_abs, offset_y_rel);
+
     on_image_(std::move(image));
   } else {
     std::string s(grab_result->GetErrorDescription());
