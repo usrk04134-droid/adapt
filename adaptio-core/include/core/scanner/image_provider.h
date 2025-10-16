@@ -32,9 +32,16 @@ class ImageProvider {
 
   virtual void ResetFOVAndGain()                               = 0;
   virtual void SetVerticalFOV(int offset_from_top, int height) = 0;
+  // Dynamically adjust horizontal ROI (offset from left and width)
+  // Default: no-op for providers that don't support horizontal ROI
+  virtual void SetHorizontalFOV(int offset_from_left, int width) {};
   virtual void AdjustGain(double factor)                       = 0;
   virtual auto GetVerticalFOVOffset() -> int                   = 0;
   virtual auto GetVerticalFOVHeight() -> int                   = 0;
+  // Query current horizontal ROI relative to configured FOV
+  // Default: return 0/0 meaning "unknown/unsupported"
+  virtual auto GetHorizontalFOVOffset() -> int { return 0; };
+  virtual auto GetHorizontalFOVWidth() -> int { return 0; };
   virtual auto GetSerialNumber() -> std::string                = 0;
 };
 

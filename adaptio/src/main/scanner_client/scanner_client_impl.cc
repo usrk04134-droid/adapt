@@ -164,6 +164,11 @@ void ScannerClientImpl::OnSliceData(common::msg::scanner::SliceData slice_data) 
         break;
     }
 
+    // Latency from camera capture (slice_data.time_stamp) to requesting slides position (now)
+    const auto now_ns = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    const auto latency_ms = static_cast<double>(now_ns - slice_data.time_stamp) / 1'000'000.0;
+    LOG_TRACE("Latency camera->GetSlidesPosition request: {:.3f} ms", latency_ms);
+
     auto on_response = [this](std::uint64_t time_stamp, double horizontal, double vertical) {
       this->OnGetSlidesPosition(time_stamp, horizontal, vertical);
     };
