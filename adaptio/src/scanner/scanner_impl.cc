@@ -255,24 +255,22 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       // Horizontal limits based on ABW0/ABW6 projected to image plane (prefer median slice if available)
       int desired_left = 0;
       int desired_right = image->Data().cols() - 1;
-      int desired_width = desired_right - desired_left;
       {
         const auto& horizontal_ref_profile = median_profile.has_value() ? median_profile.value() : profile;
         auto maybe_points_img = joint_model_->WorkspaceToImage(
             joint_model::ABWPointsToMatrix(horizontal_ref_profile.points), image->GetVerticalCropStart());
         if (maybe_points_img.has_value()) {
           auto points_img    = maybe_points_img.value();
-          const int image_width = image->Data().cols();
-          const int current_h_offset = image_provider_->GetHorizontalFOVOffset();
-          const auto abw0_x = points_img(0, 0) - static_cast<double>(current_h_offset);
-          const auto abw6_x = points_img(0, 6) - static_cast<double>(current_h_offset);
-          const auto min_x  = std::max(0.0, std::min(abw0_x, abw6_x));
-          const auto max_x  = std::min(static_cast<double>(image_width - 1), std::max(abw0_x, abw6_x));
+          // X coordinates relative to configured FOV (not current ROI). Adjust both sides symmetrically.
+          const auto abw0_x = points_img(0, 0);
+          const auto abw6_x = points_img(0, 6);
+          const auto min_x  = std::min(abw0_x, abw6_x);
+          const auto max_x  = std::max(abw0_x, abw6_x);
           const int left_x_pixel  = static_cast<int>(std::round(min_x));
           const int right_x_pixel = static_cast<int>(std::round(max_x));
-          desired_left            = std::max(0, left_x_pixel - WINDOW_MARGIN);
-          desired_right           = std::min(image_width - 1, right_x_pixel + WINDOW_MARGIN);
-          desired_width           = std::max(0, desired_right - desired_left);
+          auto [new_left, new_width] = ScannerImpl::NewLeftAndWidth(left_x_pixel, right_x_pixel);
+          desired_left               = new_left;
+          desired_right              = new_left + new_width;
         }
       }
       m_config_mutex.lock();
