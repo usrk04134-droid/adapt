@@ -137,6 +137,22 @@ void ScannerImpl::SetupMetrics(prometheus::Registry* registry) {
                                              .Register(*registry)
                                              .Add({});
   }
+
+  {
+    metrics_.capture_to_slider_delay_ms = &prometheus::BuildGauge()
+                                              .Name("scanner_capture_to_slider_delay_ms")
+                                              .Help("Estimated delay from capture to slider request in ms.")
+                                              .Register(*registry)
+                                              .Add({});
+  }
+
+  {
+    metrics_.fps_current = &prometheus::BuildGauge()
+                               .Name("scanner_fps")
+                               .Help("Measured frames per second at the scanner input.")
+                               .Register(*registry)
+                               .Add({});
+  }
 }
 
 auto ScannerImpl::Start(enum ScannerSensitivity sensitivity) -> boost::outcome_v2::result<void> {
@@ -186,6 +202,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     // This means that Parse should be a constant function. Any state should be recoverable from the latest slice.
 
     auto const start_timstamp = std::chrono::steady_clock::now();
+    auto const capture_ts     = image->GetTimestamp();
     auto log_failed_image     = false;
     std::string reason_failed_image;
 
@@ -200,6 +217,17 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                                       maybe_abw0_abw6_horizontal);
 
     num_received++;
+    // Update FPS metric (simple EWMA)
+    {
+      static auto last_arrival = std::chrono::steady_clock::now();
+      auto now                 = std::chrono::steady_clock::now();
+      auto dt_ms               = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_arrival).count();
+      last_arrival             = now;
+      if (dt_ms > 0) {
+        double inst_fps = 1000.0 / static_cast<double>(dt_ms);
+        metrics_.fps_current->Set(inst_fps);
+      }
+    }
 
     if (result) {
       auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
@@ -224,6 +252,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
       const int current_offset = image->GetVerticalCropStart();
       const int current_height = image->Data().rows();
+      const int current_width  = image->Data().cols();
       const auto [top, bottom] = profile.vertical_limits;
       m_config_mutex.lock();
       const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
@@ -258,6 +287,55 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
           }
         } else {
           dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+        }
+      }
+
+      // Horizontal FOV: shrink width based on ABW0/ABW6 projected columns from median slice when available
+      // Use existing vertical FOV; adjust left and right with WINDOW_MARGIN_H and MINIMUM_FOV_WIDTH
+      if (median_profile.has_value()) {
+        const auto median_points = median_profile.value().points;
+        // Project ABW points to image to get horizontal pixel columns
+        auto maybe_img_points = joint_model_->WorkspaceToImage(joint_model::ABWPointsToMatrix(median_points),
+                                                               image->GetVerticalCropStart());
+        if (maybe_img_points.has_value()) {
+          const auto img_pts = maybe_img_points.value();
+          const int left_col = std::max(0, static_cast<int>(std::floor(img_pts(0, 0))) - WINDOW_MARGIN_H);
+          const int right_col = std::min(current_width - 1, static_cast<int>(std::ceil(img_pts(0, 6))) + WINDOW_MARGIN_H);
+          int target_width = std::max(MINIMUM_FOV_WIDTH, right_col - left_col + 1);
+
+          // Only adjust width if change is significant to avoid churn
+          const auto horiz_dim_check = dont_allow_horizontal_fov_change_until_new_width_received;
+          const bool allowed_to_request = horiz_dim_check.transform([target_width](int requested_width) {
+                                                return requested_width == target_width;
+                                              }).value_or(true);
+
+          if (allowed_to_request) {
+            const int move_from_left = left_col; // absolute sensor coordinates handled by provider
+            const bool small_but_covers = (current_width == MINIMUM_FOV_WIDTH) &&
+                                          (right_col - left_col + 1 <= MINIMUM_FOV_WIDTH) &&
+                                          (0 <= left_col) && (right_col < current_width);
+
+            const bool change_needed = !small_but_covers && (std::abs(current_width - target_width) > MOVE_MARGIN_H);
+
+            if (change_needed) {
+              // Remember original width if not set
+              if (!initial_horizontal_fov_width_.has_value()) {
+                initial_horizontal_fov_width_ = current_width;
+              }
+              dont_allow_horizontal_fov_change_until_new_width_received = target_width;
+              image_provider_->SetHorizontalFOV(move_from_left, target_width);
+            } else {
+              dont_allow_horizontal_fov_change_until_new_width_received = std::nullopt;
+            }
+          }
+        }
+      } else {
+        // If tracking degraded and width is small, consider resetting width back to initial
+        if (!dont_allow_horizontal_fov_change_until_new_width_received.has_value() &&
+            initial_horizontal_fov_width_.has_value() && current_width < initial_horizontal_fov_width_.value() &&
+            frames_since_gain_change_ > 25) {
+          dont_allow_horizontal_fov_change_until_new_width_received = initial_horizontal_fov_width_.value();
+          image_provider_->SetHorizontalFOV(0, initial_horizontal_fov_width_.value());
         }
       }
 
@@ -316,6 +394,12 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
     std::chrono::duration<double> const duration_seconds = std::chrono::steady_clock::now() - start_timstamp;
     metrics_.image_processing_time->Observe(duration_seconds.count());
+    // Capture-to-slider delay: from capture to when Update() will likely request position.
+    // Approximate by now - capture_ts; Update() is typically called right after this handler.
+    auto cap_delay_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
+                                                                              std::chrono::time_point_cast<std::chrono::steady_clock::duration>(capture_ts))
+                            .count();
+    metrics_.capture_to_slider_delay_ms->Set(static_cast<double>(cap_delay_ms));
   });
 }
 

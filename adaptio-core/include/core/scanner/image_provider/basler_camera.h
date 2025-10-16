@@ -62,9 +62,12 @@ class BaslerCamera : public ImageProvider {
   [[nodiscard]] auto Started() const -> bool override;
   void ResetFOVAndGain() override;
   void SetVerticalFOV(int offset_from_top, int height) override;
+  void SetHorizontalFOV(int absolute_offset_x, int width) override;
   void AdjustGain(double factor) override;
   auto GetVerticalFOVOffset() -> int override;
   auto GetVerticalFOVHeight() -> int override;
+  auto GetHorizontalFOVOffset() -> int override;
+  auto GetHorizontalFOVWidth() -> int override;
   auto GetSerialNumber() -> std::string override;
   void SetOnImage(OnImage on_image) override { on_image_ = on_image; };
 

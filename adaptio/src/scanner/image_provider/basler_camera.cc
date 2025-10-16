@@ -173,6 +173,9 @@ void BaslerCamera::ResetFOVAndGain() {
     return;
   }
   camera_->StopGrabbing();
+  // Restore full configured ROI both vertically and horizontally
+  camera_->OffsetX.SetValue(fov_.offset_x);
+  camera_->Width.SetValue(fov_.width);
   camera_->OffsetY.SetValue(0);
   camera_->Height.SetValue(fov_.height);
   camera_->OffsetY.SetValue(fov_.offset_y);
@@ -194,6 +197,23 @@ void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
   LOG_TRACE("Continuous grabbing restarted with offset {} and height {}.", fov_.offset_y + offset_from_top, height);
 };
+
+void BaslerCamera::SetHorizontalFOV(int absolute_offset_x, int width) {
+  if (!camera_) {
+    return;
+  }
+  camera_->StopGrabbing();
+  // Treat input as offset from configured FOV left (same semantics as vertical)
+  int clamped_offset_from_left = std::max(0, absolute_offset_x);
+  int max_width                = static_cast<int>(fov_.width) - clamped_offset_from_left;
+  int clamped_width            = std::clamp(width, 64, max_width);
+
+  camera_->OffsetX.SetValue(fov_.offset_x + clamped_offset_from_left);
+  camera_->Width.SetValue(clamped_width);
+  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+  LOG_TRACE("Continuous grabbing restarted with horizontal offset_from_left {} and width {}.",
+            clamped_offset_from_left, clamped_width);
+}
 
 void BaslerCamera::AdjustGain(double factor) {
   if (!camera_) {
@@ -230,6 +250,10 @@ void BaslerCamera::AdjustGain(double factor) {
 auto BaslerCamera::GetVerticalFOVOffset() -> int { return camera_->OffsetY.GetValue() - fov_.offset_y; };
 
 auto BaslerCamera::GetVerticalFOVHeight() -> int { return camera_->Height.GetValue(); };
+
+auto BaslerCamera::GetHorizontalFOVOffset() -> int { return camera_->OffsetX.GetValue(); };
+
+auto BaslerCamera::GetHorizontalFOVWidth() -> int { return camera_->Width.GetValue(); };
 
 void BaslerCamera::Stop() {
   if (Started()) {
