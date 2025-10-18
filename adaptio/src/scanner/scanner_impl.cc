@@ -150,6 +150,8 @@ auto ScannerImpl::Start(enum ScannerSensitivity sensitivity) -> boost::outcome_v
   latest_sent   = std::chrono::high_resolution_clock::now();
   auto on_image = [this](std::unique_ptr<image::Image> img) -> void { ImageGrabbed(std::move(img)); };
   image_provider_->SetOnImage(on_image);
+  // Capture base horizontal FOV width at start (for gain scaling)
+  base_horizontal_fov_width_ = image_provider_->GetHorizontalFOVWidth();
   return image_provider_->Start(sensitivity);
 }
 auto ScannerImpl::Start(enum ScannerSensitivity sensitivity, bool store_image_data) -> boost::outcome_v2::result<void> {
@@ -169,6 +171,7 @@ void ScannerImpl::Stop() {
   image_provider_->SetOnImage(nullptr);
   dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
   dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
+  base_horizontal_fov_width_ = std::nullopt;
 }
 
 auto ScannerImpl::NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int> {
@@ -340,7 +343,18 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       }
 
       if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
-        image_provider_->AdjustGain(profile.suggested_gain_change.value());
+        double factor = profile.suggested_gain_change.value();
+        // Scale gain change based on current horizontal ROI width vs base width
+        const int current_width = image_provider_->GetHorizontalFOVWidth();
+        if (base_horizontal_fov_width_.has_value() && current_width > 0) {
+          const double roi_ratio = static_cast<double>(base_horizontal_fov_width_.value()) /
+                                   static_cast<double>(current_width);
+          // If ROI is narrower than base, lower the multiplicative gain change accordingly
+          // Clamp to a reasonable range to avoid overreaction
+          const double clamped_ratio = std::clamp(roi_ratio, 0.5, 4.0);
+          factor /= clamped_ratio;
+        }
+        image_provider_->AdjustGain(factor);
         frames_since_gain_change_ = 0;
       }
       m_config_mutex.unlock();
