@@ -208,6 +208,9 @@ class JointModel {
   static auto FitPoints(const Eigen::RowVectorXd& x, const Eigen::RowVectorXd& y, double residual_threshold)
       -> LineSegment;
 
+  // Propagate runtime camera ROI horizontal offset changes to the projection model
+  void SetHorizontalFOVAbsoluteOffsetX(int offset_pixels) { camera_model_->SetHorizontalFOVAbsoluteOffsetX(offset_pixels); }
+
   /**
    *Converts the angle of the laser line to the angle orthogonal to the weld object center.
    *

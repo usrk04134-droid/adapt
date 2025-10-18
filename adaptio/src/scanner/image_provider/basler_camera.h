@@ -68,6 +68,12 @@ class BaslerCamera : public ImageProvider {
   auto GetSerialNumber() -> std::string override;
   void SetOnImage(OnImage on_image) override { on_image_ = on_image; };
 
+  // Horizontal FOV controls
+  void SetHorizontalFOV(int offset_from_left, int width) override;
+  auto GetHorizontalFOVOffset() -> int override;
+  auto GetHorizontalFOVWidth() -> int override;
+  auto GetHorizontalFOVAbsoluteOffsetX() -> int override;
+
  private:
   auto InitializeCamera(float gain, float exposure_time) -> boost::outcome_v2::result<void>;
   auto StartCamera() -> boost::outcome_v2::result<void>;

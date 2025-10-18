@@ -168,6 +168,7 @@ void ScannerImpl::Stop() {
   maybe_abw0_abw6_horizontal_ = {};
   image_provider_->SetOnImage(nullptr);
   dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+  dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
 }
 
 auto ScannerImpl::NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int> {
@@ -261,6 +262,80 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
           }
         } else {
           dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+        }
+      }
+
+      // Horizontal FOV update: use existing vertical FOV, adjust width based on abw0 and abw6
+      {
+        const auto points = profile.points;
+        image::WorkspaceCoordinates horiz_points(3, 2);
+        horiz_points.setZero();
+        horiz_points(0, 0) = points[0].x;  // abw0 x
+        horiz_points(1, 0) = points[0].y;
+        horiz_points(0, 1) = points[6].x;  // abw6 x
+        horiz_points(1, 1) = points[6].y;
+
+        // Project to image plane with current vertical crop
+        auto maybe_img = joint_model_->WorkspaceToImage(horiz_points, image->GetVerticalCropStart());
+        if (maybe_img.has_value()) {
+          auto img_pts    = maybe_img.value();
+          const int x0_px = static_cast<int>(std::round(img_pts(0, 0)));  // ROI-relative
+          const int x6_px = static_cast<int>(std::round(img_pts(0, 1)));  // ROI-relative
+          const int left_px  = std::min(x0_px, x6_px);
+          const int right_px = std::max(x0_px, x6_px);
+
+          // Desired ROI in ROI-relative coordinates
+          const int desired_left_rel  = std::max(0, left_px - WINDOW_MARGIN_H);
+          const int desired_width     = (right_px - left_px) + 2 * WINDOW_MARGIN_H;
+
+          // Current width/offset from image provider (relative to base offset_x)
+          const int curr_rel_off = image_provider_->GetHorizontalFOVOffset();
+          const int curr_width   = image_provider_->GetHorizontalFOVWidth();
+          const int curr_abs_off = image_provider_->GetHorizontalFOVAbsoluteOffsetX();
+          const int base_abs_off = curr_abs_off - curr_rel_off;
+
+          // Compute desired absolute offset and width
+          int new_abs_off = base_abs_off + desired_left_rel;
+          int new_width   = desired_width;
+
+          if (new_width < MINIMUM_FOV_WIDTH) {
+            // Expand around the center of the proposed window
+            const int center_rel    = desired_left_rel + (desired_width / 2);
+            const int expand        = (MINIMUM_FOV_WIDTH - new_width) / 2;
+            const int new_left_rel  = std::max(0, center_rel - (MINIMUM_FOV_WIDTH / 2));
+            new_abs_off             = base_abs_off + new_left_rel;
+            new_width               = MINIMUM_FOV_WIDTH;
+          }
+
+          const int new_rel_off = new_abs_off - base_abs_off;
+
+          // If too far from desired margins, recompute
+          const bool need_left_move  = std::abs(desired_left_rel - curr_rel_off) > MOVE_MARGIN_H;
+          const bool need_right_move = std::abs((desired_left_rel + desired_width) - (curr_rel_off + curr_width)) > MOVE_MARGIN_H;
+
+          if (need_left_move || need_right_move) {
+            // Prevent thrashing until dimensions applied
+            const auto h_dim_check = dont_allow_horizontal_fov_change_until_new_dimensions_received;
+            const bool allowed     = h_dim_check
+                                         .transform([curr_rel_off, curr_width](std::tuple<int, int> requested) {
+                                           auto [req_off, req_w] = requested;
+                                           return req_off == curr_rel_off && req_w == curr_width;
+                                         })
+                                         .value_or(true);
+            if (allowed) {
+              image_provider_->SetHorizontalFOV(new_rel_off, new_width);
+              // Read back actual applied values to gate further updates
+              const int applied_rel_off = image_provider_->GetHorizontalFOVOffset();
+              const int applied_width   = image_provider_->GetHorizontalFOVWidth();
+              dont_allow_horizontal_fov_change_until_new_dimensions_received = {applied_rel_off, applied_width};
+
+              // Update camera model absolute OffsetX so projections stay consistent
+              const int abs_offset_x = image_provider_->GetHorizontalFOVAbsoluteOffsetX();
+              joint_model_->SetHorizontalFOVAbsoluteOffsetX(abs_offset_x);
+            }
+          } else {
+            dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
+          }
         }
       }
 
