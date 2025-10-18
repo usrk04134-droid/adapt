@@ -89,6 +89,10 @@ void KinematicsServerImpl::OnAxisInput(AxisInput axis) {
 
 void KinematicsServerImpl::OnWeldObjectRadius(double radius) { weld_object_radius_ = radius; }
 
+void KinematicsServerImpl::OnLinearObjectDistance(double linear_object_distance) {
+  linear_object_distance_ = linear_object_distance;
+}
+
 void KinematicsServerImpl::OnEdgePositionAvailableStatus(bool status) {
   auto const edge_position_available = status ? TriState::TRUE : TriState::FALSE;
   if (send_state_changes_ &&
@@ -166,13 +170,12 @@ void KinematicsServerImpl::OnGetWeldAxisData(common::msg::kinematics::GetWeldAxi
       data.time_stamp != 0 ? data.time_stamp : system_clock_now_func_().time_since_epoch().count();
   auto axis_data = weld_axis_buffer_->GetPosition(time_stamp);
 
-  common::msg::kinematics::GetWeldAxisDataRsp const rsp{
-      .client_id  = data.client_id,
-      .time_stamp = data.time_stamp,
-      .position   = axis_data.position,
-      .velocity   = axis_data.velocity,
-      .radius     = weld_object_radius_,
-  };
+  common::msg::kinematics::GetWeldAxisDataRsp const rsp{.client_id              = data.client_id,
+                                                        .time_stamp             = data.time_stamp,
+                                                        .position               = axis_data.position,
+                                                        .velocity               = axis_data.velocity,
+                                                        .radius                 = weld_object_radius_,
+                                                        .linear_object_distance = linear_object_distance_};
   socket_->Send(rsp);
 }
 

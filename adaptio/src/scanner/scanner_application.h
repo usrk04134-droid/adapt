@@ -43,6 +43,9 @@ class ScannerApplication {
   void JoinThread();
   void Exit();
 
+  void SetTestPostExecutor(std::function<void(std::function<void()>)> exec);
+  auto GetImageProviderForTests() -> image_provider::ImageProvider* { return image_provider_; }
+
  private:
   auto GetCoreScanner(const joint_model::JointProperties& properties) -> ScannerPtr;
 
@@ -69,6 +72,7 @@ class ScannerApplication {
   ScannerServerPtr scanner_server_;
   image_provider::Fov fov_;
   prometheus::Registry* registry_;
+  std::function<void(std::function<void()>)> test_post_exec_;
 };
 
 using ScannerApplicationPtr = std::unique_ptr<ScannerApplication>;

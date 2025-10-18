@@ -18,10 +18,11 @@ class KinematicsServer {
  public:
   virtual ~KinematicsServer() = default;
 
-  virtual void OnAxisInput(AxisInput axis)                = 0;
-  virtual void OnWeldObjectRadius(double radius)          = 0;
-  virtual void OnEdgePositionAvailableStatus(bool status) = 0;
-  virtual void OnEdgePosition(double value)               = 0;
+  virtual void OnAxisInput(AxisInput axis)                           = 0;
+  virtual void OnWeldObjectRadius(double radius)                     = 0;
+  virtual void OnLinearObjectDistance(double linear_object_distance) = 0;
+  virtual void OnEdgePositionAvailableStatus(bool status)            = 0;
+  virtual void OnEdgePosition(double value)                          = 0;
 };
 
 }  // namespace controller

@@ -1,15 +1,15 @@
 #include <cstdint>
 #include <utility>
 
-#include "block_tests/helpers.h"
-#include "block_tests/helpers_joint_geometry.h"
-#include "block_tests/helpers_kinematics.h"
-#include "block_tests/helpers_settings.h"
-#include "block_tests/helpers_web_hmi.h"
-#include "block_tests/helpers_weld_system.h"
 #include "common/messages/management.h"
 #include "common/messages/weld_system.h"
 #include "coordination/activity_status.h"
+#include "helpers/helpers.h"
+#include "helpers/helpers_joint_geometry.h"
+#include "helpers/helpers_kinematics.h"
+#include "helpers/helpers_settings.h"
+#include "helpers/helpers_web_hmi.h"
+#include "helpers/helpers_weld_system.h"
 #include "tracking/tracking_manager.h"
 #include "weld_system_client//weld_system_types.h"
 
@@ -19,7 +19,6 @@
 
 #include "common/messages/kinematics.h"
 #include "common/messages/scanner.h"
-#include "helpers.h"
 #include "web_hmi/web_hmi_json_helpers.h"
 
 const float HORIZONTAL_OFFSET       = 10.0;
@@ -74,7 +73,7 @@ TEST_SUITE("Coordination") {
                                                                                  .horizontal = -20,
                                                                                  .vertical   = 5});
 
-    CheckAndDispatchGetWeldAxis(fixture, 1.23, 2.55, 3500);
+    CheckAndDispatchGetWeldAxis(fixture, 1.23, 0.0, 2.55, 3500);
     const common::msg::weld_system::GetWeldSystemDataRsp weld_system_status_rsp{
         .voltage           = 31.0,
         .current           = 216.123456,

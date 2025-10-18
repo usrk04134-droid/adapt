@@ -17,10 +17,10 @@
 #include <vector>
 
 #include "calibration_solver.h"
+#include "common/groove/point.h"
 #include "common/types/vector_3d.h"
 #include "common/types/vector_3d_helpers.h"
 #include "lpcs/lpcs_point.h"
-#include "macs/macs_point.h"
 #include "slice_translator/model_extract.h"
 
 namespace {
@@ -89,8 +89,8 @@ auto ClockPosFunctor::operator()(const Eigen::VectorXd &params, Eigen::VectorXd 
   const common::Vector3D rot_axis   = common::EigenVector2CommonVector(rotax_10);
   const common::Vector3D rot_center = common::EigenVector2CommonVector(c_1);
 
-  int obs_index         = 0;
-  macs::Point ref_point = torch_plane_info.top_center_at_torch_plane;
+  int obs_index           = 0;
+  common::Point ref_point = torch_plane_info.top_center_at_torch_plane;
 
   for (const auto &observation : observations) {
     // Using top center point as rotaional correspondence for optimization
@@ -103,7 +103,7 @@ auto ClockPosFunctor::operator()(const Eigen::VectorXd &params, Eigen::VectorXd 
             2};
 
     // Call the model to transform and rotate/project lpcs point --> mcs
-    macs::Point computed_point_mcs =
+    common::Point computed_point_mcs =
         this->model_extract->TransformAndRotateToTorchPlane(rot_center, {scanner_mount_angle, delta_rot_y, delta_rot_z},
                                                             rot_axis, tcs2lpcs, point_lpcs, observation.slide_position);
 
@@ -263,11 +263,11 @@ auto CalibrationSolverImpl::Calculate(const TorchPlaneInfo &torch_plane_info,
 
 auto CalibrationSolverImpl::ComputeModelQuality(CalibrationResult &result, const std::vector<Observation> &observations,
                                                 const GeometricConstants &constants,
-                                                const macs::Point ref_point_macs) const -> void {
+                                                const common::Point ref_point_macs) const -> void {
   lpcs::Point point_lpcs;
-  macs::Point point_mcs;
-  macs::Point residual;
-  macs::Point mean_pos{.horizontal = 0.0, .vertical = 0.0};
+  common::Point point_mcs;
+  common::Point residual;
+  common::Point mean_pos{.horizontal = 0.0, .vertical = 0.0};
 
   double max_residual{0.0};
   double residual_sum_of_squares{0.0};

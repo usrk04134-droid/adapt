@@ -34,7 +34,8 @@ const double PI                   = std::numbers::pi;
 const double GROOVE_FACE_OFFSET   = 3e-3;
 const int NBR_ARC_POINTS          = 10;
 const double OPT_PRECISION        = 0.01;
-const double OPT_DEFAULT_STEP     = 0.001;
+const double OPT_DEFAULT_STEP     = 0.0005;
+const double BEAD_AREA_FACTOR     = 10.0;
 const int OPT_MAX_ITER            = 1000;
 const int TOP_SURFACE_LEFT_INDEX  = 0;
 const int CHAMFER_LEFT_INDEX      = 1;
@@ -579,11 +580,26 @@ auto JointSlice::FindHighestPointInJoint() -> double {
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity, bugprone-easily-swappable-parameters)
-auto JointSlice::AddBead(double target_bead_area, double bead_radius, /*double stickout,*/ const Point2d &torchpos)
-    -> void {
+auto JointSlice::AddBead(double target_bead_area, double bead_radius, double target_stickout, const Point2d &torchpos,
+                         bool use_process_dependent_bead) -> void {
   // std::cout << "Adding bead to slice\n";
 
   const double y_min = FindLowestPointInJoint();
+
+  if (use_process_dependent_bead) {
+    // Find actual stickout and adjust the target bead area
+    Eigen::Vector2d wire_dir = {0.0, -1.0};
+    const Line2d wire_line{torchpos, wire_dir};
+    std::optional<Point2d> surf_point = FindIntersectionWithSurface(wire_line);
+    const double y_surf               = surf_point->GetY();
+    const double actual_stickout      = std::abs(torchpos.GetY() - y_surf);
+    const double stickout_fraction    = actual_stickout / target_stickout;
+    if (stickout_fraction < 1.0) {
+      target_bead_area = target_bead_area * (std::exp(BEAD_AREA_FACTOR * stickout_fraction) - 1.0) /
+                         (std::exp(BEAD_AREA_FACTOR) - 1.0);
+    }
+  }
+
   Circle2d circle;
   std::unique_ptr<Bead> bead = nullptr;  // = CreateBead(circle, false);
   Polygon poly_bead;
@@ -752,16 +768,11 @@ auto JointSlice::GetAbwPoints(bool allow_cap_points) const -> std::unique_ptr<st
 }
 
 auto JointSlice::FindIntersectionWithSurface(const Line2d &line) const -> std::optional<Point2d> {
-  std::unique_ptr<Point2d> p_int;
-
   for (const auto &slice_line : this->slice_lines_) {
-    p_int = line.Intersect(slice_line, false, true);
-
-    if (p_int != nullptr) {
+    if (auto p_int = line.Intersect(slice_line, false, true)) {
       return *p_int;
     }
   }
-
   return std::nullopt;
 }
 

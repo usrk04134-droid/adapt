@@ -9,11 +9,11 @@
 #include "calibration/calibration_configuration.h"
 #include "calibration/src/calibration_grid_generator.h"
 #include "calibration/src/calibration_solver.h"
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "common/zevs/zevs_socket.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
 
 using calibration::CalibrationSequenceRunner;
 
@@ -78,7 +78,7 @@ void CalibrationSequenceRunner::MoveToCurrentPoint() {
                                         runner_config_.slide_velocity);
 }
 
-void CalibrationSequenceRunner::OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position) {
+void CalibrationSequenceRunner::OnScannerDataUpdate(const lpcs::Slice& data, const common::Point& axis_position) {
   if (data.confidence == lpcs::SliceConfidence::NO || !data.groove) {
     return;
   }
@@ -88,8 +88,8 @@ void CalibrationSequenceRunner::OnScannerDataUpdate(const lpcs::Slice& data, con
   }
 
   const auto& target = grid_points_[current_index_];
-  macs::Point diff{.horizontal = (axis_position.horizontal - target.GetX()),
-                   .vertical   = (axis_position.vertical - target.GetZ())};
+  common::Point diff{.horizontal = (axis_position.horizontal - target.GetX()),
+                     .vertical   = (axis_position.vertical - target.GetZ())};
 
   if (state_ == State::MOVING && NearTarget(diff)) {
     LOG_DEBUG("Near target at: h: {:.2f}, v: {:.2f}, start stabilization timer", target.GetX(), target.GetZ());
@@ -167,7 +167,7 @@ void CalibrationSequenceRunner::CancelTimeout() {
   }
 }
 
-auto CalibrationSequenceRunner::NearTarget(const macs::Point& diff) const -> bool {
+auto CalibrationSequenceRunner::NearTarget(const common::Point& diff) const -> bool {
   return std::abs(diff.horizontal) < runner_config_.near_target_delta &&
          std::abs(diff.vertical) < runner_config_.near_target_delta;
 }

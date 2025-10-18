@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "common/logging/application_log.h"
+
 using controller::SlidePositionBufferImpl;
 
 namespace {
@@ -21,7 +23,9 @@ auto SlidePositionBufferImpl::StorePosition(double position, uint64_t time_stamp
 }
 
 auto SlidePositionBufferImpl::GetPosition(uint64_t time_stamp) -> double {
-  int i;
+  if (buffer_.size() == 0) {
+    return 0.0;
+  }
 
   // Check special case when all items in buffer are older than the requested
   // time stamp.
@@ -31,6 +35,7 @@ auto SlidePositionBufferImpl::GetPosition(uint64_t time_stamp) -> double {
 
   // Get closest before and closest after
   // Perform a linear interpolation between them.
+  int i{};
   for (i = 0; i < buffer_.size() && buffer_[i].time_stamp > time_stamp; i++);
 
   // Check special case when all items in buffer are newer than the requested

@@ -168,7 +168,7 @@ inline auto ToJsonLog(const calibration::CalibrationResult& data) -> nlohmann::j
   return obj;
 }
 
-inline auto ToJsonLog(const macs::Point& data) -> nlohmann::json {
+inline auto ToJsonLog(const common::Point& data) -> nlohmann::json {
   nlohmann::json obj = {
       {"horizontal", Floor(data.horizontal, LOG_4_DECIMALS)},
       {"vertical",   Floor(data.vertical,   LOG_4_DECIMALS)},

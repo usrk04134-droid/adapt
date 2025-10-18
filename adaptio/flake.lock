@@ -187,18 +187,18 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1750663290,
-        "narHash": "sha256-K9aJhh0ddf9QTv5CCOgJKRx8KaDCLFwg/B1h1s+sS9Q=",
+        "lastModified": 1758873901,
+        "narHash": "sha256-C57e55CcIqN13wGcJpPpAOlJ3/X2s8oWEdagT8nX3FI=",
         "owner": "esab",
         "repo": "abw%2Fplc%2Fpn-interface",
-        "rev": "f9e489417d99270fba91ddce82aea83e031ee65f",
+        "rev": "b6e0d58661e11cde075504eb0edd9e4efdf36bfb",
         "type": "gitlab"
       },
       "original": {
         "owner": "esab",
         "ref": "main",
         "repo": "abw%2Fplc%2Fpn-interface",
-        "rev": "f9e489417d99270fba91ddce82aea83e031ee65f",
+        "rev": "b6e0d58661e11cde075504eb0edd9e4efdf36bfb",
         "type": "gitlab"
       }
     },

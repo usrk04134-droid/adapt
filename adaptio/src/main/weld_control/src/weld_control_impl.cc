@@ -27,6 +27,8 @@
 #include "bead_control/bead_control_types.h"
 #include "common/clock_functions.h"
 #include "common/containers/relative_position_buffer.h"
+#include "common/groove/groove.h"
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "common/logging/component_logger.h"
 #include "common/math/math.h"
@@ -40,8 +42,6 @@
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_point.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_groove.h"
-#include "macs/macs_point.h"
 #include "macs/macs_slice.h"
 #include "scanner_client/scanner_client.h"
 #include "slice_translator/slice_translator_service_v2.h"
@@ -49,9 +49,7 @@
 #include "web_hmi/web_hmi.h"
 #include "weld_calculations.h"
 #include "weld_control/src/confident_slice_buffer.h"
-#include "weld_control/src/performance_metrics.h"
 #include "weld_control/src/settings_provider.h"
-#include "weld_control/src/weld_metrics.h"
 #include "weld_control/src/weld_sequence_config.h"
 #include "weld_control/weld_control.h"
 #include "weld_control/weld_control_types.h"
@@ -70,6 +68,7 @@ auto const VERTICAL_VELOCITY_ARCING                   = 2.0;                    
 auto const REPOSITION_IN_POSITION_TOLERANCE           = 2.;                                // in mm
 auto const WELD_OBJECT_MOVING_THRESHOLD               = common::math::CmMinToMmSec(0.25);  // linear velocity in mm/sec
 auto const WELD_AXIS_POSITION_MAX_REVERSE_THRESHOLD   = 10;                                // in mm
+auto const WELD_OBJECT_DISTANCE_MAX_REVERSE_THRESHOLD = 5;                                 // in mm
 auto const WELD_AXIS_POSITION_OUT_OF_BOUNDS_THRESHOLD = (2 * std::numbers::pi) + common::math::DegToRad(3.0);
 auto const FIXED_HANDOVER_GRACE                       = std::chrono::seconds(3);
 auto const READY_FOR_CAP_CONFIDENT_BUFFER_FILL_RATIO  = 0.95;
@@ -121,8 +120,6 @@ WeldControlImpl::WeldControlImpl(
 },
       system_clock_now_func_(system_clock_now_func),
       steady_clock_now_func_(steady_clock_now_func),
-      perf_metrics_(std::make_unique<PerformanceMetrics>(registry, system_clock_now_func)),
-      weld_metrics_(std::make_unique<WeldMetrics>(registry)),
       smooth_weld_speed_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma),
       smooth_ws2_current_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma) {
   weld_sequence_config_->SubscribeToUpdates([this] {
@@ -165,8 +162,9 @@ WeldControlImpl::WeldControlImpl(
           switch (data.weld_axis_state) {
             case kinematics::State::HOMED:
               /* stored position are no longer valid -> reset groove data */
-              last_weld_axis_position_ = {};
-              ResetGrooveData();
+              last_weld_axis_position_   = {};
+              cached_weld_axis_position_ = 0.0;
+              ResetGrooveDataHomed();
               break;
             case kinematics::State::INIT:
             default:
@@ -305,6 +303,49 @@ void WeldControlImpl::SetupMetrics(prometheus::Registry* registry) {
 
   metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
                                                   static_cast<double>(confident_slice_buffer_.Slots()));
+
+  {
+    const std::vector<double> buckets = {
+        0.030,  // 30 ms
+        0.040,  // 40 ms
+        0.050,  // 50 ms
+        0.060,  // 60 ms
+        0.070,  // 70 ms
+        0.080,  // 80 ms
+        0.090,  // 90 ms
+        0.100,  // 100 ms
+        0.150,  // 150 ms
+        0.200,  // 200 ms
+        0.300,  // 300 ms
+        0.400,  // 400 ms
+    };
+
+    auto& histogram = prometheus::BuildHistogram()
+                          .Name("adaptio_abw_latency_lpcs_seconds")
+                          .Help("ABW data latency from image taken")
+                          .Register(*registry);
+    metrics_.abw_latency_lpcs_seconds = &histogram.Add({}, buckets);
+  }
+
+  {
+    metrics_.groove.top_width_mm = &prometheus::BuildGauge()
+                                        .Name("weld_control_groove_top_width")
+                                        .Help("Joint Top Width.")
+                                        .Register(*registry)
+                                        .Add({});
+    metrics_.groove.bottom_width_mm = &prometheus::BuildGauge()
+                                           .Name("weld_control_groove_bottom_width")
+                                           .Help("Joint Bottom Width.")
+                                           .Register(*registry)
+                                           .Add({});
+    metrics_.groove.area_mm =
+        &prometheus::BuildGauge().Name("weld_control_groove_area").Help("Joint area.").Register(*registry).Add({});
+    metrics_.groove.top_height_diff_mm = &prometheus::BuildGauge()
+                                              .Name("weld_control_groove_top_height_diff")
+                                              .Help("Joint Top Height Diff.")
+                                              .Register(*registry)
+                                              .Add({});
+  }
 }
 
 void WeldControlImpl::UpdateBeadControlParameters() {
@@ -418,6 +459,8 @@ void WeldControlImpl::LogData(std::optional<std::string> annotation = std::nullo
                },
            },
            {"radius", cached_weld_object_radius_},
+           {"distance", cached_linear_object_distance_.has_value() ? cached_linear_object_distance_.value() : 0.0},
+
        }},
   };
 
@@ -545,12 +588,11 @@ void WeldControlImpl::LogModeChange() {
 }
 
 auto WeldControlImpl::JTReady() const -> bool {
-  auto const weld_axis_ok   = weld_axis_state_ && *weld_axis_state_ == kinematics::State::HOMED;
   auto const edge_sensor_ok = settings_.UseEdgeSensor() ? edge_state_.value_or(kinematics::EdgeState::NOT_AVAILABLE) ==
                                                               kinematics::EdgeState::AVAILABLE
                                                         : true;
 
-  return weld_axis_ok && edge_sensor_ok;
+  return edge_sensor_ok;
 }
 
 auto WeldControlImpl::ABPReady() const -> bool {
@@ -593,7 +635,7 @@ void WeldControlImpl::CheckReady() {
 
   if (ABPReady()) {
     auto on_weld_axis_response = [this](std::uint64_t /*time_stamp*/, double /*position*/, double /*ang_velocity*/,
-                                        double radius) {
+                                        double radius, double /*linear_object_distance*/) {
       if (mode_ != Mode::AUTOMATIC_BEAD_PLACEMENT) {
         cached_weld_object_radius_ = radius;
         UpdateOutput(1., 1.);
@@ -607,6 +649,9 @@ void WeldControlImpl::CheckReady() {
 
 void WeldControlImpl::WeldSystemStateChange(weld_system::WeldSystemId id, weld_system::WeldSystemState state) {
   auto const arcing = state == weld_system::WeldSystemState::ARCING;
+
+  LOG_INFO("Weld system {} state change {} -> {}", weld_system::WeldSystemIdToString(id),
+           weld_system::WeldSystemStateToString(weld_systems_[id].state), weld_system::WeldSystemStateToString(state));
 
   switch (mode_) {
     case Mode::AUTOMATIC_BEAD_PLACEMENT: {
@@ -638,7 +683,6 @@ void WeldControlImpl::WeldSystemStateChange(weld_system::WeldSystemId id, weld_s
   }
 
   weld_systems_[id].state = state;
-  weld_metrics_->WSStateUpdate(id, state);
 
   // Log all weld-system state changes to make it possible to determine how much time is spent welding
   // for the different weld-control state/modes (Manual, JT, ABP).
@@ -646,8 +690,11 @@ void WeldControlImpl::WeldSystemStateChange(weld_system::WeldSystemId id, weld_s
 }
 
 auto WeldControlImpl::ValidateInput() -> std::optional<event::Code> {
+  if (weld_axis_state_ != kinematics::State::HOMED) {
+    return {};
+  }
+
   if (cached_weld_object_radius_ <= 0.) {
-    /* Weld axis HOMED is precondition for both JT and ABP so radius should be > 0 */
     LOG_ERROR("Invalid weld object radius: {}", cached_weld_object_radius_);
     return event::ABP_INVALID_INPUT;
   }
@@ -665,13 +712,6 @@ auto WeldControlImpl::ValidateInput() -> std::optional<event::Code> {
   if (cached_weld_axis_position_ >= 2 * std::numbers::pi) {
     LOG_TRACE("Weld axis position > 2*pi: {:.7f} set to 0.0", cached_weld_axis_position_);
     cached_weld_axis_position_ = 0.0;
-  }
-
-  auto const ang_velocity_moving_threshold =
-      common::math::LinearToAngular(WELD_OBJECT_MOVING_THRESHOLD, cached_weld_object_radius_);
-  if (cached_weld_axis_ang_velocity_ < ang_velocity_moving_threshold) {
-    /* weld-object velocity is below the threshold -> set veclocity to 0.0 */
-    cached_weld_axis_ang_velocity_ = 0.0;
   }
 
   auto const distance_since_last_pos = last_weld_axis_position_.has_value()
@@ -729,6 +769,10 @@ void WeldControlImpl::ChangeState(State new_state) {
 }
 
 void WeldControlImpl::UpdateConfidentSlice() {
+  if (weld_axis_state_ != kinematics::State::HOMED) {
+    return;
+  }
+
   metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
                                                   static_cast<double>(confident_slice_buffer_.Slots()));
 
@@ -754,7 +798,7 @@ void WeldControlImpl::UpdateConfidentSlice() {
   auto groove                       = data.value().second.groove;
   auto const edge_sensor_adjustment = data.value().second.edge_position - cached_edge_position_;
 
-  groove.Move(macs::Point{
+  groove.Move(common::Point{
       .horizontal = settings_.EdgeSensorPlacementValue() == Settings::EdgeSensorPlacement::RIGHT
                         ? -edge_sensor_adjustment
                         : edge_sensor_adjustment,
@@ -778,8 +822,8 @@ void WeldControlImpl::UpdateConfidentSlice() {
       .left_wall_angle  = left_wall_angle,
       .right_wall_angle = right_wall_angle,
       .tolerance{.upper_width = upper_width_tolerance, .wall_angle = wall_angle_tolerance},
-      .abw0_horizontal = lpcs_groove ? lpcs_groove.value()[macs::ABW_UPPER_LEFT].x : 0.0,
-      .abw6_horizontal = lpcs_groove ? lpcs_groove.value()[macs::ABW_UPPER_RIGHT].x : 0.0,
+      .abw0_horizontal = lpcs_groove ? lpcs_groove.value()[common::ABW_UPPER_LEFT].x : 0.0,
+      .abw6_horizontal = lpcs_groove ? lpcs_groove.value()[common::ABW_UPPER_RIGHT].x : 0.0,
   });
 
   if (lpcs_groove.has_value()) {
@@ -792,6 +836,10 @@ void WeldControlImpl::UpdateConfidentSlice() {
 void WeldControlImpl::UpdateReadyForABPCap() {
   /* this function handles ready-for-ABP-CAP when in JT mode - once ready_for_jt_to_auto_cap_ is set we do not allow it
    * to go back to avoid toggling the value back and forth */
+
+  if (weld_axis_state_ != kinematics::State::HOMED) {
+    return;
+  }
 
   if (mode_ != Mode::JOINT_TRACKING) {
     return;
@@ -864,30 +912,31 @@ void WeldControlImpl::ProcessInput() {
   LogDataRateLimited();
 }
 
-auto WeldControlImpl::StoreGrooveInDelayBuffer() -> bool {
-  if (cached_weld_axis_ang_velocity_ > 0.0) {
-    delay_buffer_->Store(cached_weld_axis_position_, cached_mcs_.groove.value());
-    return true;
+void WeldControlImpl::StoreGrooveInDelayBuffer() {
+  if (cached_linear_object_distance_.has_value()) {
+    delay_buffer_->Store(cached_linear_object_distance_.value(), cached_mcs_.groove.value());
   }
 
   if (cached_weld_axis_ang_velocity_ < 0.0) {
     delay_buffer_->Clear();
+    cached_linear_object_distance_ = {};
   }
-  return false;
 }
 
-auto WeldControlImpl::GetDelayedGrooveMCS(double delay) -> macs::Groove {
+auto WeldControlImpl::GetDelayedGrooveMCS() -> common::Groove {
   auto const current = cached_mcs_.groove.value();
-  return cached_weld_axis_ang_velocity_ < 0. ? current
-                                             : delay_buffer_->Get(delay, common::containers::MIN).value_or(current);
+
+  auto const delay = GetSampleToTorchDist(cached_lpcs_.time_stamp, cached_weld_axis_ang_velocity_,
+                                          cached_distance_from_torch_to_scanner_);
+
+  auto delayed_groove = delay_buffer_->Get(delay).value_or(current);
+
+  return delayed_groove;
 }
 
-auto WeldControlImpl::GetHybridGrooveMCS() const -> macs::Groove {
-  auto const angle_distance_from_torch_to_scanner = cached_torch_to_scanner_angle_;
-
+auto WeldControlImpl::GetHybridGrooveMCS() const -> common::Groove {
   auto const current_groove = cached_mcs_.groove.value();
-  auto const maybe_delayed  = delay_buffer_->Get(angle_distance_from_torch_to_scanner, common::containers::MIN);
-  auto const delayed_groove = maybe_delayed.has_value() ? maybe_delayed.value() : current_groove;
+  auto const delayed_groove = delay_buffer_->Get(cached_distance_from_torch_to_scanner_).value_or(current_groove);
 
   // Use ABW0,6 from current groove
   // Attempt to update the y values for the bottom of the groove.
@@ -902,41 +951,44 @@ auto WeldControlImpl::GetHybridGrooveMCS() const -> macs::Groove {
 
   auto merged = current_groove;
   auto idx =
-      fabs(current_groove[macs::ABW_UPPER_LEFT].vertical - delayed_groove[macs::ABW_UPPER_LEFT].vertical) <
-              fabs(current_groove[macs::ABW_UPPER_RIGHT].vertical - delayed_groove[macs::ABW_UPPER_RIGHT].vertical)
-          ? macs::ABW_UPPER_LEFT
-          : macs::ABW_UPPER_RIGHT;
+      fabs(current_groove[common::ABW_UPPER_LEFT].vertical - delayed_groove[common::ABW_UPPER_LEFT].vertical) <
+              fabs(current_groove[common::ABW_UPPER_RIGHT].vertical - delayed_groove[common::ABW_UPPER_RIGHT].vertical)
+          ? common::ABW_UPPER_LEFT
+          : common::ABW_UPPER_RIGHT;
 
   const double dx = current_groove[idx].horizontal - delayed_groove[idx].horizontal;
   const double dy = current_groove[idx].vertical - delayed_groove[idx].vertical;
 
-  for (int i = macs::ABW_LOWER_LEFT; i <= macs::ABW_LOWER_RIGHT; i++) {
+  for (int i = common::ABW_LOWER_LEFT; i <= common::ABW_LOWER_RIGHT; i++) {
     merged[i].horizontal = delayed_groove[i].horizontal + dx;
     merged[i].vertical   = delayed_groove[i].vertical + dy;
   }
-
   LOG_TRACE(
-      "Delay: torch_to_scanner(rad/mm): {:.4f}/{:.2f}. ABW1 ({:4f},{:4f},{:4f},{:4f}), ABW5 "
+      "Delay: torch_to_scanner(mm): {:.2f}. ABW1 ({:4f},{:4f},{:4f},{:4f}), ABW5 "
       "({:4f},{:4f},{:4f},{:4f})",
-      angle_distance_from_torch_to_scanner, angle_distance_from_torch_to_scanner * cached_weld_object_radius_,
-      delayed_groove[macs::ABW_LOWER_LEFT].horizontal, merged[macs::ABW_LOWER_LEFT].horizontal,
-      delayed_groove[macs::ABW_LOWER_LEFT].vertical, merged[macs::ABW_LOWER_LEFT].vertical,
-      delayed_groove[macs::ABW_LOWER_RIGHT].horizontal, merged[macs::ABW_LOWER_RIGHT].horizontal,
-      delayed_groove[macs::ABW_LOWER_RIGHT].vertical, merged[macs::ABW_LOWER_RIGHT].vertical);
+      cached_distance_from_torch_to_scanner_, delayed_groove[common::ABW_LOWER_LEFT].horizontal,
+      merged[common::ABW_LOWER_LEFT].horizontal, delayed_groove[common::ABW_LOWER_LEFT].vertical,
+      merged[common::ABW_LOWER_LEFT].vertical, delayed_groove[common::ABW_LOWER_RIGHT].horizontal,
+      merged[common::ABW_LOWER_RIGHT].horizontal, delayed_groove[common::ABW_LOWER_RIGHT].vertical,
+      merged[common::ABW_LOWER_RIGHT].vertical);
 
   return merged;
 }
 
-auto WeldControlImpl::GetSampleToTorchDistRad(uint64_t ts_sample, double ang_velocity, double torch_to_scanner_angle)
+auto WeldControlImpl::GetSampleToTorchDist(uint64_t ts_sample, double ang_velocity, double torch_to_scanner_distance)
     -> double {
-  /* return distance from sample to torch in radians */
+  if (weld_axis_state_ != kinematics::State::HOMED) {
+    return std::max(torch_to_scanner_distance - 5.0, 0.);
+  }
+
+  /* return distance from sample to torch in mm */
   auto const now        = system_clock_now_func_();
   auto const tp_scanner = std::chrono::system_clock::time_point{std::chrono::nanoseconds{ts_sample}};
   auto const duration_seconds =
       static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(now - tp_scanner).count()) / 1000000.;
 
-  auto const angle_dist_since_sample = std::max(ang_velocity * duration_seconds, 0.);
-  auto const delay                   = std::max(torch_to_scanner_angle - angle_dist_since_sample, 0.);
+  auto const dist_since_sample = std::max(ang_velocity * cached_weld_object_radius_ * duration_seconds, 0.);
+  auto const delay             = std::max(torch_to_scanner_distance - dist_since_sample, 0.);
 
   return delay;
 }
@@ -997,9 +1049,6 @@ void WeldControlImpl::UpdateTrackingPosition() {
   double slide_horizontal_lin_velocity = HORIZONTAL_VELOCITY;
   double slide_vertical_velocity       = VERTICAL_VELOCITY;
 
-  auto const delay =
-      GetSampleToTorchDistRad(cached_lpcs_.time_stamp, cached_weld_axis_ang_velocity_, cached_torch_to_scanner_angle_);
-
   StoreGrooveInDelayBuffer();
 
   auto const hybrid_mcs = GetHybridGrooveMCS();
@@ -1013,7 +1062,7 @@ void WeldControlImpl::UpdateTrackingPosition() {
       .smooth_vertical_motion = state_ == State::WELDING,
   };
 
-  cached_delayed_mcs_ = GetDelayedGrooveMCS(delay);
+  cached_delayed_mcs_ = GetDelayedGrooveMCS();
 
   switch (mode_) {
     case Mode::AUTOMATIC_BEAD_PLACEMENT: {
@@ -1166,7 +1215,7 @@ auto WeldControlImpl::UpdateSliceConfidence() -> bool {
 }
 
 void WeldControlImpl::Receive(const macs::Slice& machine_data, const lpcs::Slice& scanner_data,
-                              const macs::Point& slides_actual, const double angle_from_torch_to_scanner) {
+                              const common::Point& slides_actual, const double distance_from_torch_to_scanner) {
   if (mode_ == Mode::IDLE) {
     return;
   }
@@ -1180,7 +1229,14 @@ void WeldControlImpl::Receive(const macs::Slice& machine_data, const lpcs::Slice
     return;
   }
 
-  perf_metrics_->UpdateABWLatencyLpcs(scanner_data.time_stamp);
+  {
+    auto const now        = system_clock_now_func_();
+    auto const tp_scanner = std::chrono::system_clock::time_point{std::chrono::nanoseconds{scanner_data.time_stamp}};
+    std::chrono::duration<double> const latency = now - tp_scanner;
+    if (metrics_.abw_latency_lpcs_seconds) {
+      metrics_.abw_latency_lpcs_seconds->Observe(latency.count());
+    }
+  }
 
   slides_actual_ = slides_actual;
 
@@ -1190,16 +1246,66 @@ void WeldControlImpl::Receive(const macs::Slice& machine_data, const lpcs::Slice
     return;
   }
 
-  cached_mcs_                    = machine_data;
-  cached_lpcs_                   = scanner_data;
-  cached_torch_to_scanner_angle_ = angle_from_torch_to_scanner;
-  cached_groove_area_            = scanner_data.groove_area;
+  cached_mcs_                            = machine_data;
+  cached_lpcs_                           = scanner_data;
+  cached_distance_from_torch_to_scanner_ = distance_from_torch_to_scanner;
+  cached_groove_area_                    = scanner_data.groove_area;
 
-  auto on_weld_axis_response = [this](std::uint64_t /*time_stamp*/, double position, double ang_velocity,
-                                      double radius) {
+  const auto& groove         = machine_data.groove.value();
+  auto const top_width       = groove.TopWidth();
+  auto const bottom_width    = groove.BottomWidth();
+  auto const area            = groove.Area();
+  auto const top_height_diff = groove[common::ABW_UPPER_LEFT].vertical - groove[common::ABW_UPPER_RIGHT].vertical;
+
+  if (metrics_.groove.top_width_mm) {
+    metrics_.groove.top_width_mm->Set(top_width);
+  }
+  if (metrics_.groove.bottom_width_mm) {
+    metrics_.groove.bottom_width_mm->Set(bottom_width);
+  }
+  if (metrics_.groove.area_mm) {
+    metrics_.groove.area_mm->Set(area);
+  }
+  if (metrics_.groove.top_height_diff_mm) {
+    metrics_.groove.top_height_diff_mm->Set(top_height_diff);
+  }
+
+  auto on_weld_axis_response = [this](std::uint64_t /*time_stamp*/, double position, double ang_velocity, double radius,
+                                      double linear_object_distance) {
+    if (weld_axis_state_ == kinematics::State::HOMED &&
+        radius > 0.0) { /* invalid radius handled in ValidateInput function */
+      auto const ang_velocity_moving_threshold = common::math::LinearToAngular(WELD_OBJECT_MOVING_THRESHOLD, radius);
+      if (fabs(ang_velocity) < ang_velocity_moving_threshold) {
+        /* weld-object velocity is below the threshold -> set veclocity to 0.0 */
+        ang_velocity = 0.0;
+      }
+
+      if (cached_weld_axis_position_ == 0.0 && ang_velocity > 0.0) {
+        LOG_INFO("Weld object rotation started");
+      } else if (cached_weld_axis_position_ > 0.0 && ang_velocity == 0.0) {
+        LOG_INFO("Weld object rotation stopped");
+      }
+    }
     cached_weld_axis_position_     = position;
     cached_weld_axis_ang_velocity_ = ang_velocity;
     cached_weld_object_radius_     = radius;
+
+    if (!cached_linear_object_distance_.has_value()) {
+      cached_linear_object_distance_ = linear_object_distance;
+    }
+
+    auto const distance_since_last_pos = linear_object_distance - cached_linear_object_distance_.value();
+
+    if (linear_object_distance >= cached_linear_object_distance_.value()) {
+      cached_linear_object_distance_ = linear_object_distance;
+    } else if (-distance_since_last_pos > WELD_OBJECT_DISTANCE_MAX_REVERSE_THRESHOLD) {
+      LOG_INFO("Weld axis rotated backwards from {:.5f} to {:.5f}", cached_linear_object_distance_.value(),
+               linear_object_distance);
+      if (weld_axis_state_ != kinematics::State::HOMED) {
+        delay_buffer_->Clear();
+        cached_linear_object_distance_ = linear_object_distance;
+      }
+    }
 
     pending_get_weld_axis_data_ = false;
 
@@ -1280,7 +1386,7 @@ void WeldControlImpl::JointTrackingUpdate(tracking::TrackingMode tracking_mode, 
       tracking_mode_     = tracking_mode;
       horizontal_offset_ = horizontal_offset;
       vertical_offset_   = vertical_offset;
-      LOG_INFO("JT Update with mode: {} horizontal-offset: {} vertical-offset: {}",
+      LOG_INFO("JT Update with mode: {} horizontal-offset: {:.3f} vertical-offset: {:.3f}",
                tracking::TrackingModeToString(tracking_mode), horizontal_offset, vertical_offset);
       break;
     case Mode::AUTOMATIC_BEAD_PLACEMENT:
@@ -1348,6 +1454,7 @@ void WeldControlImpl::AutoBeadPlacementStart(LayerType layer_type) {
       handover_to_abp_cap_timestamp_ = {};
       bead_control_->UnregisterCapNotification();
       bead_control_->NextLayerCap();
+      weld_session_.ready_for_cap = true;
       break;
     case LayerType::NOT_APPLICABLE:
       /* not a valid ABP layer type */
@@ -1368,6 +1475,9 @@ void WeldControlImpl::AutoBeadPlacementStop() {
       if (state_ == State::WELDING) {
         ClearWeldSession();
       }
+
+      LOG_INFO("ABP stop - weld object pos: {:.4f}", cached_weld_axis_position_);
+
       break;
     case Mode::JOINT_TRACKING:
     case Mode::IDLE:
@@ -1382,7 +1492,7 @@ void WeldControlImpl::AutoBeadPlacementStop() {
 }
 
 void WeldControlImpl::Stop() {
-  LOG_INFO("Stop");
+  LOG_INFO("Stop - weld object pos: {:.4f}", cached_weld_axis_position_);
   scanner_client_->Stop();
   pending_scanner_stop_     = true;
   last_weld_axis_position_  = {};
@@ -1404,6 +1514,7 @@ void WeldControlImpl::Stop() {
   last_confident_lpcs_ = {};
   last_confident_mcs_  = {};
 
+  cached_linear_object_distance_ = {};
   ChangeMode(Mode::IDLE);
   ChangeState(State::IDLE);
 
@@ -1424,8 +1535,12 @@ void WeldControlImpl::SubscribeReady(
 }
 
 void WeldControlImpl::ResetGrooveData() {
-  bead_control_->ResetGrooveData();
   delay_buffer_->Clear();
+  ResetGrooveDataHomed();
+}
+
+void WeldControlImpl::ResetGrooveDataHomed() {
+  bead_control_->ResetGrooveData();
   confident_slice_buffer_.Clear();
   ClearWeldSession();
 }

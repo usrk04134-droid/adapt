@@ -111,6 +111,7 @@ void ControllerMessenger::OnTrackingInputUpdate(TrackInput data) {
   }
 
   kinematics_server_->OnWeldObjectRadius(data.get_weld_object_radius());
+  kinematics_server_->OnLinearObjectDistance(data.get_linear_object_distance());
   kinematics_server_->OnEdgePositionAvailableStatus(data.get_status_edge_tracker_value_valid());
   kinematics_server_->OnEdgePosition(data.get_edge_tracker_value());
 }

@@ -44,11 +44,13 @@ class Mocket : public CoreSocket, public std::enable_shared_from_this<Mocket> {
       -> MessagePtr;
 
   auto ReceiveMessage(Location loc = Location::current()) -> MessagePtr;
+  auto ReceiveMessageNoLog(Location loc = Location::current()) -> MessagePtr;  // For test-fixtures
 
   template <typename Data>
   void Dispatch(Data data, Location loc = Location::current());
 
   void DispatchMessage(MessagePtr message, Location loc = Location::current());
+  void DispatchMessageNoLog(MessagePtr message, Location loc = Location::current());  // For test-fixtures
 
   auto Queued() const -> size_t { return message_queue_.size(); }
 
@@ -340,6 +342,10 @@ inline auto Mocket::ReceiveMessage(Location loc) -> MessagePtr {
   common::logging::Log(fmt::format("{}:{} | ReceiveMessage {}", loc.file_name(), loc.line(), Describe()),
                        boost::log::trivial::trace);
 
+  return ReceiveMessageNoLog(loc);
+}
+
+inline auto Mocket::ReceiveMessageNoLog(Location loc) -> MessagePtr {
   if (message_queue_.empty()) {
     common::logging::Log(
         fmt::format("{}:{} | ReceiveMessage, no messages to receive, {}", loc.file_name(), loc.line(), Describe()),
@@ -401,6 +407,10 @@ inline void Mocket::DispatchMessage(MessagePtr message, Location loc) {
       fmt::format("{}:{} | DispatchMessage {} {:#x}", loc.file_name(), loc.line(), Describe(), message->Id()),
       boost::log::trivial::trace);
 
+  DispatchMessageNoLog(std::move(message), loc);
+}
+
+inline void Mocket::DispatchMessageNoLog(MessagePtr message, Location loc) {
   if (!callback_handler_) {
     LOG_ERROR("Mocket::DispatchMessage, no callback handler set, {}", Describe());
     assert(false);

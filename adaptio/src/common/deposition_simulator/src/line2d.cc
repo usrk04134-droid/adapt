@@ -71,37 +71,28 @@ auto Line2d::Intersect(const Line2d &other, bool consider_len_this, bool conside
   const Vector2d rr = this->direction_ * this->length_;
   const Vector2d ss = other.direction_ * other.length_;
 
-  Eigen::Matrix<double, 2, 2> mm;
-  mm << rr, ss;
-
-  const double m_denom = mm.determinant();  // r(0)*s(1) - r(1)*s(0);
+  const double m_denom = rr(0) * ss(1) - rr(1) * ss(0);
 
   if (std::abs(m_denom) < DOT_PRODUCT_PARALLEL) {
     return nullptr;  // No intersection, parallell lines.
   }
 
-  mm << qq - pp, ss;
-  const double tt = mm.determinant() / m_denom;
-  mm << qq - pp, rr;
-  const double uu = mm.determinant() / m_denom;
+  const Vector2d q_p = qq - pp;
+  const double tt    = (q_p(0) * ss(1) - q_p(1) * ss(0)) / m_denom;
+  const double uu    = (q_p(0) * rr(1) - q_p(1) * rr(0)) / m_denom;
 
-  if (consider_len_this)  // Check that intersection is within line1 (this)
-  {
-    if (tt < 0 || tt > 1) {
-      return nullptr;
-    }
+  if (consider_len_this && (tt < 0.0 || tt > 1.0)) {
+    return nullptr;
   }
 
-  if (consider_len_other)  // Check that intersection is within line2 (other)
-  {
-    if (uu < 0 || uu > 1) {
-      return nullptr;
-    }
+  if (consider_len_other && (uu < 0.0 || uu > 1.0)) {
+    return nullptr;
   }
 
   Vector2d v_int = pp + tt * rr;
-  return std::make_unique<Point2d>(Point2d(v_int(0), v_int(1)));
+  return std::make_unique<Point2d>(v_int(0), v_int(1));
 }
+
 auto Line2d::Intersect(const Circle2d &circle, bool consider_len_start = false, bool consider_len_end = false)
     -> std::vector<IntersectionPoint> {
   std::vector<IntersectionPoint> intersections;

@@ -41,7 +41,7 @@ struct Slice {
   static auto FromSnake(const image::WorkspaceCoordinates& snake, const JointProperties& properties,
                         const std::optional<JointProfile>& median_profile, bool& found_out_of_spec_joint_width,
                         bool joint_properties_updated, bool use_approximation,
-                        std::optional<std::tuple<double, double>> approximated_abw0_abw6_horizontal)
+                        std::optional<std::tuple<double, double>> approx_abw0_abw6)
       -> std::expected<std::tuple<ABWPoints, uint64_t, bool>, JointModelErrorCode>;
 
  protected:
@@ -109,8 +109,9 @@ struct Slice {
    * @param offset_distance          Offset distance used to position abw1/abw5.
    * @return A tuple of 4 abw points.
    */
-  static auto PositionPointsOnSnake(const image::WorkspaceCoordinates& snake, double abw0_horizontal,
-                                    double abw6_horizontal, double left_angle, double right_angle,
-                                    double offset_distance) -> std::optional<std::tuple<Point, Point, Point, Point>>;
+  static auto PositionPointsOnSnake(const image::WorkspaceCoordinates& snake,
+                                    std::optional<std::tuple<double, double>>& approx_abw0_abw6, double left_angle,
+                                    double right_angle, double offset_distance)
+      -> std::optional<std::tuple<Point, Point, Point, Point>>;
 };
 }  // namespace scanner::joint_model

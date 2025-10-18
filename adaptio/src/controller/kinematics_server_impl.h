@@ -19,6 +19,7 @@ class KinematicsServerImpl : public KinematicsServer {
 
   void OnAxisInput(controller::AxisInput axis) override;
   void OnWeldObjectRadius(double radius) override;
+  void OnLinearObjectDistance(double linear_object_distance) override;
   void OnEdgePositionAvailableStatus(bool status) override;
   void OnEdgePosition(double value) override;
 
@@ -50,6 +51,7 @@ class KinematicsServerImpl : public KinematicsServer {
   bool horizontal_in_position_{false};
   bool vertical_in_position_{false};
   double weld_object_radius_{0.};
+  double linear_object_distance_{};
   clock_functions::SystemClockNowFunc system_clock_now_func_;
   TriState weld_axis_homed_{TriState::UNKNOWN};
   bool send_state_changes_ = false;

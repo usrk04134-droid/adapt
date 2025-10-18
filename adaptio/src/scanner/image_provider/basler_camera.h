@@ -59,7 +59,7 @@ class BaslerCamera : public ImageProvider {
 
   auto Start(enum scanner::ScannerSensitivity sensitivity) -> boost::outcome_v2::result<void> override;
   void Stop() override;
-  [[nodiscard]] auto Started() const -> bool override;
+  auto Started() const -> bool override;
   void ResetFOVAndGain() override;
   void SetVerticalFOV(int offset_from_top, int height) override;
   void AdjustGain(double factor) override;

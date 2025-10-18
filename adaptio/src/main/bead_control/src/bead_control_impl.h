@@ -10,11 +10,10 @@
 #include "bead_control/bead_control.h"
 #include "bead_control/bead_control_types.h"
 #include "bead_control/src/groove_fit.h"
-#include "bead_control/src/weld_position_data_storage.h"
+#include "bead_control/src/weld_position_data_buffer.h"
 #include "common/clock_functions.h"
 #include "common/containers/position_buffer.h"
-#include "macs/macs_groove.h"
-#include "macs/macs_point.h"
+#include "common/groove/groove.h"
 
 namespace bead_control {
 
@@ -25,7 +24,7 @@ enum class LayerType {
 
 class BeadControlImpl : public BeadControl {
  public:
-  explicit BeadControlImpl(WeldPositionDataStorage* storage, clock_functions::SteadyClockNowFunc steady_clock_now_func);
+  explicit BeadControlImpl(double storage_resolution, clock_functions::SteadyClockNowFunc steady_clock_now_func);
   auto Update(const Input& input) -> std::pair<Result, Output> override;
   auto GetStatus() const -> Status override;
   void Reset() override;
@@ -40,14 +39,12 @@ class BeadControlImpl : public BeadControl {
   void SetCapCornerOffset(double offset) override { cap_corner_offset_ = offset; };
   void SetTopWidthToNumBeads(const std::vector<BeadTopWidthData>& data) override { top_width_to_num_beads_ = data; };
   void ResetGrooveData() override;
-  auto GetEmptyGroove(double pos) -> std::optional<macs::Groove> override;
   void RegisterCapNotification(std::chrono::seconds notification_grace, double last_layer_depth,
                                OnCapNotification on_notification) override;
   void UnregisterCapNotification() override;
   void NextLayerCap() override;
 
  private:
-  WeldPositionDataStorage* storage_;
   clock_functions::SteadyClockNowFunc steady_clock_now_func_;
 
   double wall_offset_{0.};
@@ -70,20 +67,20 @@ class BeadControlImpl : public BeadControl {
   std::optional<int> total_beads_in_prev_full_layer_;
   std::optional<int> total_beads_in_full_layer_;
   double bead_overlap_{0.};
-  WeldPositionDataStorage::Slice empty_layer_;
   double last_angular_position_{0.};
   State state_{State::IDLE};
   double start_angular_position_{0.};
   double progress_{0.};
-  std::optional<macs::Groove> average_empty_groove_;
+  std::optional<common::Groove> average_empty_groove_;
   std::optional<GrooveFit> empty_layer_groove_fit_;
-  std::optional<common::containers::PositionBuffer<macs::Groove>> empty_groove_buffer_;
-  common::containers::PositionBuffer<macs::Groove> empty_layer_groove_buffer_;
+  std::optional<common::containers::PositionBuffer<common::Groove>> empty_groove_buffer_;
+  common::containers::PositionBuffer<common::Groove> empty_layer_groove_buffer_;
   double empty_layer_average_groove_area_{};
-  std::optional<macs::Groove> locked_groove_;
+  std::optional<common::Groove> locked_groove_;
   bool last_fill_layer_{false};
   LayerType next_layer_type_{LayerType::FILL};
   LayerType layer_type_{LayerType::FILL};
+  WeldPositionDataBuffer storage_;
 
   struct {
     std::chrono::seconds grace;
@@ -92,14 +89,15 @@ class BeadControlImpl : public BeadControl {
   } cap_notification_;
 
   std::optional<double> paused_angular_position_;
+  double storage_resolution_;
 
   auto CalculateBeadsInLayer(double right_bead_area) -> std::tuple<std::optional<int>, double>;
   auto OnFillLayerFirstBead() -> bool;
   auto OnFillLayerSecondBead() -> bool;
   auto OnNewBead() -> Result;
-  auto CalculateBeadPosition(const macs::Groove& groove, const std::optional<macs::Groove>& maybe_empty_groove)
+  auto CalculateBeadPosition(const common::Groove& groove, const std::optional<common::Groove>& maybe_empty_groove)
       -> std::tuple<double, tracking::TrackingMode, tracking::TrackingReference>;
-  auto CalculateBeadSliceAreaRatio(const macs::Groove& maybe_empty_groove) -> double;
+  auto CalculateBeadSliceAreaRatio(const common::Groove& maybe_empty_groove) -> double;
   void extracted();
   auto BeadOperationUpdate(double angular_position, double angular_velocity, bool paused, bool in_horizontal_position)
       -> Result;

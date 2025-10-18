@@ -15,20 +15,18 @@
 
 #define TESTLOG_DISABLED
 
-#include "block_tests/helpers_settings.h"
-#include "block_tests/helpers_simulator.h"
-#include "block_tests/helpers_weld_system.h"
 #include "common/messages/kinematics.h"
 #include "common/messages/management.h"
 #include "common/messages/scanner.h"
 #include "common/messages/weld_system.h"
-#include "helpers.h"
-#include "helpers_calibration_v2.h"
-#include "helpers_kinematics.h"
-#include "helpers_simulator.h"
-#include "helpers_state_monitor.h"
-#include "helpers_weld_control.h"
-#include "helpers_weld_system.h"
+#include "helpers/helpers.h"
+#include "helpers/helpers_calibration_v2.h"
+#include "helpers/helpers_kinematics.h"
+#include "helpers/helpers_settings.h"
+#include "helpers/helpers_simulator.h"
+#include "helpers/helpers_state_monitor.h"
+#include "helpers/helpers_weld_control.h"
+#include "helpers/helpers_weld_system.h"
 #include "point3d.h"
 #include "sim-config.h"
 #include "simulator_interface.h"
@@ -52,7 +50,6 @@ const int START_BEAD_STATE_MONITORING_AT_STEP{static_cast<int>(NUMBER_OF_STEPS_P
 const int CHECK_MONITORED_BEAD_STATE_AT_STEP{static_cast<int>(NUMBER_OF_STEPS_PER_REV * 0.8)};
 
 const double SCANNER_MOUNT_ANGLE = 6.0 * help_sim::PI / 180.0;
-const double TOUCH_POINT_DEPTH_M = 10e-3;
 
 // Test function
 auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void;
@@ -137,6 +134,51 @@ TEST_SUITE("AdaptiveWeldingTest") {
     // Set a misaligned joint
     test_parameters.test_joint_geometry.simulator_joint_geometry.left.radial_offset_m       = 2e-3;
     test_parameters.test_joint_geometry.simulator_joint_geometry.right.radial_offset_m      = -2e-3;
+    test_parameters.test_joint_geometry.simulator_joint_geometry.joint_depth_percentage     = 50;
+    test_parameters.test_joint_geometry.simulator_joint_geometry.joint_bottom_curv_radius_m = 0.6;
+    AdativeWeldingTest(test_parameters);
+  }
+
+  TEST_CASE("adaptive_welding_misaligned_joint_with_groove_deviations_test") {
+    help_sim::TestParameters test_parameters{
+        .abp_parameters{.wall_offset_mm = 2.,
+                        .bead_overlap   = 20.,
+                        .step_up_value  = 0.5,
+                        .k_gain         = 2.,
+                        .heat_input{.min = 2.1, .max = 3.4},
+                        .weld_system_2_current{.min = 700., .max = 800.},
+                        .weld_speed{.min = 80., .max = 95.},
+                        .bead_switch_angle = 15.,
+                        .cap_corner_offset = 2.0,
+                        .cap_beads         = 5,
+                        .cap_init_depth    = 7.0},
+        .welding_parameters{
+                        .weld_object_diameter_m       = 2.,
+                        .weld_object_speed_cm_per_min = 100.,
+                        .stickout_m                   = 25e-3,
+                        .weld_system_1{.voltage                      = 29.0,
+                           .current                      = 700.0,
+                           .wire_lin_velocity_mm_per_sec = help_sim::CalculateWireSpeedMmPerSec(method::DC, 4., 700),
+                           .deposition_rate              = 10.4,
+                           .heat_input                   = 1.2,
+                           .twin_wire                    = false,
+                           .wire_diameter_mm             = 4.0},
+                        .weld_system_2{.voltage                      = 31.0,
+                           .current                      = 700.0,
+                           .wire_lin_velocity_mm_per_sec = help_sim::CalculateWireSpeedMmPerSec(method::AC, 4., 700),
+                           .deposition_rate              = 10.6,
+                           .heat_input                   = 1.2,
+                           .twin_wire                    = false,
+                           .wire_diameter_mm             = 4.0},
+                        .use_edge_sensor = true},
+        .test_joint_geometry{help_sim::TEST_JOINT_GEOMETRY_NARROW_WITH_GROOVE_ANGLE_DEV},
+
+        .testcase_parameters{
+                        .expected_beads_in_layer{{1, 2}, {2, 3}, {3, 3}, {4, 4}, {5, 4}, {6, 5}}}  // Number of test layers
+    };
+    // Set a misaligned joint
+    test_parameters.test_joint_geometry.simulator_joint_geometry.left.radial_offset_m       = 0.0;
+    test_parameters.test_joint_geometry.simulator_joint_geometry.right.radial_offset_m      = 0.0;
     test_parameters.test_joint_geometry.simulator_joint_geometry.joint_depth_percentage     = 50;
     test_parameters.test_joint_geometry.simulator_joint_geometry.joint_bottom_curv_radius_m = 0.6;
     AdativeWeldingTest(test_parameters);
@@ -293,7 +335,9 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
 
   fixture.GetConfigManagerMock()->SetWeldControlConfiguration(weld_control_config);
 
-  fixture.StartApplication();
+  // Starting the application like this does not set a default calibration
+  fixture.Sut()->Start();
+  fixture.SetupMockets();
 
   StoreSettings(fixture, TestSettings{.use_edge_sensor = test_parameters.welding_parameters.use_edge_sensor}, true);
 
@@ -316,6 +360,7 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
 
   sim_config.travel_speed =
       help_sim::ConvertCMPerMin2MPerS(test_parameters.welding_parameters.weld_object_speed_cm_per_min);
+  sim_config.target_stickout = test_parameters.welding_parameters.stickout_m;
 
   // Add adaptive torches
   auto depsim_ws1_torch = simulator->AddSingleWireTorch(
@@ -332,13 +377,14 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
 
   simulator->Initialize(sim_config);
 
-  CalibrateConfig conf{.stickout_m              = test_parameters.welding_parameters.stickout_m,
-                       .touch_point_depth_m     = TOUCH_POINT_DEPTH_M,
-                       .scanner_mount_angle_rad = SCANNER_MOUNT_ANGLE,
-                       .wire_diameter_mm        = test_parameters.welding_parameters.weld_system_1.wire_diameter_mm,
-                       .weld_object_diameter_m  = test_parameters.welding_parameters.weld_object_diameter_m};
+  DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
+  DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
 
-  CHECK(Calibrate(fixture, sim_config, *simulator, conf));
+  fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
+  auto ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
+  CHECK(ready_msg.has_value());
+  CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::NOT_READY);
+  SetDefaultCalibration(fixture);
 
   simulator->Initialize(sim_config);
 
@@ -363,9 +409,8 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
 
   help_sim::SetABPParameters(fixture, test_parameters);
 
-  DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-  DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-  CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, help_sim::ConvertM2Mm(sim_config.joint_def_left.outer_diameter / 2.));
+  CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0,
+                              help_sim::ConvertM2Mm(sim_config.joint_def_left.outer_diameter / 2.));
 
   // Start Joint tracking
   common::msg::management::TrackingStart start_joint_tracking_msg{
@@ -396,6 +441,8 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
   auto adaptive_weld_speed_m_per_s = sim_config.travel_speed;
   bool test_stop                   = false;
   StateMonitor<std::string> state_monitor;
+  double current_lin_weld_object_distance{.0};
+
   while (!test_ready) {  // LastLayerCompleted(stop_layer, current_layer)) {
     abws        = helpers_simulator::ConvertFromOptionalAbwVector(simulator->GetAbwPoints(depsim::MACS));
     joint_depth = std::abs(abws[0].GetZ() - abws[1].GetZ());  // Approximate depth
@@ -434,7 +481,7 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
 
       //  Check GetWeldAxis request and dispatch response
       CheckAndDispatchGetWeldAxis(
-          fixture, current_angle,
+          fixture, current_angle, current_lin_weld_object_distance,
           help_sim::ConvertMPerS2RadPerS(adaptive_weld_speed_m_per_s, sim_config.joint_def_left.outer_diameter / 2.),
           help_sim::ConvertM2Mm(sim_config.joint_def_left.outer_diameter / 2.));
 
@@ -583,6 +630,11 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
 
       // Step position
       current_angle += DELTA_ANGLE;
+      current_lin_weld_object_distance +=
+          help_sim::ConvertM2Mm(sim_config.joint_def_left.outer_diameter / 2.) * DELTA_ANGLE;
+
+      TESTLOG("delta angle: {:.5f} dist {:.5f} radius {:.5f}".current_angle, current_lin_weld_object_distance,
+              help_sim::ConvertM2Mm(sim_config.joint_def_left.outer_diameter / 2.) * DELTA_ANGLE);
       simulator->RunWithRotation(DELTA_ANGLE,
                                  test_parameters.test_joint_geometry.simulator_joint_geometry.bead_radians_m);
       // Step clocks

@@ -26,6 +26,7 @@ const double MAX_HORIZONTAL_MOVEMENT    = 0.002;
 const double MAX_WALL_HEIGHT_DIFFERENCE = 0.006;
 const double WIDTH_MARGIN               = 0.002;
 const double DEEP_ENOUGH_FOR_SPEC_CHECK = 0.007;
+const double CORNER_OFFSET              = 0.004;
 /*
    _____ _ _
   / ____| (_)
@@ -38,7 +39,7 @@ const double DEEP_ENOUGH_FOR_SPEC_CHECK = 0.007;
 auto Slice::FromSnake(const image::WorkspaceCoordinates& snake, const JointProperties& properties,
                       const std::optional<JointProfile>& median_profile, bool& found_out_of_spec_joint_width,
                       bool joint_properties_updated, bool use_approximation,
-                      std::optional<std::tuple<double, double>> approximated_abw0_abw6_horizontal)
+                      std::optional<std::tuple<double, double>> approx_abw0_abw6)
     -> std::expected<std::tuple<ABWPoints, uint64_t, bool>, JointModelErrorCode> {
   auto approximation_used          = false;
   auto left_angle                  = JointModel::LPCSFromWeldObjectAngle(properties.left_joint_angle) - M_PI_2;
@@ -64,42 +65,28 @@ auto Slice::FromSnake(const image::WorkspaceCoordinates& snake, const JointPrope
     return points;
   };
 
-  auto limit_abw_1_5 = [](Point abw1_5, Point abw0_6) -> Point {
-    // Handle CAP situation when abw1.y > abw0.y or abw5.y > abw6.y then set abw1 = abw0 or abw5 = abw6
-    if (abw1_5.y > abw0_6.y) {
-      return abw0_6;
-    }
-
-    return abw1_5;
-  };
-
-  Point abw0;
-  Point abw1;
-  Point abw5;
-  Point abw6;
-
-  if (use_approximation && approximated_abw0_abw6_horizontal.has_value()) {
-    auto [abw0_horizontal, abw6_horizontal] = approximated_abw0_abw6_horizontal.value();
-    auto points =
-        PositionPointsOnSnake(snake, abw0_horizontal, abw6_horizontal, left_angle, right_angle, offset_distance);
+  if (use_approximation && approx_abw0_abw6.has_value()) {
+    auto points = PositionPointsOnSnake(snake, approx_abw0_abw6, left_angle, right_angle, offset_distance);
 
     if (!points.has_value()) {
-      LOG_ERROR("Not possible to place points on snake");
       return std::unexpected(JointModelErrorCode::FAULTY_APPROXIMATION_DATA);
     }
-    approximation_used               = true;
-    std::tie(abw0, abw1, abw5, abw6) = points.value();
+    auto [abw0, abw1, abw5, abw6] = points.value();
 
-    abw1 = limit_abw_1_5(abw1, abw0);
-    abw5 = limit_abw_1_5(abw5, abw6);
+    auto [abw0_horizontal, abw6_horizontal] = approx_abw0_abw6.value();
 
     LOG_TRACE(
         "Approximated: ABW0_x ({:.5f}) ABW6_x ({:.5f}) Updated: ABW0 ({:.5f}, {:.5f}) ABW1 ({:.5f}, "
         "{:.5f}) ABW5 ({:.5f}, {:.5f}) "
         "ABW6 ({:.5f}, {:.5f})",
         abw0_horizontal, abw6_horizontal, abw0.x, abw0.y, abw1.x, abw1.y, abw5.x, abw5.y, abw6.x, abw6.y);
-    return std::make_tuple(find_bottom_intersect(snake, abw0, abw1, abw5, abw6), 0, approximation_used);
+    return std::make_tuple(find_bottom_intersect(snake, abw0, abw1, abw5, abw6), 0, true);
   }
+
+  Point abw0;
+  Point abw1;
+  Point abw5;
+  Point abw6;
 
   auto angles = CalculateAngles(snake);
 #if defined(VISUAL_DEBUG_OUTPUT)
@@ -299,12 +286,9 @@ auto Slice::FromSnake(const image::WorkspaceCoordinates& snake, const JointPrope
     // No walls found
     // 1. If approximation of abw0/abw6 is available use that
     // 2. If scanner got an update joint geometry try to get abw points with standard deviation
-    if (approximated_abw0_abw6_horizontal) {
-      auto [abw0_horizontal, abw6_horizontal] = approximated_abw0_abw6_horizontal.value();
-      auto points =
-          PositionPointsOnSnake(snake, abw0_horizontal, abw6_horizontal, left_angle, right_angle, offset_distance);
+    if (approx_abw0_abw6) {
+      auto points = PositionPointsOnSnake(snake, approx_abw0_abw6, left_angle, right_angle, offset_distance);
       if (!points.has_value()) {
-        LOG_ERROR("Not possible to place points on snake");
         return std::unexpected(JointModelErrorCode::FAULTY_APPROXIMATION_DATA);
       }
       approximation_used               = true;
@@ -320,7 +304,8 @@ auto Slice::FromSnake(const image::WorkspaceCoordinates& snake, const JointPrope
     }
   }
 
-  if (snake.cols() > 5) {
+  // Check surface tolerance if approximation is not used
+  if (snake.cols() > 5 && !approximation_used) {
     const auto left_surface_angle = atan2(0.2 * snake.block(1, 0, 1, 5).sum() - abw0.y, abw0.x - snake(0, 2));
     const auto right_surface_angle =
         atan2(0.2 * snake.block(1, snake.cols() - 5, 1, 5).sum() - abw6.y, snake(0, snake.cols() - 1) - abw6.x);
@@ -334,9 +319,6 @@ auto Slice::FromSnake(const image::WorkspaceCoordinates& snake, const JointPrope
       "Num walls ({}) ABW0 ({:.5f}, {:.5f}) ABW1 ({:.5f}, {:.5f}) ABW5 ({:.5f}, {:.5f}) "
       "ABW6 ({:.5f}, {:.5f})",
       num_walls_found, abw0.x, abw0.y, abw1.x, abw1.y, abw5.x, abw5.y, abw6.x, abw6.y);
-
-  abw1 = limit_abw_1_5(abw1, abw0);
-  abw5 = limit_abw_1_5(abw5, abw6);
 
   if (abw0.x > abw1.x || abw6.x < abw5.x) {
     return std::unexpected(JointModelErrorCode::INVALID_SNAKE);
@@ -541,9 +523,16 @@ auto Slice::CalculateAngles(const image::WorkspaceCoordinates& snake) -> std::ve
   return angles;
 }
 
-auto Slice::PositionPointsOnSnake(const image::WorkspaceCoordinates& snake, double abw0_horizontal,
-                                  double abw6_horizontal, double left_angle, double right_angle, double offset_distance)
+auto Slice::PositionPointsOnSnake(const image::WorkspaceCoordinates& snake,
+                                  std::optional<std::tuple<double, double>>& approx_abw0_abw6, double left_angle,
+                                  double right_angle, double offset_distance)
     -> std::optional<std::tuple<Point, Point, Point, Point>> {
+  if (!approx_abw0_abw6.has_value()) {
+    return std::nullopt;
+  }
+
+  auto [abw0_horizontal, abw6_horizontal] = approx_abw0_abw6.value();
+
   auto maybe_abw0 = FindIntersection(abw0_horizontal, snake);
   auto maybe_abw6 = FindIntersection(abw6_horizontal, snake);
 
@@ -553,8 +542,33 @@ auto Slice::PositionPointsOnSnake(const image::WorkspaceCoordinates& snake, doub
     return std::nullopt;
   }
 
-  auto maybe_abw1 =
-      FindIntersection(LineSegment(maybe_abw0.value(), left_angle).TranslatedHorizontally(offset_distance), snake);
+  auto abw0 = maybe_abw0.value();
+  auto abw6 = maybe_abw6.value();
+
+  // Try to get a line segment for left top surface
+  // If it is found abw0 will be the intersection between it and abw0_horizontal
+  auto maybe_left_stop_col =
+      FindInCoordinates(snake, [abw0](const Eigen::Vector3d& col) { return col(0, 0) > abw0.x - CORNER_OFFSET; });
+
+  if (maybe_left_stop_col.has_value()) {
+    auto left_stop_col     = maybe_left_stop_col.value();
+    auto left_surface_line = JointModel::FitPoints(snake.block(0, 0, 2, left_stop_col), 0.0001);
+    abw0.y                 = left_surface_line.k * snake(0, left_stop_col) + left_surface_line.m;
+  }
+
+  // Try to get a line segment for right top surface
+  // If it is found abw6 will be the intersection between it and abw6_horizontal
+  auto maybe_right_start_col =
+      FindInCoordinates(snake, [abw6](const Eigen::Vector3d& col) { return col(0, 0) > abw6.x + CORNER_OFFSET; });
+
+  if (maybe_right_start_col.has_value()) {
+    auto right_start_col = maybe_right_start_col.value();
+    auto right_surface_line =
+        JointModel::FitPoints(snake.block(0, right_start_col, 2, snake.cols() - right_start_col - 1), 0.0001);
+    abw6.y = right_surface_line.k * snake(0, right_start_col) + right_surface_line.m;
+  }
+
+  auto maybe_abw1 = FindIntersection(LineSegment(abw0, left_angle).TranslatedHorizontally(offset_distance), snake);
 
   if (!maybe_abw1.has_value()) {
     return std::nullopt;
@@ -562,8 +576,7 @@ auto Slice::PositionPointsOnSnake(const image::WorkspaceCoordinates& snake, doub
 
   auto abw1 = maybe_abw1.value().TranslatedHorizontally(-offset_distance);
 
-  auto maybe_abw5 =
-      FindIntersection(LineSegment(maybe_abw6.value(), right_angle).TranslatedHorizontally(-offset_distance), snake);
+  auto maybe_abw5 = FindIntersection(LineSegment(abw6, right_angle).TranslatedHorizontally(-offset_distance), snake);
 
   if (!maybe_abw5.has_value()) {
     return std::nullopt;
@@ -571,7 +584,11 @@ auto Slice::PositionPointsOnSnake(const image::WorkspaceCoordinates& snake, doub
 
   auto abw5 = maybe_abw5.value().TranslatedHorizontally(offset_distance);
 
-  return std::make_tuple(maybe_abw0.value(), abw1, abw5, maybe_abw6.value());
+  // If abw1/abw5 is above abw0/abw6 set it to abw0/abw6. Probably on CAP
+  abw1 = abw1.y > abw0.y ? abw0 : abw1;
+  abw5 = abw5.y > abw6.y ? abw6 : abw5;
+
+  return std::make_tuple(abw0, abw1, abw5, abw6);
 }
 
 }  // namespace scanner::joint_model

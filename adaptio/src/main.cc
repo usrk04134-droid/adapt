@@ -281,6 +281,26 @@ auto main(int argc, char* argv[]) -> int {
   auto exposer  = std::make_unique<prometheus::Exposer>("0.0.0.0:" + std::to_string(PROMETHEUS_PORT));
   exposer->RegisterCollectable(registry);
 
+  prometheus::BuildGauge()
+      .Name("adaptio_application_info")
+      .Help("Information about the Adaptio build")
+      .Register(*registry)
+      .Add({
+          {"version",    ADAPTIO_VERSION        },
+          {"hash",       ADAPTIO_GIT_COMMIT_HASH},
+          {"build_type", BUILD_TYPE             },
+  })
+      .Set(1.0);
+
+  auto const start_time_seconds = static_cast<double>(
+      std::chrono::duration_cast<std::chrono::seconds>(system_clock_now_func().time_since_epoch()).count());
+  prometheus::BuildGauge()
+      .Name("adaptio_application_start_time_seconds")
+      .Help("Application start time in seconds since epoch")
+      .Register(*registry)
+      .Add({})
+      .Set(start_time_seconds);
+
   auto controller =
       controller::ControllerFactory::CreateController(configuration->GetController(), steady_clock_now_func);
 

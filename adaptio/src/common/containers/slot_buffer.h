@@ -83,6 +83,12 @@ class SlotBuffer {
     return static_cast<size_t>(std::fmod(index, wrap_value_) / slot_size_);
   }
 
+  // NOLINTBEGIN(readability-identifier-naming)
+  using iterator = std::optional<std::pair<double, V>> *;
+  auto begin() -> iterator { return data_.get(); };
+  auto end() -> iterator { return data_.get() + number_of_slots_; };
+  // NOLINTEND(readability-identifier-naming)
+
  protected:
   std::unique_ptr<std::optional<std::pair<double, V>>[]> data_;
   size_t number_of_slots_{};

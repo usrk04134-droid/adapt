@@ -10,12 +10,12 @@
 #include "common/messages/management.h"
 #include "common/messages/scanner.h"
 #include "common/messages/weld_system.h"
-#include "helpers.h"
-#include "helpers_calibration_v2.h"
-#include "helpers_joint_geometry.h"
-#include "helpers_kinematics.h"
-#include "helpers_simulator.h"
-#include "helpers_weld_system.h"
+#include "helpers/helpers.h"
+#include "helpers/helpers_calibration_v2.h"
+#include "helpers/helpers_joint_geometry.h"
+#include "helpers/helpers_kinematics.h"
+#include "helpers/helpers_simulator.h"
+#include "helpers/helpers_weld_system.h"
 #include "point3d.h"
 #include "sim-config.h"
 #include "simulator_interface.h"
@@ -45,32 +45,9 @@ const double TOP_TOUCH_HORIZONTAL_OFFSET_M = 10e-3;
 const float JT_HORIZONTAL_OFFSET = 0.0;
 const float JT_VERTICAL_OFFSET   = STICKOUT_M * 1000 + 1.0;
 
-const auto SUCCESS_PAYLOAD = nlohmann::json{
-    {"result", "ok"}
-};
-
-const auto FAILURE_PAYLOAD = nlohmann::json{
-    {"result", "fail"}
-};
-
-const nlohmann::json LASER_TORCH_CONFIG = {
-    {"distanceLaserTorch", 150.0},
-    {"stickout",           25.0 },
-    {"scannerMountAngle",  0.26 }
-};
-
-const nlohmann::json CAL_RESULT = {
-    {"residualStandardError",  0.0015                                        },
-    {"rotationCenter",         {{"c1", -28.8}, {"c2", -88.7}, {"c3", -970.9}}},
-    {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 355.1}, {"c3", 23.1}}    },
-    {"weldObjectRotationAxis", {{"c1", 0.0}, {"c2", 0.0}, {"c3", 1.0}}       }
-};
-
 void JointTracking(TestFixture& fixture, depsim::ISimulator& simulator) {
   auto torch_pos = simulator.GetTorchPosition();
   TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
-  DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-  DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
 
   fixture.Management()->Dispatch(common::msg::management::TrackingStart{
       .joint_tracking_mode = static_cast<uint32_t>(tracking::TrackingMode::TRACKING_CENTER_HEIGHT),
@@ -81,7 +58,7 @@ void JointTracking(TestFixture& fixture, depsim::ISimulator& simulator) {
 
   ProvideScannerAndKinematicsData(fixture, simulator, torch_pos);
 
-  CheckAndDispatchGetWeldAxis(fixture, 1.23, 2.55, 3500);
+  CheckAndDispatchGetWeldAxis(fixture, 1.23, 0.0, 2.55, 3500);
   const common::msg::weld_system::GetWeldSystemDataRsp weld_system_status_rsp{
       .voltage           = 31.0,
       .current           = 216.123456,
@@ -114,7 +91,9 @@ void JointTracking(TestFixture& fixture, depsim::ISimulator& simulator) {
 TEST_SUITE("CalibrationV2") {
   TEST_CASE("basic_calibration_v2") {
     TestFixture fixture;
-    fixture.StartApplication();
+    // Starting the application like this does not set a default calibration
+    fixture.Sut()->Start();
+    fixture.SetupMockets();
     // Set up to use timer wrapper
     fixture.SetupTimerWrapper();
 
@@ -141,6 +120,9 @@ TEST_SUITE("CalibrationV2") {
                          .scanner_mount_angle_rad = SCANNER_MOUNT_ANGLE,
                          .wire_diameter_mm        = WIRE_DIAMETER_MM,
                          .weld_object_diameter_m  = WELD_OBJECT_DIAMETER_M};
+
+    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
+    DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
 
     CHECK(Calibrate(fixture, sim_config, *simulator, conf));
 
@@ -149,7 +131,9 @@ TEST_SUITE("CalibrationV2") {
 
   TEST_CASE("basic_calibration_v2_touch_top") {
     TestFixture fixture;
-    fixture.StartApplication();
+    // Starting the application like this does not set a default calibration
+    fixture.Sut()->Start();
+    fixture.SetupMockets();
     // Set up to use timer wrapper
     fixture.SetupTimerWrapper();
 
@@ -177,6 +161,8 @@ TEST_SUITE("CalibrationV2") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM,
                          .weld_object_diameter_m  = WELD_OBJECT_DIAMETER_M};
 
+    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
+    DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
     CHECK(Calibrate(fixture, sim_config, *simulator, conf, true, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
     JointTracking(fixture, *simulator);
@@ -184,7 +170,9 @@ TEST_SUITE("CalibrationV2") {
 
   TEST_CASE("basic_calibration_v2_touch_top_u_bevel") {
     TestFixture fixture;
-    fixture.StartApplication();
+    // Starting the application like this does not set a default calibration
+    fixture.Sut()->Start();
+    fixture.SetupMockets();
     // Set up to use timer wrapper
     fixture.SetupTimerWrapper();
 
@@ -212,6 +200,8 @@ TEST_SUITE("CalibrationV2") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM,
                          .weld_object_diameter_m  = WELD_OBJECT_DIAMETER_M};
 
+    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
+    DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
     CHECK(Calibrate(fixture, sim_config, *simulator, conf, true, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
     JointTracking(fixture, *simulator);
@@ -219,7 +209,10 @@ TEST_SUITE("CalibrationV2") {
 
   TEST_CASE("cal_v2_get_ltc_before_set") {
     TestFixture fixture;
-    fixture.StartApplication();
+
+    // Starting the application like this does not set a default calibration
+    fixture.Sut()->Start();
+    fixture.SetupMockets();
 
     LaserTorchCalGet(fixture);
     CHECK_EQ(LaserTorchCalGetRsp(fixture), FAILURE_PAYLOAD);
@@ -227,37 +220,37 @@ TEST_SUITE("CalibrationV2") {
 
   TEST_CASE("cal_v2_set_get_ltc") {
     TestFixture fixture;
-    fixture.StartApplication();
+    // Starting the application like this does not set a default calibration
+    fixture.Sut()->Start();
+    fixture.SetupMockets();
 
-    LaserTorchCalSet(fixture, LASER_TORCH_CONFIG);
+    LaserTorchCalSet(fixture, DEFAULT_LASER_TORCH_CONFIG);
 
     LaserTorchCalGet(fixture);
-    CHECK_EQ(LaserTorchCalGetRsp(fixture), Merge(LASER_TORCH_CONFIG, SUCCESS_PAYLOAD));
+    CHECK_EQ(LaserTorchCalGetRsp(fixture), Merge(DEFAULT_LASER_TORCH_CONFIG, SUCCESS_PAYLOAD));
   }
 
   TEST_CASE("cal_v2_set_cal_result_before_ltc") {
     TestFixture fixture;
-    fixture.StartApplication();
 
-    WeldObjectCalSet(fixture, CAL_RESULT);
+    // Starting the application like this does not set a default calibration
+    fixture.Sut()->Start();
+    fixture.SetupMockets();
+
+    WeldObjectCalSet(fixture, DEFAULT_CAL_RESULT);
     CHECK_EQ(WeldObjectCalSetRsp(fixture), FAILURE_PAYLOAD);
   }
 
   TEST_CASE("cal_v2_misc_cal_result") {
     TestFixture fixture;
-    fixture.StartApplication();
+    // Starting the application like this does not set a default calibration
+    fixture.Sut()->Start();
+    fixture.SetupMockets();
 
-    LaserTorchCalSet(fixture, LASER_TORCH_CONFIG);
-    CHECK_EQ(LaserTorchCalSetRsp(fixture), SUCCESS_PAYLOAD);
-
-    WeldObjectCalSet(fixture, CAL_RESULT);
-    CHECK_EQ(WeldObjectCalSetRsp(fixture), SUCCESS_PAYLOAD);
-
-    WeldObjectCalGet(fixture);
-    CHECK_EQ(WeldObjectCalGetRsp(fixture), Merge(CAL_RESULT, SUCCESS_PAYLOAD));
+    SetDefaultCalibration(fixture);
 
     // Set new laser torch configuration, this will remove calibration result
-    LaserTorchCalSet(fixture, LASER_TORCH_CONFIG);
+    LaserTorchCalSet(fixture, DEFAULT_LASER_TORCH_CONFIG);
     CHECK_EQ(LaserTorchCalSetRsp(fixture), SUCCESS_PAYLOAD);
 
     WeldObjectCalGet(fixture);
@@ -266,7 +259,9 @@ TEST_SUITE("CalibrationV2") {
 
   TEST_CASE("cal_v2_start_stop") {
     TestFixture fixture;
-    fixture.StartApplication();
+    // Starting the application like this does not set a default calibration
+    fixture.Sut()->Start();
+    fixture.SetupMockets();
 
     auto const payload = nlohmann::json({
         {"upper_joint_width_mm",        help_sim::TEST_JOINT_GEOMETRY_WIDE.upper_joint_width_mm       },
@@ -279,7 +274,7 @@ TEST_SUITE("CalibrationV2") {
 
     StoreJointGeometryParams(fixture, payload, true);
 
-    LaserTorchCalSet(fixture, LASER_TORCH_CONFIG);
+    LaserTorchCalSet(fixture, DEFAULT_LASER_TORCH_CONFIG);
     CHECK_EQ(LaserTorchCalSetRsp(fixture), SUCCESS_PAYLOAD);
 
     WeldObjectCalStart(fixture, WIRE_DIAMETER_MM, help_sim::ConvertM2Mm(STICKOUT_M),

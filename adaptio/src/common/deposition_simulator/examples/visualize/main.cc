@@ -83,7 +83,7 @@ auto main() -> int {  // NOLINT(readability*)
   // simConfig.wire_diameter   = 4e-3;
 
   sim_config.deviations.insert({
-      .slice_angle        = 0.0,
+      .position           = 0,
       .deltas_left        = {.delta_groove_ang  = 0.0 * PI / 180.0,
                              .delta_chamfer_ang = 0.0,
                              .delta_chamfer_len = 0.0,
@@ -97,7 +97,7 @@ auto main() -> int {  // NOLINT(readability*)
   });
 
   sim_config.deviations.insert({
-      .slice_angle        = 1.0,
+      .position           = 70,
       .deltas_left        = {.delta_groove_ang  = 2.0 * PI / 180.0,
                              .delta_chamfer_ang = 0.0,
                              .delta_chamfer_len = 0.0,
@@ -111,7 +111,7 @@ auto main() -> int {  // NOLINT(readability*)
   });
 
   sim_config.deviations.insert({
-      .slice_angle        = 2.0,
+      .position           = 120,
       .deltas_left        = {.delta_groove_ang  = 0.0 * PI / 180.0,
                              .delta_chamfer_ang = 0.0,
                              .delta_chamfer_len = 0.0,
@@ -124,7 +124,7 @@ auto main() -> int {  // NOLINT(readability*)
       .center_line_offset = -3.0e-3
   });
   sim_config.deviations.insert({
-      .slice_angle        = 3.0,
+      .position           = 170,
       .deltas_left        = {.delta_groove_ang  = 0.0 * PI / 180.0,
                              .delta_chamfer_ang = 0.0,
                              .delta_chamfer_len = 0.0,
@@ -138,7 +138,7 @@ auto main() -> int {  // NOLINT(readability*)
   });
 
   sim_config.deviations.insert({
-      .slice_angle = 4.0,
+      .position = 220,
       .deltas_left =
           {.delta_groove_ang = 0.0, .delta_chamfer_ang = 0.0, .delta_chamfer_len = 0.0, .delta_root_face = 0.0},
       .deltas_right =

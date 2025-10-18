@@ -25,6 +25,7 @@
 #include "calibration_log_helpers.h"
 #include "calibration_solver.h"
 #include "common/clock_functions.h"
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "common/logging/component_logger.h"
 #include "common/time/format.h"
@@ -33,7 +34,6 @@
 #include "joint_geometry/joint_geometry_provider.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
 #include "scanner_client/scanner_client.h"
 #include "slice_translator/model_config.h"
 #include "web_hmi/web_hmi.h"
@@ -132,7 +132,8 @@ CalibrationManagerV2Impl::CalibrationManagerV2Impl(
 
     model_config_->Set(stored_calibration_result.value().RotationCenter(), scanner_angles,
                        stored_calibration_result.value().WeldObjectRotationAxis(),
-                       stored_calibration_result.value().TorchToLpcsTranslation());
+                       stored_calibration_result.value().TorchToLpcsTranslation(),
+                       stored_calibration_result->WeldObjectRadius());
   }
 
   auto const cl_config = common::logging::ComponentLoggerConfig{
@@ -161,7 +162,7 @@ void CalibrationManagerV2Impl::OnScannerStarted(bool success) {
 
 void CalibrationManagerV2Impl::OnScannerStopped(bool /*success*/) { /*do nothing*/ };
 
-void CalibrationManagerV2Impl::OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position) {
+void CalibrationManagerV2Impl::OnScannerDataUpdate(const lpcs::Slice& data, const common::Point& axis_position) {
   if (sequence_runner_ && sequence_runner_->Busy()) {
     sequence_runner_->OnScannerDataUpdate(data, axis_position);
     return;
@@ -188,7 +189,7 @@ void CalibrationManagerV2Impl::OnScannerDataUpdate(const lpcs::Slice& data, cons
   }
 }
 
-void CalibrationManagerV2Impl::HandleTopPosData(const macs::Point& axis_position) {
+void CalibrationManagerV2Impl::HandleTopPosData(const common::Point& axis_position) {
   if (CheckProcedureExpired()) {
     HandleTopTouchFailure("Procedure expired");
     return;
@@ -197,7 +198,7 @@ void CalibrationManagerV2Impl::HandleTopPosData(const macs::Point& axis_position
   (*calibration_top_pos_procedure_)(axis_position);
 }
 
-void CalibrationManagerV2Impl::HandleLeftPosData(const lpcs::Slice& data, const macs::Point& axis_position) {
+void CalibrationManagerV2Impl::HandleLeftPosData(const lpcs::Slice& data, const common::Point& axis_position) {
   if (CheckProcedureExpired()) {
     HandleLeftTouchFailure("Procedure expired (no scanner data)");
     return;
@@ -211,7 +212,7 @@ void CalibrationManagerV2Impl::HandleLeftPosData(const lpcs::Slice& data, const 
   (*calibration_left_pos_procedure_)(observation);
 }
 
-void CalibrationManagerV2Impl::HandleRightPosData(const lpcs::Slice& data, const macs::Point& axis_position) {
+void CalibrationManagerV2Impl::HandleRightPosData(const lpcs::Slice& data, const common::Point& axis_position) {
   if (CheckProcedureExpired()) {
     HandleRightTouchFailure("Procedure expired (no scanner data)");
     return;
@@ -338,8 +339,10 @@ void CalibrationManagerV2Impl::OnWeldObjectCalSet(const nlohmann::json& payload)
       std::array<double, 3> scanner_angles = {laser_torch_configuration.value().ScannerMountAngle(), 0.0, 0.0};
 
       model_config_->Set(cal_data.value().RotationCenter(), scanner_angles, cal_data.value().WeldObjectRotationAxis(),
-                         cal_data.value().TorchToLpcsTranslation());
+                         cal_data.value().TorchToLpcsTranslation(), cal_data.value().WeldObjectRadius());
       web_hmi_->Send("WeldObjectCalSetRsp", SUCCESS_PAYLOAD);
+      calibration_status_subscriber_();
+
       return;
     }
   }
@@ -425,12 +428,12 @@ void CalibrationManagerV2Impl::OnWeldObjectCalTopPos() {
   LOG_INFO("WeldObjectCalTopPos received");
   SetProcedureStartTime();
 
-  calibration_top_pos_procedure_ = [this](const macs::Point& axis_position) {
+  calibration_top_pos_procedure_ = [this](const common::Point& axis_position) {
     this->OnTopPosProcedureComplete(axis_position);
   };
 }
 
-void CalibrationManagerV2Impl::OnTopPosProcedureComplete(const macs::Point& axis_position) {
+void CalibrationManagerV2Impl::OnTopPosProcedureComplete(const common::Point& axis_position) {
   calibration_ctx_.top = axis_position;
   LOG_INFO("Calibration top touch position, recorded at h: {:.2f}, v: {:.2f}", axis_position.horizontal,
            axis_position.vertical);
@@ -557,7 +560,7 @@ void CalibrationManagerV2Impl::HandleRightTouchFailure(const std::string& reason
   StopCalibration();
 }
 
-auto CalibrationManagerV2Impl::CalculateTopCenter() -> std::optional<macs::Point> {
+auto CalibrationManagerV2Impl::CalculateTopCenter() -> std::optional<common::Point> {
   const auto& joint_geometry = calibration_ctx_.joint_geometry;
   const auto& top_obs        = calibration_ctx_.top;
   const auto& left_obs       = calibration_ctx_.left;
@@ -567,7 +570,7 @@ auto CalibrationManagerV2Impl::CalculateTopCenter() -> std::optional<macs::Point
 
   // support both top center point methods until WebHMI has introduced the touch top step
   if (calibration_ctx_.top) {
-    macs::Point top_point = top_obs.value();
+    common::Point top_point = top_obs.value();
     LOG_INFO("Computing top center with 3 point procedure.");
     return ValidateAndCalculateGrooveTopCenter2(joint_geometry, wire_diameter, stickout, left_obs.slide_position,
                                                 right_obs.slide_position, top_point);
@@ -657,13 +660,13 @@ void CalibrationManagerV2Impl::ReportCalibrationResult(const std::optional<Calib
                                                        const GeometricConstants& geometric_constants,
                                                        const std::vector<Observation>& observations) {
   if (result.has_value()) {
-    auto calibration_result = StoredCalibrationResult::FromCalibrationResult(result.value());
-    nlohmann::json payload  = calibration_result.ToJson();
+    auto calibration_result =
+        StoredCalibrationResult::FromCalibrationResult(result.value(), calibration_ctx_.weld_object_radius);
+    nlohmann::json payload = calibration_result.ToJson();
     if (result->residual_standard_error < RSE_LIMIT) {
       payload["result"] = "ok";
       LOG_INFO("Successful calibration result: {}", payload.dump());
       web_hmi_->Send("WeldObjectCalResult", payload);
-      calibration_status_subscriber_();
     } else {
       LOG_ERROR("RSE too high in calibration: {}", payload.dump());
       web_hmi_->Send("WeldObjectCalResult", FAILURE_PAYLOAD);

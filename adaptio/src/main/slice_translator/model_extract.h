@@ -3,8 +3,8 @@
 #include <Eigen/Eigen>
 
 #include "calibration/src/calibration_solver.h"
+#include "common/groove/point.h"
 #include "lpcs/lpcs_point.h"
-#include "macs/macs_point.h"
 
 namespace slice_translator {
 
@@ -17,8 +17,8 @@ class ModelExtract {
   virtual auto TransformAndRotateToTorchPlane(const common::Vector3D& rot_center, std::array<double, 3> scanner_angles,
                                               const common::Vector3D& weld_object_rotation_axis,
                                               const common::Vector3D& torch_to_laser_translation,
-                                              lpcs::Point point_lpcs, macs::Point slide_position) const
-      -> macs::Point = 0;
+                                              lpcs::Point point_lpcs, common::Point slide_position) const
+      -> common::Point = 0;
 
   virtual auto ComputeLpcsOrientation(double tilt_angle, double delta_rot_y, double delta_rot_z) const
       -> Eigen::Matrix3d = 0;

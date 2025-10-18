@@ -20,7 +20,7 @@ class WeldSystemServerImpl : public WeldSystemServer {
   bool state_change_subscriber_{false};
 
   std::map<uint32_t, PowerSourceInput> weld_systems_;
-  void OnGetWeldSystemStatus(common::msg::weld_system::GetWeldSystemData data);
+  void OnGetWeldSystemData(common::msg::weld_system::GetWeldSystemData data);
   void OnSetWeldSystemSettings(common::msg::weld_system::SetWeldSystemSettings data);
   void SendStateChange(uint32_t index, const PowerSourceInput& data);
   void SubscribeWeldSystemStateChanges(common::msg::weld_system::SubscribeWeldSystemStateChanges data);

@@ -4,9 +4,9 @@
 #include <nlohmann/json_fwd.hpp>
 #include <string>
 
-#include "helpers.h"
-#include "helpers_weld_data_set.h"
-#include "helpers_weld_program.h"
+#include "helpers/helpers.h"
+#include "helpers/helpers_weld_data_set.h"
+#include "helpers/helpers_weld_program.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access, hicpp-signed-bitwise)
 

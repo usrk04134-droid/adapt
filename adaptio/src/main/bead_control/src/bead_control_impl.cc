@@ -21,19 +21,19 @@
 #include "bead_control/bead_control.h"
 #include "bead_control/bead_control_types.h"
 #include "bead_control/src/bead_calculations.h"
-#include "bead_control/src/weld_position_data_storage.h"
 #include "common/clock_functions.h"
+#include "common/groove/groove.h"
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "common/math/math.h"
 #include "groove_fit.h"
-#include "macs/macs_groove.h"
-#include "macs/macs_point.h"
 #include "tracking/tracking_manager.h"
 
 namespace {
 auto const FITTED_GROOVE_SAMPLES        = 250;
 auto const FITTED_ABW_POINT_CURVE_ORDER = 8;
 auto const OVERLAP_LOCK_MARGIN          = 70.0;  // mm
+auto const MIN_FILL_RATIO               = 0.95;
 
 auto LayerTypeToString(bead_control::LayerType layer_type) -> std::string {
   switch (layer_type) {
@@ -50,11 +50,11 @@ auto LayerTypeToString(bead_control::LayerType layer_type) -> std::string {
 
 namespace bead_control {
 
-BeadControlImpl::BeadControlImpl(WeldPositionDataStorage* storage,
-                                 clock_functions::SteadyClockNowFunc steady_clock_now_func)
-    : storage_(storage),
-      steady_clock_now_func_(std::move(steady_clock_now_func)),
-      empty_layer_groove_buffer_(2 * std::numbers::pi) {}
+BeadControlImpl::BeadControlImpl(double storage_resolution, clock_functions::SteadyClockNowFunc steady_clock_now_func)
+    : steady_clock_now_func_(std::move(steady_clock_now_func)),
+      empty_layer_groove_buffer_(2 * std::numbers::pi),
+      storage_(nullptr),
+      storage_resolution_(storage_resolution) {}
 
 auto BeadControlImpl::CalculateBeadsInLayer(double right_bead_area) -> std::tuple<std::optional<int>, double> {
   assert(average_empty_groove_.has_value());
@@ -94,47 +94,44 @@ auto BeadControlImpl::CalculateBeadsInLayer(double right_bead_area) -> std::tupl
 }
 
 auto BeadControlImpl::OnFillLayerFirstBead() -> bool {
-  auto const overlap_rad = BeadCalc::Distance2Angle(weld_object_radius_, bead_overlap_);
-  empty_layer_           = storage_->Get(overlap_rad, overlap_rad + (2 * std::numbers::pi));
-
-  if (empty_layer_.Empty()) {
-    LOG_ERROR("No samples for empty layer!");
+  if (storage_.FillRatio() < MIN_FILL_RATIO) {
+    LOG_ERROR("Not enough samples for empty layer!");
     return false;
   }
 
   auto const start = steady_clock_now_func_();
   empty_layer_groove_fit_ =
-      GrooveFit(empty_layer_, GrooveFit::Type::FOURIER, FITTED_ABW_POINT_CURVE_ORDER, FITTED_GROOVE_SAMPLES);
-  LOG_INFO("Calculated empty layer groove fit using {}/{} samples, took {} ms", FITTED_GROOVE_SAMPLES,
-           empty_layer_.Size(),
+      GrooveFit(storage_, GrooveFit::Type::FOURIER, FITTED_ABW_POINT_CURVE_ORDER, FITTED_GROOVE_SAMPLES);
+
+  LOG_INFO("Calculated empty layer groove fit using {}/{} samples, fill ratio {:.2f}, took {} ms",
+           FITTED_GROOVE_SAMPLES, storage_.FilledSlots(), storage_.FillRatio() * 100,
            std::chrono::duration_cast<std::chrono::milliseconds>(steady_clock_now_func_() - start).count());
 
-  average_empty_groove_ = macs::Groove();
-
-  if (!empty_groove_buffer_.has_value() && !empty_layer_groove_buffer_.Empty()) {
-    empty_groove_buffer_ = empty_layer_groove_buffer_;
-  }
+  average_empty_groove_ = common::Groove();
 
   empty_layer_groove_buffer_.Clear();
   empty_layer_average_groove_area_ = 0.0;
+  left_bead_area_                  = 0.0;
 
-  auto const samples = static_cast<double>(empty_layer_.Size());
-  for (auto it = empty_layer_.end(); it != empty_layer_.begin();) {
-    auto [pos, data] = *--it;
+  auto const samples = static_cast<double>(storage_.FilledSlots());
+  for (auto& slot_data : storage_) {
+    if (!slot_data.has_value()) {
+      continue;
+    }
+
+    auto [pos, data] = slot_data.value();
 
     empty_layer_groove_buffer_.Store(pos, data.groove);
-
     empty_layer_average_groove_area_ += data.groove.Area() / samples;
+    left_bead_area_                  += data.left_bead_area / samples;
 
-    for (auto abw_point = 0; abw_point < macs::ABW_POINTS; ++abw_point) {
+    for (auto abw_point = 0; abw_point < common::ABW_POINTS; ++abw_point) {
       average_empty_groove_.value()[abw_point] += {
           .horizontal = data.groove[abw_point].horizontal / samples,
           .vertical   = data.groove[abw_point].vertical / samples,
       };
     }
   }
-  left_bead_area_ = BeadCalc::MeanBeadArea(empty_layer_, weld_system1_wire_diameter_, weld_system1_twin_wire_,
-                                           weld_system2_wire_diameter_, weld_system2_twin_wire_);
 
   last_fill_layer_ = cap_notification_.on_notification != nullptr &&
                      average_empty_groove_->AvgDepth() < cap_notification_.last_layer_depth;
@@ -142,9 +139,9 @@ auto BeadControlImpl::OnFillLayerFirstBead() -> bool {
   LOG_INFO("last-layer={} depth/threshold: {:.2f}/{:.2f}", last_fill_layer_ ? "yes" : "no",
            average_empty_groove_->AvgDepth(), cap_notification_.last_layer_depth);
 
-  if (last_fill_layer_) {
-    /* special handling for last layer with only two beads since the notification is required before the last bead is
-     * finished */
+  if (last_fill_layer_ && total_beads_in_prev_full_layer_.value_or(2) == 2) {
+    /* special handling for last fill layer with only two beads since the notification is required before the last bead
+     * is finished */
     auto [opt_beads, _] = CalculateBeadsInLayer(left_bead_area_);
     if (!opt_beads.has_value()) {
       return false;
@@ -159,11 +156,17 @@ auto BeadControlImpl::OnFillLayerFirstBead() -> bool {
 }
 
 auto BeadControlImpl::OnFillLayerSecondBead() -> bool {
-  auto const overlap_rad = BeadCalc::Distance2Angle(weld_object_radius_, bead_overlap_);
-  auto one_bead_layer    = storage_->Get(overlap_rad, overlap_rad + (2 * std::numbers::pi));
+  auto right_bead_area = 0.0;
 
-  auto right_bead_area = BeadCalc::MeanBeadArea(one_bead_layer, weld_system1_wire_diameter_, weld_system1_twin_wire_,
-                                                weld_system2_wire_diameter_, weld_system2_twin_wire_);
+  auto const samples = static_cast<double>(storage_.FilledSlots());
+  for (auto& slot_data : storage_) {
+    if (!slot_data.has_value()) {
+      continue;
+    }
+
+    auto [pos, data]  = slot_data.value();
+    right_bead_area  += data.right_bead_area / samples;
+  }
 
   auto [opt_beads, layer_area] = CalculateBeadsInLayer(right_bead_area);
   if (!opt_beads.has_value()) {
@@ -174,11 +177,13 @@ auto BeadControlImpl::OnFillLayerSecondBead() -> bool {
     total_beads_in_full_layer_ = opt_beads.value();
   }
 
+  storage_.Clear();
+
   LOG_INFO(
       "Empty layer area: {:.5f} Left bead area: {:.5f} Right bead area: {:.5f} Beads in layer: {} groove width: "
-      "{:.5f}",
+      "{:.5f} groove area: {:.5f}",
       layer_area, left_bead_area_, right_bead_area, total_beads_in_full_layer_.value(),
-      average_empty_groove_->BottomWidth());
+      average_empty_groove_->BottomWidth(), average_empty_groove_->Area());
 
   return true;
 }
@@ -230,8 +235,8 @@ auto GetRepositionHorizontalVelocity(double angular_velocity, double radius, dou
   return angular_velocity * radius * tan(angle);
 }
 
-auto BeadControlImpl::CalculateBeadPosition(const macs::Groove& groove,
-                                            const std::optional<macs::Groove>& maybe_empty_groove)
+auto BeadControlImpl::CalculateBeadPosition(const common::Groove& groove,
+                                            const std::optional<common::Groove>& maybe_empty_groove)
     -> std::tuple<double, tracking::TrackingMode, tracking::TrackingReference> {
   std::tuple<double, tracking::TrackingMode, tracking::TrackingReference> result;
 
@@ -239,9 +244,9 @@ auto BeadControlImpl::CalculateBeadPosition(const macs::Groove& groove,
   auto right_tracking_offset_adjustment = 0.0;
   if (locked_groove_.has_value()) {
     left_tracking_offset_adjustment =
-        (groove[macs::ABW_LOWER_LEFT] - locked_groove_.value()[macs::ABW_LOWER_LEFT]).horizontal;
+        (groove[common::ABW_LOWER_LEFT] - locked_groove_.value()[common::ABW_LOWER_LEFT]).horizontal;
     right_tracking_offset_adjustment =
-        (locked_groove_.value()[macs::ABW_LOWER_RIGHT] - groove[macs::ABW_LOWER_RIGHT]).horizontal;
+        (locked_groove_.value()[common::ABW_LOWER_RIGHT] - groove[common::ABW_LOWER_RIGHT]).horizontal;
     LOG_TRACE("{} diff compared to locked abw1/5: {:.3f}/{:.3f}", StateToString(state_),
               left_tracking_offset_adjustment, right_tracking_offset_adjustment);
   }
@@ -339,7 +344,7 @@ auto BeadControlImpl::CalculateBeadPosition(const macs::Groove& groove,
   return result;
 }
 
-auto BeadControlImpl::CalculateBeadSliceAreaRatio(const macs::Groove& empty_groove) -> double {
+auto BeadControlImpl::CalculateBeadSliceAreaRatio(const common::Groove& empty_groove) -> double {
   auto bead_number_l_to_r = 0;
 
   /* if total_beads_in_full_layer_ has not yet been calculated for the current layer -> use previous layers number of
@@ -385,16 +390,30 @@ auto BeadControlImpl::Update(const Input& input) -> std::pair<Result, Output> {
   weld_system2_twin_wire_     = input.weld_system2.twin_wire;
   weld_object_radius_         = input.weld_object_radius;
 
+  auto bead_area = BeadCalc::BeadArea(input.weld_system1.wire_lin_velocity, input.weld_system1.wire_diameter,
+                                      input.weld_object_ang_velocity * weld_object_radius_) +
+                   BeadCalc::BeadArea(input.weld_system2.wire_lin_velocity, input.weld_system2.wire_diameter,
+                                      input.weld_object_ang_velocity * weld_object_radius_);
   auto const data = WeldPositionData{
-      .weld_object_lin_velocity = input.weld_object_ang_velocity * weld_object_radius_,
-      .groove                   = input.groove,
-      .weld_system1             = {.current           = input.weld_system1.current,
-                                   .wire_lin_velocity = input.weld_system1.wire_lin_velocity},
-      .weld_system2             = {.current           = input.weld_system2.current,
-                                   .wire_lin_velocity = input.weld_system2.wire_lin_velocity},
+      .groove         = input.groove,
+      .left_bead_area = bead_area,
   };
 
-  storage_->Store(input.weld_object_angle, data);
+  if (!storage_.Available()) {
+    storage_.Init(weld_object_radius_, storage_resolution_);
+  }
+  if (state_ == State::STEADY && !input.paused) {
+    if (bead_number_ == 1) {
+      storage_.Store(input.weld_object_angle, data);
+    } else if (bead_number_ == 2) {
+      auto maybe_weld_data = storage_.Get(input.weld_object_angle);
+      if (maybe_weld_data.has_value()) {
+        auto [pos, weld_data]     = maybe_weld_data.value();
+        weld_data.right_bead_area = bead_area;
+        storage_.Store(pos, weld_data);
+      }
+    }
+  }
 
   auto const result = BeadOperationUpdate(input.weld_object_angle, input.weld_object_ang_velocity, input.paused,
                                           input.in_horizontal_position);
@@ -410,9 +429,10 @@ auto BeadControlImpl::Update(const Input& input) -> std::pair<Result, Output> {
     UpdateGrooveLocking(input);
   }
 
-  std::optional<macs::Groove> layer_empty_groove_fit;
+  std::optional<common::Groove> layer_empty_groove_fit;
   if (empty_layer_groove_fit_.has_value()) {
     auto const groove = empty_layer_groove_fit_->Fit(input.weld_object_angle);
+
     if (groove.IsValid()) {
       layer_empty_groove_fit = groove;
     }
@@ -493,7 +513,8 @@ void BeadControlImpl::ResumeBeadOperation(double angular_position) {
   auto const distance_since_pause =
       common::math::WrappedDist(*paused_angular_position_, angular_position, 2 * std::numbers::pi);
 
-  LOG_INFO("angular distance since pause: {:.4f}", distance_since_pause);
+  LOG_INFO("Distance since pause {:.1f} mm", common::math::AngularToLinear(distance_since_pause, weld_object_radius_));
+
   if (distance_since_pause >= 0.0) {
     // bead operation resumed in from of the pause position - this is an unexpected scenario - no special handling
     // needed
@@ -554,8 +575,6 @@ auto BeadControlImpl::BeadOperationUpdate(double angular_position, double angula
 
   if (paused && !paused_angular_position_) {
     paused_angular_position_ = last_angular_position_;
-    LOG_INFO("Paused in state {} at {:.4f} layer: {} bead: {} progress: {:.1f}%", StateToString(state_),
-             *paused_angular_position_, layer_number_, bead_number_, progress_ * 100.0);
   } else if (!paused && paused_angular_position_) {
     ResumeBeadOperation(angular_position);
     paused_angular_position_ = {};
@@ -620,18 +639,7 @@ void BeadControlImpl::ResetGrooveData() {
   empty_layer_groove_fit_ = {};
   empty_groove_buffer_    = {};
   empty_layer_groove_buffer_.Clear();
-}
-
-auto BeadControlImpl::GetEmptyGroove(double pos) -> std::optional<macs::Groove> {
-  if (empty_groove_buffer_.has_value()) {
-    return empty_groove_buffer_->Get(pos);
-  }
-
-  if (!empty_layer_groove_buffer_.Empty()) {
-    return empty_layer_groove_buffer_.Get(pos);
-  }
-
-  return {};
+  storage_.Clear();
 }
 
 void BeadControlImpl::RegisterCapNotification(std::chrono::seconds notification_grace, double last_layer_depth,

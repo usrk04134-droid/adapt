@@ -84,7 +84,7 @@ auto Simulator::CreateSliceDefinition(double slice_angle) const -> SliceDefiniti
   bool found_subsequent{false};
 
   for (const auto &dev : this->sim_config_.deviations) {
-    if (dev.slice_angle <= slice_angle) {
+    if (dev.GetSliceAngle() <= slice_angle) {
       preceeding       = dev;
       found_preceeding = true;
     } else {
@@ -101,12 +101,23 @@ auto Simulator::CreateSliceDefinition(double slice_angle) const -> SliceDefiniti
 
   // Edge case when slice_angle is between 0 and first deviation
   if (!found_preceeding) {
-    preceeding = *(std::next(this->sim_config_.deviations.begin(), this->sim_config_.deviations.size() - 1));
+    // preceeding = *(std::next(this->sim_config_.deviations.begin(), this->sim_config_.deviations.size() - 1));
+    preceeding = *(this->sim_config_.deviations.rbegin());
   }
 
+  // Compute angle intervals for interpolation across 2PI boundary.
+  double eval_ang{NAN};
+  double delta_ang{NAN};
+
+  if (preceeding.GetSliceAngle() > subsequent.GetSliceAngle()) {
+    eval_ang  = slice_angle < subsequent.GetSliceAngle() ? (2 * PI) - preceeding.GetSliceAngle() + slice_angle
+                                                         : slice_angle - preceeding.GetSliceAngle();
+    delta_ang = (2 * PI) - preceeding.GetSliceAngle() + subsequent.GetSliceAngle();
+  } else {
+    eval_ang  = slice_angle - preceeding.GetSliceAngle();
+    delta_ang = subsequent.GetSliceAngle() - preceeding.GetSliceAngle();
+  }
   // Piece-wise linear interpolation between closest jointdefs
-  double eval_ang  = std::abs(slice_angle - preceeding.slice_angle);
-  double delta_ang = std::abs(subsequent.slice_angle - preceeding.slice_angle);
   // Left side deviation adjustment
   new_def.joint_def_left.chamfer_ang +=
       preceeding.deltas_left.delta_chamfer_ang +
@@ -401,9 +412,16 @@ auto Simulator::InternalRun(double delta_angle, double bead_radius) -> void {  /
   // std::cout << "Delta:" << delta_angle << "\n";
   // std::cout << "Target:" << target_torch_plane_angle << "\n";
 
+  // Determine wire tip in slice CS
+  Point3d torchpos_macs = transformer_->GetTorchPos(MACS);
+  Point3d wire_tip_macs{torchpos_macs.GetX(), torchpos_macs.GetY(), torchpos_macs.GetZ() - sim_config_.target_stickout,
+                        MACS};
+  Point2d wire_tip_slice = transformer_->ProjectToSlicePlane(wire_tip_macs);
   // Determine torch position in slice CS
   Point3d torchpos_rocs  = transformer_->GetTorchPos(ROCS);
   Point2d torchpos_slice = transformer_->ProjectToSlicePlane(torchpos_rocs);
+
+  double target_radial_stickout = (wire_tip_slice.ToVector() - torchpos_slice.ToVector()).norm();
 
   JointSlice *maybe_next_slice = this->weld_object_->MoveToPrevSlice();
   // maybe_next_slice->GetSliceAngle());
@@ -424,7 +442,8 @@ auto Simulator::InternalRun(double delta_angle, double bead_radius) -> void {  /
       // Make deposition with the new torch position
       torchpos_rocs  = transformer_->GetTorchPos(ROCS);
       torchpos_slice = transformer_->ProjectToSlicePlane(torchpos_rocs);
-      maybe_next_slice->AddBead(bead_area, bead_radius, torchpos_slice);
+      maybe_next_slice->AddBead(bead_area, bead_radius, target_radial_stickout, torchpos_slice,
+                                sim_config_.use_process_dependent_deposition);
     }
     // Move to next slice
     maybe_next_slice  = this->weld_object_->MoveToPrevSlice();

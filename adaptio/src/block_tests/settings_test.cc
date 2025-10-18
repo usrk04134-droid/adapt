@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 
-#include "helpers.h"
-#include "helpers_settings.h"
+#include "helpers/helpers.h"
+#include "helpers/helpers_settings.h"
 
 const bool EXPECT_OK = true;
 

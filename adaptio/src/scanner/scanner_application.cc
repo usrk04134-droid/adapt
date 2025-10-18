@@ -23,6 +23,7 @@
 #include "scanner/scanner_calibration_configuration.h"
 #include "scanner/scanner_configuration.h"
 #include "scanner/scanner_factory.h"
+#include "scanner/scanner_impl.h"
 #include "scanner/scanner_types.h"
 #include "scanner_server.h"
 
@@ -165,10 +166,17 @@ void ScannerApplication::OnTimeout() { core_scanner_->Update(); }
 
 auto ScannerApplication::GetCoreScanner(const joint_model::JointProperties& properties) -> ScannerPtr {
   LOG_DEBUG("GetCoreScanner");
-
   scanner_server_ = std::make_unique<ScannerServer>(socket_);
-  return scanner::GetFactory()->CreateScanner(image_provider_, scanner_calib_, scanner_config_, fov_, properties,
-                                              scanner_server_.get(), image_logger_, registry_);
+
+  auto scanner = scanner::GetFactory()->CreateScanner(image_provider_, scanner_calib_, scanner_config_, fov_,
+                                                      properties, scanner_server_.get(), image_logger_, registry_);
+
+  if (test_post_exec_) {
+    if (auto* impl = dynamic_cast<ScannerImpl*>(scanner.get())) {
+      impl->SetPostExecutorForTests(test_post_exec_);
+    }
+  }
+  return scanner;
 }
 
 void ScannerApplication::StartThread(const std::string& event_loop_name) {
@@ -213,4 +221,8 @@ auto ScannerApplication::MsgDataToJointProperties(common::msg::scanner::JointGeo
 }
 
 void ScannerApplication::Exit() { event_loop_->Exit(); }
+
+void ScannerApplication::SetTestPostExecutor(std::function<void(std::function<void()>)> exec) {
+  test_post_exec_ = std::move(exec);
+}
 }  // namespace scanner

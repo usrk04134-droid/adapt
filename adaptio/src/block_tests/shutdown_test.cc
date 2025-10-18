@@ -4,7 +4,7 @@
 #include <doctest/doctest.h>
 
 #include "common/messages/management.h"
-#include "helpers.h"
+#include "helpers/helpers.h"
 
 TEST_SUITE("Shutdown") {
   TEST_CASE("basic") {

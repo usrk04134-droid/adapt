@@ -50,14 +50,19 @@ auto ConvertEnum(common::msg::weld_system::SetWeldSystemSettings::StartType data
 namespace controller {
 
 WeldSystemServerImpl::WeldSystemServerImpl(zevs::Socket* socket, WeldSystemServerObserver* observer)
-    : socket_(socket), observer_(observer) {
-  socket_->Serve(&WeldSystemServerImpl::OnGetWeldSystemStatus, this);
+    : socket_(socket),
+      observer_(observer),
+      weld_systems_({
+          {1, {}},
+          {2, {}}
+}) {
+  socket_->Serve(&WeldSystemServerImpl::OnGetWeldSystemData, this);
   socket_->Serve(&WeldSystemServerImpl::OnSetWeldSystemSettings, this);
   socket_->Serve(&WeldSystemServerImpl::SubscribeWeldSystemStateChanges, this);
   socket_->Serve(&WeldSystemServerImpl::UnSubscribeWeldSystemStateChanges, this);
 }
 
-void WeldSystemServerImpl::OnGetWeldSystemStatus(common::msg::weld_system::GetWeldSystemData data) {
+void WeldSystemServerImpl::OnGetWeldSystemData(common::msg::weld_system::GetWeldSystemData data) {
   common::msg::weld_system::GetWeldSystemDataRsp rsp{};
 
   auto iter = weld_systems_.find(data.index);

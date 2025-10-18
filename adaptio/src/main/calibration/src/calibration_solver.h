@@ -5,21 +5,20 @@
 #include <optional>
 #include <vector>
 
-#include "calibration/calibration_types.h"
+#include "common/groove/point.h"
 #include "lpcs/lpcs_point.h"
-#include "macs/macs_point.h"
 
 namespace calibration {
 
 struct Observation {
-  macs::Point slide_position;
+  common::Point slide_position;
   std::vector<lpcs::Point> abw_points_lpcs;
 };
 
 struct TorchPlaneInfo {
   // Observation laser_plane_observation;
-  macs::Point top_center_at_torch_plane;
-  macs::Point bottom_center_at_torch_plane;
+  common::Point top_center_at_torch_plane;
+  common::Point bottom_center_at_torch_plane;
 };
 
 struct GeometricConstants {
@@ -37,8 +36,8 @@ struct CalibrationResult {
   double delta_rot_z;
 
   // Quality metrics
-  macs::Point torch_plane_reference;
-  std::vector<macs::Point> projected_points;
+  common::Point torch_plane_reference;
+  std::vector<common::Point> projected_points;
   double max_residual;
   double standard_deviation;
   double residual_sum_of_squares;

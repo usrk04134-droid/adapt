@@ -10,7 +10,8 @@
 #include <utility>
 
 #include "../web_hmi_json_helpers.h"
-#include "calibration/calibration_metrics.h"
+#include "calibration/src/calibration_metrics.h"
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "common/zevs/zevs_core.h"
 #include "coordination/activity_status.h"
@@ -18,7 +19,6 @@
 #include "json_payload.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
 #include "macs/macs_slice.h"
 #include "version.h"
 #include "web_hmi/web_hmi.h"
@@ -117,7 +117,7 @@ void WebHmiServer::OnMessage(zevs::MessagePtr message) {
 
 // SliceObserver
 void WebHmiServer::Receive(const macs::Slice& data, const lpcs::Slice& /*scanner_data*/,
-                           const macs::Point& /*axis_position*/, const double /*angle_from_torch_to_scanner*/) {
+                           const common::Point& /*axis_position*/, const double /*angle_from_torch_to_scanner*/) {
   // could be an empty optional
   groove_ = data.groove;
 }

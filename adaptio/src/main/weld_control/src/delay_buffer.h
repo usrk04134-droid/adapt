@@ -3,17 +3,16 @@
 #include <cstdint>
 
 #include "common/containers/relative_position_buffer.h"
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
-// The buffer size is set to worst case
-// radius on weld object: 7000mm
-// weld speed:            500mm/min
-// rate of storage:       1200 per min
-// data stored for 0.25 turns
-// 2*pi*700/50*1200*0.25 = 26389
+// Delay buffer holds data for the distance between laser line and weld head
+// Weld speed 80cm/min = 13.3 mm/s
+// sample rate 50ms
+// Normal distance between laser line and weld head: 15cm
+// Size: 150/13.3 * 20 = 225
 namespace weld_control {
-const uint32_t DELAY_BUFFER_SIZE = 25000;
+const uint32_t DELAY_BUFFER_SIZE = 225 * 10;
 
-using DelayBuffer = common::containers::RelativePositionBuffer<macs::Groove>;
+using DelayBuffer = common::containers::RelativePositionBuffer<common::Groove>;
 
 }  // namespace weld_control

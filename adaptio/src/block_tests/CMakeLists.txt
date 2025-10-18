@@ -1,19 +1,22 @@
 target_sources(${BLOCK_TESTS_APPLICATION}
     PRIVATE
-    helpers.h
-    helpers_weld_data_set.h
-    helpers_abp_parameters.h
-    helpers_weld_control.h
-    helpers_weld_process_parameters.h
-    helpers_joint_geometry.h
-    helpers_simulator.h
-    helpers_json_compare.h
-    helpers_calibration_v2.h
-    helpers_settings.h
-    helpers_state_monitor.h
+    
     mocks/config_manager_mock.h
+    helpers/helpers.h
+    helpers/helpers_weld_data_set.h
+    helpers/helpers_abp_parameters.h
+    helpers/helpers_weld_control.h
+    helpers/helpers_weld_process_parameters.h
+    helpers/helpers_joint_geometry.h
+    helpers/helpers_simulator.h
+    helpers/helpers_json_compare.h
+    helpers/helpers_calibration_v2.h
+    helpers/helpers_settings.h
+    helpers/helpers_state_monitor.h
+    helpers/helpers_mfx.h
+    scanner/on_demand_file_image_provider.h
 
-    helpers.cc
+    helpers/helpers.cc
     joint_tracking_test.cc
     coordination_test.cc
     coordinate_systems_test.cc
@@ -22,12 +25,13 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     weld_program_test.cc
     abp_parameters_test.cc
     shutdown_test.cc
-    scanner_test.cc
     ready_state_test.cc
     weld_process_parameters_test.cc
     adaptive_welding_test.cc
     calibration_v2_test.cc
     settings_test.cc
     weld_session.cc
-    multiblock_basic_test.cc
+    multiblock_ready_state_test.cc
+    scanner_basic_test.cc
+    scanner/on_demand_file_image_provider.cc
 )

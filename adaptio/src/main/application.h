@@ -8,9 +8,8 @@
 #include <string>
 
 #include "bead_control/src/bead_control_impl.h"
-#include "bead_control/src/weld_position_data_storage.h"
-#include "calibration/calibration_metrics.h"
 #include "calibration/src/calibration_manager_v2_impl.h"
+#include "calibration/src/calibration_metrics.h"
 #include "calibration/src/calibration_solver_impl.h"
 #include "common/clock_functions.h"
 #include "common/containers/relative_position_buffer.h"
@@ -21,9 +20,9 @@
 #include "event_handler/src/event_handler_impl.h"
 #include "image_logging/src/image_logging_manager_impl.h"
 #include "joint_geometry/src/joint_geometry_provider_impl.h"
-#include "management/management_server.h"
-#include "scanner_client/scanner_client_impl.h"
-#include "slice_translator/coordinates_translator.h"
+#include "management/src/management_server.h"
+#include "scanner_client/src/scanner_client_impl.h"
+#include "slice_translator/src/coordinates_translator.h"
 #include "slice_translator/src/model_impl.h"
 #include "tracking/src/tracking_manager_impl.h"
 #include "web_hmi/src/service_mode_manager_impl.h"

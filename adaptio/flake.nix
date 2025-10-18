@@ -25,7 +25,7 @@
       owner = "esab";
       repo = "abw%2Fplc%2Fpn-interface";
       ref = "main";
-      rev = "f9e489417d99270fba91ddce82aea83e031ee65f";
+      rev = "b6e0d58661e11cde075504eb0edd9e4efdf36bfb";
     };
     pylon-software = {
       type = "gitlab";

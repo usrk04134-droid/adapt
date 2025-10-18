@@ -2,8 +2,8 @@
 
 #include <nlohmann/json_fwd.hpp>
 
-#include "helpers.h"
-#include "helpers_weld_process_parameters.h"
+#include "helpers/helpers.h"
+#include "helpers/helpers_weld_process_parameters.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access, hicpp-signed-bitwise)
 

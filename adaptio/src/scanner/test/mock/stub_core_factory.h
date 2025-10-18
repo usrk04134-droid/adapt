@@ -1,12 +1,4 @@
-#pragma once
 
-#include <prometheus/registry.h>
-#include <scanner/image_provider/image_provider.h>
-#include <scanner/image_provider/image_provider_configuration.h>
-#include <scanner/joint_model/joint_model.h>
-
-#include <filesystem>
-#include <functional>
 #include <utility>
 
 #include "scanner/image_logger/image_logger.h"

@@ -13,7 +13,6 @@
 #include "controller/controller_configuration.h"
 #include "converter.h"
 #include "main/calibration/calibration_configuration.h"
-#include "main/calibration/calibration_types.h"
 #include "main/image_logging/image_logging_configuration.h"
 #include "main/joint_geometry/joint_geometry.h"
 #include "main/weld_control/weld_control_types.h"

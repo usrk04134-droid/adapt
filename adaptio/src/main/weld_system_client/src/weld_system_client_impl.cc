@@ -1,6 +1,12 @@
 #include "weld_system_client_impl.h"
 
+#include <prometheus/gauge.h>
+#include <prometheus/registry.h>
+
+#include <array>
 #include <cstdint>
+#include <cstring>
+#include <vector>
 
 #include "../weld_system_client.h"
 #include "../weld_system_types.h"
@@ -11,9 +17,11 @@
 using weld_system::WeldSystemClientImpl;
 using weld_system::WeldSystemId;
 
-WeldSystemClientImpl::WeldSystemClientImpl(zevs::Socket* socket) : socket_(socket) {
+WeldSystemClientImpl::WeldSystemClientImpl(zevs::Socket* socket, prometheus::Registry* registry) : socket_(socket) {
   socket_->Serve(&WeldSystemClientImpl::OnGetWeldSystemDataRsp, this);
   socket_->Serve(&WeldSystemClientImpl::OnWeldSystemStateChange, this);
+
+  SetupMetrics(registry);
 }
 
 namespace {
@@ -87,26 +95,56 @@ auto ConvertEnum(weld_system::WeldSystemSettings::StartType data)
   return static_cast<common::msg::weld_system::SetWeldSystemSettings::StartType>(-1);
 }
 
+auto WeldSystemStateToMetricString(weld_system::WeldSystemState state) -> const char* {
+  switch (state) {
+    case weld_system::WeldSystemState::INIT:
+      return "init";
+    case weld_system::WeldSystemState::READY_TO_START:
+      return "ready_to_start";
+    case weld_system::WeldSystemState::IN_WELDING_SEQUENCE:
+      return "in_welding_sequence";
+    case weld_system::WeldSystemState::ARCING:
+      return "arcing";
+    case weld_system::WeldSystemState::ERROR:
+      return "error";
+    default:
+      return "unknown";
+  }
+}
+
+const std::vector<weld_system::WeldSystemState> WELD_SYSTEM_STATES = {
+    weld_system::WeldSystemState::INIT,
+    weld_system::WeldSystemState::READY_TO_START,
+    weld_system::WeldSystemState::IN_WELDING_SEQUENCE,
+    weld_system::WeldSystemState::ARCING,
+    weld_system::WeldSystemState::ERROR,
+};
+
 }  // namespace
 
 void WeldSystemClientImpl::OnGetWeldSystemDataRsp(common::msg::weld_system::GetWeldSystemDataRsp data) {
   auto const transaction_id = data.transaction_id;
   auto iter                 = transactions_.find(transaction_id);
-  if (iter != transactions_.end()) {
-    auto const transaction = iter->second;
-    auto const status      = WeldSystemData{
-             .voltage           = data.voltage,
-             .current           = data.current,
-             .wire_lin_velocity = data.wire_lin_velocity,
-             .deposition_rate   = data.deposition_rate,
-             .heat_input        = data.heat_input,
-             .twin_wire         = data.twin_wire,
-             .wire_diameter     = data.wire_diameter,
-    };
-    transactions_.erase(iter);
 
-    transaction.on_get_status(transaction.id, status);
+  if (iter == transactions_.end()) {
+    LOG_ERROR("Transaction id {} not found", transaction_id);
+    return;
   }
+
+  auto const transaction = iter->second;
+  auto const status      = WeldSystemData{
+           .voltage           = data.voltage,
+           .current           = data.current,
+           .wire_lin_velocity = data.wire_lin_velocity,
+           .deposition_rate   = data.deposition_rate,
+           .heat_input        = data.heat_input,
+           .twin_wire         = data.twin_wire,
+           .wire_diameter     = data.wire_diameter,
+  };
+  transactions_.erase(iter);
+
+  WSDataUpdateMetrics(transaction.id, status);
+  transaction.on_get_status(transaction.id, status);
 }
 
 void WeldSystemClientImpl::OnWeldSystemStateChange(common::msg::weld_system::OnWeldSystemStateChange data) {
@@ -116,26 +154,28 @@ void WeldSystemClientImpl::OnWeldSystemStateChange(common::msg::weld_system::OnW
     return;
   }
 
-  for (auto const& [index, on_state_change] : state_change_subscribers_) {
-    auto state = WeldSystemState::ERROR;
-    switch (data.state) {
-      case common::msg::weld_system::OnWeldSystemStateChange::State::INIT:
-        state = WeldSystemState::INIT;
-        break;
-      case common::msg::weld_system::OnWeldSystemStateChange::State::READY_TO_START:
-        state = WeldSystemState::READY_TO_START;
-        break;
-      case common::msg::weld_system::OnWeldSystemStateChange::State::IN_WELDING_SEQUENCE:
-        state = WeldSystemState::IN_WELDING_SEQUENCE;
-        break;
-      case common::msg::weld_system::OnWeldSystemStateChange::State::ARCING:
-        state = WeldSystemState::ARCING;
-        break;
-      case common::msg::weld_system::OnWeldSystemStateChange::State::ERROR:
-      default:
-        break;
-    }
+  auto state = WeldSystemState::ERROR;
+  switch (data.state) {
+    case common::msg::weld_system::OnWeldSystemStateChange::State::INIT:
+      state = WeldSystemState::INIT;
+      break;
+    case common::msg::weld_system::OnWeldSystemStateChange::State::READY_TO_START:
+      state = WeldSystemState::READY_TO_START;
+      break;
+    case common::msg::weld_system::OnWeldSystemStateChange::State::IN_WELDING_SEQUENCE:
+      state = WeldSystemState::IN_WELDING_SEQUENCE;
+      break;
+    case common::msg::weld_system::OnWeldSystemStateChange::State::ARCING:
+      state = WeldSystemState::ARCING;
+      break;
+    case common::msg::weld_system::OnWeldSystemStateChange::State::ERROR:
+    default:
+      break;
+  }
 
+  WSStateUpdateMetrics(id, state);
+
+  for (auto const& [index, on_state_change] : state_change_subscribers_) {
     on_state_change(id, state);
   }
 }
@@ -197,4 +237,94 @@ void WeldSystemClientImpl::UnSubscribeWeldSystemStateChanges(uint32_t handle) {
   if (state_change_subscribers_.empty()) {
     socket_->Send(common::msg::weld_system::UnSubscribeWeldSystemStateChanges{});
   }
+}
+
+void WeldSystemClientImpl::SetupMetrics(prometheus::Registry* registry) {
+  auto& state_gauges = prometheus::BuildGauge()
+                           .Name("adaptio_weld_system_state")
+                           .Help("Current state of the weld system")
+                           .Register(*registry);
+
+  auto& voltage_family = prometheus::BuildGauge()
+                             .Name("adaptio_weld_system_voltage")
+                             .Help("Current voltage reading from weld system")
+                             .Register(*registry);
+
+  auto& current_family = prometheus::BuildGauge()
+                             .Name("adaptio_weld_system_current")
+                             .Help("Current amperage reading from weld system")
+                             .Register(*registry);
+
+  auto& wire_velocity_family = prometheus::BuildGauge()
+                                   .Name("adaptio_weld_system_wire_lin_velocity")
+                                   .Help("Wire linear velocity from weld system")
+                                   .Register(*registry);
+
+  auto& deposition_rate_family = prometheus::BuildGauge()
+                                     .Name("adaptio_weld_system_deposition_rate")
+                                     .Help("Deposition rate from weld system")
+                                     .Register(*registry);
+
+  auto& heat_input_family = prometheus::BuildGauge()
+                                .Name("adaptio_weld_system_heat_input")
+                                .Help("Heat input from weld system")
+                                .Register(*registry);
+
+  for (const auto& system_id : {WeldSystemId::ID1, WeldSystemId::ID2}) {
+    const auto system_id_str = WeldSystemIdToString(system_id);
+    auto& metrics            = weld_system_metrics_[system_id];
+
+    for (const auto& state : WELD_SYSTEM_STATES) {
+      const char* state_name = WeldSystemStateToMetricString(state);
+      metrics.state_gauges.emplace(state, &state_gauges.Add({
+                                              {"weld_system", system_id_str},
+                                              {"state",       state_name   }
+      }));
+    }
+
+    metrics.voltage           = &voltage_family.Add({
+        {"weld_system", system_id_str}
+    });
+    metrics.current           = &current_family.Add({
+        {"weld_system", system_id_str}
+    });
+    metrics.wire_lin_velocity = &wire_velocity_family.Add({
+        {"weld_system", system_id_str}
+    });
+    metrics.deposition_rate   = &deposition_rate_family.Add({
+        {"weld_system", system_id_str}
+    });
+    metrics.heat_input        = &heat_input_family.Add({
+        {"weld_system", system_id_str}
+    });
+  }
+}
+
+void WeldSystemClientImpl::WSStateUpdateMetrics(WeldSystemId id, const WeldSystemState& state) {
+  auto it = weld_system_metrics_.find(id);
+  if (it == weld_system_metrics_.end()) {
+    return;
+  }
+
+  auto& metrics = it->second;
+
+  // Update state metrics
+  for (const auto& state_enum : WELD_SYSTEM_STATES) {
+    auto gauge_it = metrics.state_gauges.find(state_enum);
+    gauge_it->second->Set(state_enum == state ? 1.0 : 0.0);
+  }
+}
+
+void WeldSystemClientImpl::WSDataUpdateMetrics(WeldSystemId id, const WeldSystemData& data) {
+  auto it = weld_system_metrics_.find(id);
+  if (it == weld_system_metrics_.end()) {
+    return;
+  }
+
+  auto& metrics = it->second;
+  metrics.voltage->Set(data.voltage);
+  metrics.current->Set(data.current);
+  metrics.wire_lin_velocity->Set(data.wire_lin_velocity);
+  metrics.deposition_rate->Set(data.deposition_rate);
+  metrics.heat_input->Set(data.heat_input);
 }

@@ -4,6 +4,10 @@
 
 namespace bead_control {
 
+/* 500mm  radius ->  3141 / 5.0 =  628 slots */
+/* 5000mm radius -> 31415 / 5.0 = 6282 slots */
+auto const STORAGE_RESOLUTION = 5.0; /* in mm */
+
 enum class WeldSide {
   LEFT,
   RIGHT,

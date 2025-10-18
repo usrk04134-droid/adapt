@@ -256,5 +256,76 @@ TEST_SUITE("Test Slice") {
     CHECK(profile[4].x < profile[5].x);
     CHECK(profile[5].x == profile[6].x);
   }
+  TEST_CASE("FromSnake - approx data") {
+    bool found_out_of_spec_joint_width = false;
+    auto step_size                     = 0.002;
+    auto size                          = 0.180 / step_size;
+    WorkspaceCoordinates snake(3, static_cast<int>(size));
+    auto index = 0;
+    // Left surface
+    auto step = 0.0;
+    for (int i = 0; i < 0.06 / step_size; i++) {
+      snake.row(0)[index]  = step;
+      snake.row(1)[index]  = 0.0;
+      snake.row(2)[index]  = 0.0;
+      step                += step_size;
+      index++;
+    }
+    Point abw0 = {step - step_size, 0.0};
+
+    // Left wall
+    auto y = 0.0;
+    for (int i = 0; i < 0.030 / step_size; i++) {
+      snake.row(0)[index]  = step;
+      snake.row(1)[index]  = y;
+      snake.row(2)[index]  = 0.0;
+      step                += step_size;
+      index++;
+      y -= step_size;
+    }
+    // right wall
+    for (int i = 0; i < 0.030 / step_size; i++) {
+      snake.row(0)[index]  = step;
+      snake.row(1)[index]  = y;
+      snake.row(2)[index]  = 0.0;
+      step                += step_size;
+      index++;
+      y += step_size;
+    }
+
+    Point abw6 = {step, 0.0};
+
+    // Right surface
+    for (int i = 0; i < 0.06 / step_size; i++) {
+      snake.row(0)[index]  = step;
+      snake.row(1)[index]  = 0.0;
+      snake.row(2)[index]  = 0.0;
+      step                += step_size;
+      index++;
+    }
+
+    auto approximation = std::make_tuple(abw0.x, abw6.x);
+    auto result =
+        Slice::FromSnake(snake, properties1, std::nullopt, found_out_of_spec_joint_width, false, true, approximation);
+    CHECK(result);
+    auto [profile, a, b] = result.value();
+    CHECK_EQ(profile[0].x, abw0.x);
+    CHECK_EQ(profile[0].y, abw0.y);
+    CHECK_EQ(profile[6].x, abw6.x);
+    CHECK_EQ(profile[6].y, abw6.y);
+
+    // Move approximation into groove i.e. burnt walls
+    approximation = std::make_tuple(abw0.x + 0.003, abw6.x - 0.003);
+    result =
+        Slice::FromSnake(snake, properties1, std::nullopt, found_out_of_spec_joint_width, false, true, approximation);
+    CHECK(result);
+    auto [profile1, c, d] = result.value();
+    // Expect abw0/6 to be on same horizontal position as approximation
+    // Expect abw0/6 to be on same vertical position as surface line
+    CHECK_EQ(profile1[0].x, abw0.x + 0.003);
+    CHECK_EQ(profile1[0].y, abw0.y);
+    CHECK_EQ(profile1[6].x, abw6.x - 0.003);
+    CHECK_EQ(profile1[6].y, abw6.y);
+  }
 }
 #endif

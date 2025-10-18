@@ -9,14 +9,12 @@
 #include <string>
 
 #include "bead_control/src/bead_control_impl.h"
-#include "bead_control/src/weld_position_data_storage.h"
 #include "calibration/calibration_configuration.h"
-#include "calibration/calibration_metrics.h"
 #include "calibration/src/calibration_manager_v2_impl.h"
+#include "calibration/src/calibration_metrics.h"
 #include "calibration/src/calibration_solver_impl.h"
-#include "cli_handler/log_level_cli.h"
+#include "cli_handler/src/log_level_cli.h"
 #include "common/clock_functions.h"
-#include "common/containers/relative_position_buffer.h"
 #include "common/logging/application_log.h"
 #include "common/zevs/zevs_core.h"
 #include "common/zevs/zevs_socket.h"
@@ -25,10 +23,10 @@
 #include "event_handler/src/event_handler_impl.h"
 #include "image_logging/src/image_logging_manager_impl.h"
 #include "joint_geometry/src/joint_geometry_provider_impl.h"
-#include "kinematics/kinematics_client_impl.h"
-#include "management/management_server.h"
-#include "scanner_client/scanner_client_impl.h"
-#include "slice_translator/coordinates_translator.h"
+#include "kinematics/src/kinematics_client_impl.h"
+#include "management/src/management_server.h"
+#include "scanner_client/src/scanner_client_impl.h"
+#include "slice_translator/src/coordinates_translator.h"
 #include "slice_translator/src/model_impl.h"
 #include "tracking/src/tracking_manager_impl.h"
 #include "web_hmi/src/service_mode_manager_impl.h"
@@ -81,7 +79,8 @@ auto Application::Run(const std::string& event_loop_name, const std::string& end
   // WeldSystem
   weld_system_client_socket_ = zevs::GetFactory()->CreatePairSocket(*event_loop_);
   weld_system_client_socket_->Connect(fmt::format("inproc://{}/weld-system", endpoint_base_url));
-  weld_system_client_ = std::make_unique<weld_system::WeldSystemClientImpl>(weld_system_client_socket_.get());
+  weld_system_client_ =
+      std::make_unique<weld_system::WeldSystemClientImpl>(weld_system_client_socket_.get(), registry_);
 
   // SliceTranslator
   model_impl_ = std::make_unique<slice_translator::ModelImpl>();
@@ -143,9 +142,8 @@ auto Application::Run(const std::string& event_loop_name, const std::string& end
 
   coordinates_translator_->AddObserver(web_hmi_server_.get());
 
-  weld_pos_data_storage_ = std::make_unique<common::containers::RelativePositionBuffer<bead_control::WeldPositionData>>(
-      bead_control::MAX_BUFFER_SIZE);
-  bead_control_ = std::make_unique<bead_control::BeadControlImpl>(weld_pos_data_storage_.get(), steady_clock_now_func_);
+  bead_control_ = std::make_unique<bead_control::BeadControlImpl>(
+      configuration_->GetWeldControlConfiguration().storage_resolution, steady_clock_now_func_);
 
   delay_buffer_ = std::make_unique<weld_control::DelayBuffer>(weld_control::DELAY_BUFFER_SIZE);
 

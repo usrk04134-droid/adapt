@@ -58,6 +58,8 @@ ScannerImpl::ScannerImpl(image_provider::ImageProvider* image_provider, slice_pr
       m_threadpool(12),
       store_image_data_(false) {
   SetupMetrics(registry);
+
+  post_ = [this](std::function<void()> fn) { boost::asio::post(m_threadpool, std::move(fn)); };
 }
 
 void ScannerImpl::SetupMetrics(prometheus::Registry* registry) {
@@ -181,7 +183,8 @@ auto ScannerImpl::NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int
 }
 
 void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
-  boost::asio::post(m_threadpool, [this, image = std::move(image)]() {
+  auto sp_image = std::shared_ptr<image::Image>(std::move(image));
+  post_([this, image = std::move(sp_image)]() {
     // When image capture is faster than parsing we need to be able to evaluate concurrently across multiple cores
     // This means that Parse should be a constant function. Any state should be recoverable from the latest slice.
 
@@ -333,8 +336,7 @@ void ScannerImpl::Update() {
   if (tracking_data.has_value()) {
     auto [slice, time_stamp, area] = tracking_data.value();
 
-    scanner_output_->ScannerOutput(slice, std::array<joint_tracking::Coord, 15>{}, area, time_stamp,
-                                   slice.GetConfidence());
+    scanner_output_->ScannerOutput(slice, area, time_stamp, slice.GetConfidence());
   } else {
     // This should not happen
     LOG_ERROR("No slice sent due to missing ABW points.");
@@ -409,4 +411,6 @@ const ErrorCategory ERROR_CATEGORY{};
 [[maybe_unused]] auto make_error_code(ScannerErrorCode error_code) -> std::error_code {  // NOLINT(*-identifier-naming)
   return {static_cast<int>(error_code), ERROR_CATEGORY};
 }
+
+void ScannerImpl::SetPostExecutorForTests(std::function<void(std::function<void()>)> exec) { post_ = std::move(exec); }
 }  // namespace scanner

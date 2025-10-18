@@ -47,7 +47,7 @@ TEST_SUITE("Scanner") {
       started_ = false;
     }
 
-    [[nodiscard]] auto Started() const -> bool override { return started_; }
+    auto Started() const -> bool override { return started_; }
 
     void ResetFOVAndGain() override {};
     void SetVerticalFOV(int offset_from_top, int height) override {};

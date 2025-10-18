@@ -1,10 +1,10 @@
 # Preface
 
-This report summarizes weld data from a weld job (weldcontrol log). For each selected angular position around the workpiece, the report aggregates samples into labeled points and visualizes them over the torch X–Z plane. Labels use the format **(layerNo, beadNo)** for each point, where `layerNo` may be adjusted across ABP sessions(start/stop) as described below.
+This report summarizes weld data from a weld job (weldcontrol log). For each selected angular position around the workpiece, the report aggregates samples into labeled points and visualizes them over the X–Z plane. Labels use the format **(layerNo, beadNo)** for each point, where `layerNo` may be adjusted across ABP sessions.
 
 ## What’s shown
 
-- **Bead area (mm²):** An estimate of deposited bead area derived from wire speed/diameter and weld speed.
+- **Bead area (mm²):** An estimate of deposited bead area derived from wire speed/diameter and weld speed, as a sum of the two weld systems.
 - **Heat input (kJ/mm):** The sum of heat-input values reported by the two weld systems.
 - **Current (A):** The actual welding current reported for weld system 2.
 - **Weld speed (mm/s):** The weld speed (linear speed) calculated from the weld radius and angular velocity.
@@ -13,22 +13,21 @@ This report summarizes weld data from a weld job (weldcontrol log). For each sel
 
 Each subplot overlays one or two **ABW profiles**:
 
-- **Gray** shows an abw profile from the start of the process, with Z values offset by the **stickout**.  
+- **Gray** shows an abw profile from the start of the process.  
 - **Green** (if available) shows a profile captured during a post-welding scan.
 
 ## Coordinates and reference
 
-All torch coordinates in the plots are **relative to `mcs[0]`** (the local groove reference at the same scanner epoch). We use `mcs` rather than the delayed `mcsDelayed` representation. Relative positions are computed as:
+All coordinates in the plots are **relative to `abw0`** (the left top corner of the groove). We use `hybrid groove` as reference in the figures. The `hybrid groove` is what is used by Adaptio for the joint tracking. It is a combination of direct and delayed scanner data. The bead positions are calculated as follows:
 
-- **X:** `slides.actual.horizontal - mcs[0].x`
-- **Z:** `slides.actual.vertical - mcs[0].z`
+- **X:** `slides.actual.horizontal - abw0.x`
+- **Z:** `slides.actual.vertical - stickout - abw0.z`
 
-MCS is the Machine Coordinate System used in Adaptio. This is also directly used by the PLC slides control. ABW profile points are plotted relative to this same reference, with Z offset by the current stickout. The joint tracking and bead placement functions use a combination of realtime and delayed scanner data. There is no specification of exactly how these should be used under different circumstances. When the joint moves rapidly due to for example longitudinal welds, the system acts on realtime scanner data. In situations when overlapping beads, the system instead acts on delayed data. In this report `mcs` (realtime scanner data), rather than `mcsDelayed` (delayed scanner data), is used as reference. This explains why some figures show bead locations seemingly below the abw profile.
+All coordinates are expressed in the Machine Coordinate System (MCS) used in Adaptio. MCS is also directly used by the PLC slides control. The joint tracking and bead placement functions use a combination of realtime and delayed scanner data (`hybrid groove`). When the joint moves rapidly due to for example longitudinal welds, the system acts on realtime scanner data. In situations when overlapping beads, the system instead acts on delayed data.
 
 ## Layer numbering across sessions
 
-Layer numbering carries across multiple ABP starts. The report tracks **ABP start** events and **steady ABP** entries and adjusts the stored `layerNo` so that layers increase monotonically from the beginning to the end of the log. The first ABP start initializes the session; subsequent ABP starts advance the layer baseline to the maximum layer encountered so far.
-Beads without annotation were welded using joint tracking (not abp).
+Layer numbering carries across multiple ABP sessions. The report tracks **ABP start** events and **steady ABP** entries and adjusts the stored `layerNo` so that layers increase monotonically from the beginning to the end of the log. Beads without annotation were welded using joint tracking (not abp).
 
 ## Angular selection
 

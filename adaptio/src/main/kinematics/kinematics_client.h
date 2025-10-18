@@ -22,10 +22,10 @@ enum class EdgeState {
 
 using OnGetSlidesPosition = std::function<void(std::uint64_t time_stamp, double horizontal, double vertical)>;
 using OnGetSlidesStatus   = std::function<void(bool horizontal_in_position, bool vertical_in_position)>;
-using OnGetWeldAxisData =
-    std::function<void(std::uint64_t time_stamp, double position, double velocity, double radius)>;
-using OnStateChange       = std::function<void(const StateChange& data)>;
-using OnGetEdgePosition   = std::function<void(double position)>;
+using OnGetWeldAxisData = std::function<void(std::uint64_t time_stamp, double position, double velocity, double radius,
+                                             double linear_object_distance)>;
+using OnStateChange     = std::function<void(const StateChange& data)>;
+using OnGetEdgePosition = std::function<void(double position)>;
 using EdgeStateSubscriber = std::function<void(const EdgeState& data)>;
 
 class KinematicsClient {

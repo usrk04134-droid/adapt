@@ -4,9 +4,8 @@
 #include <Eigen/Eigen>
 #include <vector>
 
-#include "common/logging/application_log.h"
-#include "macs/macs_groove.h"
-#include "weld_position_data_storage.h"
+#include "bead_control/src/weld_position_data_buffer.h"
+#include "common/groove/groove.h"
 
 namespace bead_control {
 class GrooveFit {
@@ -16,21 +15,24 @@ class GrooveFit {
     FOURIER,
   };
 
-  GrooveFit(const WeldPositionDataStorage::Slice& slice, Type type, int order, uint32_t max_samples)
-      : type_(type), order_(order), coefficients_(macs::ABW_POINTS) {
-    auto const sz      = slice.Size();
+  GrooveFit(const WeldPositionDataBuffer& buffer, Type type, int order, uint32_t max_samples)
+      : type_(type), order_(order), coefficients_(common::ABW_POINTS) {
+    auto const sz      = buffer.FilledSlots();
     auto const samples = max_samples == 0 || sz <= max_samples ? sz : max_samples;
     auto const step    = static_cast<double>(sz) / samples;
 
     auto const num_coefficients = type_ == Type::POLYNOMIAL ? order_ + 1 : (2 * order) + 1;
-
     Eigen::MatrixXd aa(samples, num_coefficients);
-    Eigen::MatrixXd bh(samples, macs::ABW_POINTS);
-    Eigen::MatrixXd bv(samples, macs::ABW_POINTS);
-
+    Eigen::MatrixXd bh(samples, common::ABW_POINTS);
+    Eigen::MatrixXd bv(samples, common::ABW_POINTS);
     for (auto i = 0; i < samples; ++i) {
-      auto const slice_index  = static_cast<int>(i * step);
-      auto const& [pos, data] = *(slice.begin() + slice_index);
+      auto maybe_weld_data = buffer.Get(i * step);
+
+      if (!maybe_weld_data.has_value()) {
+        continue;
+      }
+
+      auto const& [pos, data] = maybe_weld_data.value();
 
       if (type_ == Type::POLYNOMIAL) {
         for (auto j = 0; j < order_; ++j) {
@@ -45,12 +47,12 @@ class GrooveFit {
         aa(i, 0) = 1.0;
       }
 
-      for (auto abw_point = 0; abw_point < macs::ABW_POINTS; ++abw_point) {
+      for (auto abw_point = 0; abw_point < common::ABW_POINTS; ++abw_point) {
         bh(i, abw_point) = data.groove[abw_point].horizontal;
         bv(i, abw_point) = data.groove[abw_point].vertical;
       }
 
-      for (auto abw_point = 0; abw_point < macs::ABW_POINTS; ++abw_point) {
+      for (auto abw_point = 0; abw_point < common::ABW_POINTS; ++abw_point) {
         coefficients_[abw_point] = {
             .horizontal = aa.colPivHouseholderQr().solve(bh.col(abw_point)),
             .vertical   = aa.colPivHouseholderQr().solve(bv.col(abw_point)),
@@ -63,9 +65,9 @@ class GrooveFit {
     }
   }
 
-  auto Fit(double pos) -> macs::Groove {
-    auto groove = macs::Groove();
-    for (auto abw_point = 0; abw_point < macs::ABW_POINTS; ++abw_point) {
+  auto Fit(double pos) -> common::Groove {
+    auto groove = common::Groove();
+    for (auto abw_point = 0; abw_point < common::ABW_POINTS; ++abw_point) {
       switch (type_) {
         case Type::POLYNOMIAL:
           for (auto i = 0; i <= order_; ++i) {

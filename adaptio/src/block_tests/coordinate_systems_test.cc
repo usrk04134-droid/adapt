@@ -2,21 +2,21 @@
 #include <utility>
 #include <vector>
 
-#include "block_tests/helpers_joint_geometry.h"
-#include "block_tests/helpers_web_hmi.h"
+#include "common/groove/point.h"
 #include "common/messages/management.h"
-#include "macs/macs_point.h"
+#include "helpers/helpers_joint_geometry.h"
+#include "helpers/helpers_web_hmi.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
 
 #include <doctest/doctest.h>
 
 #include "common/messages/kinematics.h"
-#include "helpers.h"
+#include "helpers/helpers.h"
 #include "web_hmi/web_hmi_json_helpers.h"
 
-auto GrooveFromPayload(const nlohmann::json& payload) -> std::vector<macs::Point> {
-  std::vector<macs::Point> groove;
+auto GrooveFromPayload(const nlohmann::json& payload) -> std::vector<common::Point> {
+  std::vector<common::Point> groove;
 
   if (!payload.contains("groove")) {
     return groove;
@@ -25,7 +25,7 @@ auto GrooveFromPayload(const nlohmann::json& payload) -> std::vector<macs::Point
   auto payload_groove = payload.at("groove");
 
   for (auto& item : payload_groove) {
-    macs::Point coordinate{};
+    common::Point coordinate{};
     item.at("horizontal").get_to(coordinate.horizontal);
     item.at("vertical").get_to(coordinate.vertical);
 

@@ -4,13 +4,11 @@
 #include <filesystem>
 #include <optional>
 #include <string>
-#include <utility>
 
 #include "common/tolerances/tolerances_configuration.h"
 #include "configuration/config_manager.h"
 #include "controller/controller_configuration.h"
 #include "main/calibration/calibration_configuration.h"
-#include "main/calibration/calibration_types.h"
 #include "main/image_logging/image_logging_configuration.h"
 #include "main/joint_geometry/joint_geometry.h"
 #include "main/weld_control/weld_control_types.h"
@@ -66,6 +64,9 @@ class ConfigManagerMock : public ConfigManager {
 
   auto GetImageLoggingConfiguration() -> image_logging::Configuration override { return image_logging_config_; }
 
+  auto GetScannerConfig() -> scanner::ScannerConfigurationData { return GetScanner(); }
+  auto GetImageProviderConfig() -> scanner::image_provider::ImageProviderConfigData { return GetImageProvider(); }
+
   // Mock configuration setters for testing
   void SetInitResult(boost::outcome_v2::result<void> result) { init_result_ = result; }
 
@@ -84,10 +85,6 @@ class ConfigManagerMock : public ConfigManager {
   void SetCalibrationFixtureJointGeometry(const joint_geometry::JointGeometry& config) {
     calibration_joint_geometry_config_ = config;
   }
-
-  void SetCircWeldObjectCalib(const calibration::WeldObjectCalibration& config) { circ_weld_object_calib_ = config; }
-
-  void SetLaserTorchCalib(const calibration::LaserTorchCalibration& config) { laser_torch_calib_ = config; }
 
   void SetWeldControlConfiguration(const weld_control::Configuration& config) { weld_control_config_ = config; }
 
@@ -109,8 +106,6 @@ class ConfigManagerMock : public ConfigManager {
     scanner_calibration_config_        = std::nullopt;
     scanner_config_                    = {};
     calibration_joint_geometry_config_ = {};
-    circ_weld_object_calib_            = std::nullopt;
-    laser_torch_calib_                 = std::nullopt;
     weld_control_config_               = {};
     tolerances_config_                 = {};
     calibration_config_                = {};
@@ -128,8 +123,6 @@ class ConfigManagerMock : public ConfigManager {
   std::optional<scanner::ScannerCalibrationData> scanner_calibration_config_ = std::nullopt;
   scanner::ScannerConfigurationData scanner_config_{};
   joint_geometry::JointGeometry calibration_joint_geometry_config_{};
-  std::optional<calibration::WeldObjectCalibration> circ_weld_object_calib_ = std::nullopt;
-  std::optional<calibration::LaserTorchCalibration> laser_torch_calib_      = std::nullopt;
   weld_control::Configuration weld_control_config_{};
   tolerances::Configuration tolerances_config_{};
   calibration::Configuration calibration_config_{};

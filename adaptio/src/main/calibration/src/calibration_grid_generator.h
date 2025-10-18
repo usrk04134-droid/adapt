@@ -9,9 +9,9 @@
 
 #include "calibration/calibration_configuration.h"
 #include "common/geometric_primitives/src/line2d.h"
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "joint_geometry/joint_geometry.h"
-#include "macs/macs_point.h"
 
 namespace calibration {
 
@@ -23,7 +23,7 @@ const double HALF             = 0.5;
 
 // Note: In this file we reason about the coordinates for the wire tip in
 // relation to the groove for simplicity. However, GenerateCalibrationDots will be
-// called with macs::Point coordinates which are defined as the location of
+// called with common::Point coordinates which are defined as the location of
 // the tip of the contact tube. This is fine since it is only the relative
 // position values which define the grid.
 
@@ -46,8 +46,9 @@ struct GridPoint {
 inline auto ValidateAndCalculateGrooveTopCenter(const joint_geometry::JointGeometry& joint_geometry,
                                                 double min_touch_width_ratio, double max_touch_width_ratio,
                                                 double wire_diameter, double stickout,
-                                                const macs::Point& left_touch_position,
-                                                const macs::Point& right_touch_position) -> std::optional<macs::Point> {
+                                                const common::Point& left_touch_position,
+                                                const common::Point& right_touch_position)
+    -> std::optional<common::Point> {
   const auto touch_width = left_touch_position.horizontal - right_touch_position.horizontal + wire_diameter;
   auto touch_ratio       = touch_width / joint_geometry.upper_joint_width_mm;
 
@@ -66,16 +67,17 @@ inline auto ValidateAndCalculateGrooveTopCenter(const joint_geometry::JointGeome
     return {};
   }
 
-  return macs::Point{.horizontal = std::midpoint(left_touch_position.horizontal, right_touch_position.horizontal),
-                     .vertical   = left_touch_position.vertical - stickout + touch_depth};
+  return common::Point{.horizontal = std::midpoint(left_touch_position.horizontal, right_touch_position.horizontal),
+                       .vertical   = left_touch_position.vertical - stickout + touch_depth};
 }
 
 // TODO: Move this function to another file
 inline auto ValidateAndCalculateGrooveTopCenter2(const joint_geometry::JointGeometry& joint_geometry,
                                                  double wire_diameter, double stickout,
-                                                 const macs::Point& left_wall_touch_position,
-                                                 const macs::Point& right_wall_touch_position,
-                                                 const macs::Point& top_touch_position) -> std::optional<macs::Point> {
+                                                 const common::Point& left_wall_touch_position,
+                                                 const common::Point& right_wall_touch_position,
+                                                 const common::Point& top_touch_position)
+    -> std::optional<common::Point> {
   // For now, assume symmetric joint so left and right depths are the same
   // TODO(zachjz): Change the following two lines when asymmetric joints are supported.
   const double groove_depth_left  = joint_geometry.groove_depth_mm;
@@ -148,7 +150,7 @@ inline auto ValidateAndCalculateGrooveTopCenter2(const joint_geometry::JointGeom
   // Compute the top center point
   const Eigen::Vector2d top_center_point = HALF * (top_left_corner_a->ToVector() + top_right_corner_e->ToVector());
 
-  return macs::Point{.horizontal = top_center_point(0), .vertical = top_center_point(1)};
+  return common::Point{.horizontal = top_center_point(0), .vertical = top_center_point(1)};
 }
 
 // depth_c is the vertical distance from the touch points to the groove top

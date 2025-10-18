@@ -89,8 +89,8 @@ class WeldCalc {
     heat_input = calc_heat_input(new_ws2_current, new_weld_speed);
     if (heat_input < params.heat_input_min - HEAT_INPUT_EXCEEDED_THRESHOLD ||
         heat_input > params.heat_input_max + HEAT_INPUT_EXCEEDED_THRESHOLD) {
-      LOG_ERROR("Failed heat-input restriction calculation failed: {} <= {} <= {}!", params.heat_input_min, heat_input,
-                params.heat_input_max);
+      LOG_ERROR("Failed heat-input restriction calculation failed: {:.2f} <= {:.2f} <= {:.2f}!", params.heat_input_min,
+                heat_input, params.heat_input_max);
       return {.weld_speed  = (params.weld_object.weld_speed_min + params.weld_object.weld_speed_max) / 2.,
               .ws2_current = ws2_current_nom};
     }

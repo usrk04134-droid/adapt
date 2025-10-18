@@ -105,6 +105,12 @@ class SlotBufferStorage {
 
   auto Available() const -> bool { return cache_ != nullptr; }
 
+  // NOLINTBEGIN(readability-identifier-naming)
+  using iterator = std::optional<std::pair<double, T>>*;
+  auto begin() -> iterator { return cache_->begin(); };
+  auto end() -> iterator { return cache_->end(); };
+  // NOLINTEND(readability-identifier-naming)
+
  private:
   auto CreateTables(size_t slots) -> void {
     if (db_ == nullptr) {

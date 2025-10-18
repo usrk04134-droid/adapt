@@ -156,8 +156,25 @@ def _extract_title_info(input_path):
 
     return date_str or "Unknown date", time_str or "Unknown time"
 
+def _compute_hybrid_ref(mcs, mcs_delayed):
+    """
+    Compute the hybrid groove reference (ABW 0) and corner deltas.
+    - Select corner with smallest vertical delta (left: idx 0, right: idx 6).
+    - Reference is delayed left corner shifted by (dx, dz) of the selected corner.
+    Returns (ref_x, ref_z, delta_x, delta_z, ok)
+    """
+    if mcs and mcs_delayed and len(mcs) >= 7 and len(mcs_delayed) >= 7:
+        left_dz  = mcs[0]["z"] - mcs_delayed[0]["z"]
+        right_dz = mcs[6]["z"] - mcs_delayed[6]["z"]
+        sel_idx = 0 if abs(left_dz) <= abs(right_dz) else 6
+        delta_x = mcs[sel_idx]["x"] - mcs_delayed[sel_idx]["x"]
+        delta_z = mcs[sel_idx]["z"] - mcs_delayed[sel_idx]["z"]
+        ref_x = mcs_delayed[0]["x"] + delta_x
+        ref_z = mcs_delayed[0]["z"] + delta_z
+        return ref_x, ref_z, delta_x, delta_z, True
+    return None, None, 0.0, 0.0, False
 
-def load_and_filter_entries(input_path, pos_deg, stickout, hide_jt=False, post_scan=False):
+def load_and_filter_entries(input_path, pos_deg, stickout, post_scan=False):
     angle_filter = angle_in_range(center_deg=pos_deg, offset_deg=ANGLE_OFFSET_DEG)
     entries = []
     abw_profile_points = []
@@ -176,10 +193,9 @@ def load_and_filter_entries(input_path, pos_deg, stickout, hide_jt=False, post_s
     # track layer adjustment across ABP sessions
     layer_no_adjustment = 0
     max_layer_seen = 0
-    in_abp_session = False
 
     # Track the last candidate mcs inside the window for post-scan profile
-    last_abw_candidate = None  # will hold list of (x_rel, z_rel_plus_stickout)
+    last_abw_candidate = None  # will hold list of (x_rel, z_rel)
 
     with open(input_path, "r") as infile:
         for i, line in enumerate(infile):
@@ -188,38 +204,43 @@ def load_and_filter_entries(input_path, pos_deg, stickout, hide_jt=False, post_s
 
                 # Detect ABP start event
                 if entry.get("annotation") == "adaptio-state-change" and entry.get("mode") == "abp":
-                    # On subsequent ABP starts, adjust based on max seen so far
-                    if in_abp_session:
-                        layer_no_adjustment = max_layer_seen
-                    in_abp_session = True
+                    # On subsequent ABP starts possibly adjust layer no
+                    # If a new abp session is started layerNo is 0 below. This will add max_layer_seen
+                    # to subsequent entries
+                    layer_no_adjustment = max_layer_seen - entry.get("beadControl", {}).get("layerNo", 0)
                     continue  # Skip this event for plotting
 
                 mode = entry.get("mode")
                 mcs = entry.get("mcs", [])
+                mcs_delayed = entry.get("mcsDelayed", [])
 
                 # Capture first ABW profile as early as possible (independent of ABP/JT)
                 # Take the first entry that is inside the angular window and has >= 7 mcs points.
-                if (not abw_collected) and mcs and len(mcs) >= 7:
+                # HYBRID GROOVE: select corner by smallest vertical delta (latest mcs vs delayed), then
+                # add that (dx, dz) to ABW1..ABW6 of the delayed slice; anchor to *hybrid* ABW0.
+                if (not abw_collected) and mcs and mcs_delayed and len(mcs) >= 7 and len(mcs_delayed) >= 7:
                     position = entry.get("weldAxis", {}).get("position")
                     if position is not None and angle_filter(position):
-                        ref_x = mcs[0]["x"]
-                        ref_z = mcs[0]["z"]
-                        abw_profile_points = [
-                            (pt["x"] - ref_x, (pt["z"] - ref_z) + stickout)
-                            for pt in mcs[:7]
-                        ]
-                        abw_collected = True
+                        ref_x_h, ref_z_h, delta_x, delta_z, ok = _compute_hybrid_ref(mcs, mcs_delayed)
+                        if ok:
+                            abw_profile_points = [
+                                ((mcs_delayed[i]["x"] + delta_x) - ref_x_h,
+                                 (mcs_delayed[i]["z"] + delta_z) - ref_z_h)
+                                for i in range(0, 7)  # ABW1..ABW6
+                            ]
+                            abw_collected = True
 
                 # Track the last-in-log ABW profile candidate (independent of ABP/JT)
-                if post_scan and mcs and len(mcs) >= 7:
+                if post_scan and mcs and mcs_delayed and len(mcs) >= 7 and len(mcs_delayed) >= 7:
                     position = entry.get("weldAxis", {}).get("position")
                     if position is not None and angle_filter(position):
-                        ref_x = mcs[0]["x"]
-                        ref_z = mcs[0]["z"]
-                        last_abw_candidate = [
-                            (pt["x"] - ref_x, (pt["z"] - ref_z) + stickout)
-                            for pt in mcs[:7]
-                        ]
+                        ref_x_h, ref_z_h, delta_x, delta_z, ok = _compute_hybrid_ref(mcs, mcs_delayed)
+                        if ok:
+                            last_abw_candidate = [
+                                ((mcs_delayed[i]["x"] + delta_x) - ref_x_h,
+                                 (mcs_delayed[i]["z"] + delta_z) - ref_z_h)
+                                for i in range(0, 7)  # ABW1..ABW6
+                            ]
 
                 # Only ABP "steady" contributes to ABP plots
                 if entry.get("beadControl", {}).get("state") == "steady" and mode == "abp":
@@ -234,14 +255,16 @@ def load_and_filter_entries(input_path, pos_deg, stickout, hide_jt=False, post_s
                     if not mcs:
                         continue
 
-                    # Reference point for relative coordinates
-                    ref_x = mcs[0]["x"]
-                    ref_z = mcs[0]["z"]
+                    # Reference point for relative coordinates — use HYBRID ABW0 if possible
+                    ref_x_h, ref_z_h, _dx, _dz, ok_h = _compute_hybrid_ref(mcs, mcs_delayed)
+                    if not ok_h:
+                        continue
 
                     slides = entry["slides"]["actual"]
-                    # Store horizontal/vertical relative to mcs[0]
-                    vertical = slides["vertical"] - ref_z
-                    horizontal = slides["horizontal"] - ref_x
+                    # Store horizontal/vertical relative to HYBRID ABW0
+                    # NOTE: subtract stickout here instead of adding it to ABW profile points
+                    vertical = (slides["vertical"] - stickout) - ref_z_h
+                    horizontal = slides["horizontal"] - ref_x_h
 
                     velocity_actual = entry["weldAxis"]["velocity"]["actual"]
                     position = entry["weldAxis"]["position"]
@@ -256,15 +279,6 @@ def load_and_filter_entries(input_path, pos_deg, stickout, hide_jt=False, post_s
                     is_inside = angle_filter(position)
 
                     if is_inside:
-                        # If this is the first entry inside the window and abw profile has not yet been collected:
-                        if not abw_collected and len(mcs) >= 7:
-                            # abw points relative to ref_x/ref_z, z offset with stickout
-                            abw_profile_points = [
-                                (pt["x"] - ref_x, (pt["z"] - ref_z) + stickout)
-                                for pt in mcs[:7]
-                            ]
-                            abw_collected = True
-
                         # Clustering logic:
                         # We average over consecutive entries as long as beadNo and layerNo remain constant.
                         # If we detect a new bead/layer, we finalize the current cluster by averaging.
@@ -303,8 +317,10 @@ def load_and_filter_entries(input_path, pos_deg, stickout, hide_jt=False, post_s
                         cluster = []
                         inside = False  # Reset state to mark we are now outside
 
-                # Optionally include JT: require both weld systems arcing; JT does not affect ABP layering
-                elif (mode == "jt") and (not hide_jt):
+                # Include JT welding: only beads where both weld systems are arcing to keep
+                # the color coding range for bead area narrow (and thus useful)
+                # JT does not affect ABP layering
+                elif (mode == "jt"):
                     weld_systems = entry.get("weldSystems", [])
                     if len(weld_systems) >= 2:
                         ws0_arcing = weld_systems[0].get("state") == "arcing"
@@ -315,13 +331,15 @@ def load_and_filter_entries(input_path, pos_deg, stickout, hide_jt=False, post_s
                         if not mcs:
                             continue
 
-                        # Reference point for relative coordinates
-                        ref_x = mcs[0]["x"]
-                        ref_z = mcs[0]["z"]
+                        # Reference point for relative coordinates — use HYBRID ABW0 if possible
+                        ref_x_h, ref_z_h, _dx, _dz, ok_h = _compute_hybrid_ref(mcs, mcs_delayed)
+                        if not ok_h:
+                            continue
 
                         slides = entry["slides"]["actual"]
-                        vertical = slides["vertical"] - ref_z
-                        horizontal = slides["horizontal"] - ref_x
+                        # NOTE: subtract stickout here as well
+                        vertical = (slides["vertical"] - stickout) - ref_z_h
+                        horizontal = slides["horizontal"] - ref_x_h
 
                         velocity_actual = entry.get("weldAxis", {}).get("velocity", {}).get("actual", 0.0)
                         position = entry.get("weldAxis", {}).get("position")
@@ -435,8 +453,8 @@ def plot_flat(entries, abw_profile_points, abw_profile_points_post_scan, pos_deg
             ax.plot(abw_xs_p, abw_ys_p, color='green', marker='x')
 
         ax.set_title(title)
-        ax.set_xlabel("torch x (rel abw 0, mm)")
-        ax.set_ylabel("torch z (rel abw 0, mm)")
+        ax.set_xlabel("x (rel abw 0, mm)")
+        ax.set_ylabel("z (rel abw 0, mm)")
         ax.invert_xaxis()
         ax.grid(True)
         ax.set_aspect("equal")
@@ -472,8 +490,6 @@ def main():
         description="Generate weld analysis report as a PDF with bead area, current, weld speed, and heat input plots."
     )
     parser.add_argument("--input", required=True, help="Path to input JSONL file")
-    # Optional: hide JT (joint tracking) points from plots
-    parser.add_argument("--hide-jt", action="store_true", help="Hide JT (joint tracking) points in plots")
     # Optional: add post-scan ABW profile (last-in-log) in green
     parser.add_argument("--post-scan", action="store_true", help="Add post-scan ABW profile (last in log) in green")
     args = parser.parse_args()
@@ -524,7 +540,7 @@ def main():
 
     for pos_deg in POS_DEG_LIST:
         entries, abw_profile_points, abw_profile_points_post_scan = load_and_filter_entries(
-            args.input, pos_deg, stickout, hide_jt=args.hide_jt, post_scan=args.post_scan
+            args.input, pos_deg, stickout, post_scan=args.post_scan
         )
         if entries:
             entries_by_pos[pos_deg] = (entries, abw_profile_points, abw_profile_points_post_scan)
@@ -635,18 +651,27 @@ def main():
         # Plot per pos_deg (now using shared color ranges)
         for pos_deg in POS_DEG_LIST:
             entries, abw_profile_points, abw_profile_points_post_scan = entries_by_pos[pos_deg]
-            if entries:
-                fig = plot_flat(
-                    entries,
-                    abw_profile_points,
-                    abw_profile_points_post_scan,
-                    pos_deg,
-                    shared_ranges
+
+            # Always create a page — even if entries is empty
+            fig = plot_flat(
+                entries,
+                abw_profile_points,
+                abw_profile_points_post_scan,
+                pos_deg,
+                shared_ranges
+            )
+
+            # Optional: annotate the first axis if no data present (helps troubleshooting)
+            if not entries and fig.axes:
+                fig.axes[0].text(
+                    0.5, 0.5,
+                    f"No data for pos_deg={pos_deg}°",
+                    transform=fig.axes[0].transAxes,
+                    ha="center", va="center", fontsize=12
                 )
-                pdf.savefig(fig)
-                plt.close(fig)
-            else:
-                print(f"No valid data for pos_deg={pos_deg}")
+
+            pdf.savefig(fig)
+            plt.close(fig)
 
     print(f"Report written to {output_pdf}")
 

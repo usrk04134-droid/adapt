@@ -28,7 +28,7 @@ class ImageProvider {
 
   virtual auto Start(enum scanner::ScannerSensitivity sensitivity) -> boost::outcome_v2::result<void> = 0;
   virtual void Stop()                                                                                 = 0;
-  [[nodiscard]] virtual auto Started() const -> bool                                                  = 0;
+  virtual auto Started() const -> bool                                                                = 0;
 
   virtual void ResetFOVAndGain()                               = 0;
   virtual void SetVerticalFOV(int offset_from_top, int height) = 0;

@@ -18,7 +18,7 @@
 
 namespace calibration {
 
-const std::string CALIBRATION_RESULT_TABLE_NAME = "calibration_result";
+const std::string CALIBRATION_RESULT_TABLE_NAME = "calibration_result_2";
 
 auto StoredCalibrationResult::WeldObjectRotationAxis() const -> common::Vector3D { return weld_object_rotation_axis_; }
 
@@ -27,6 +27,8 @@ auto StoredCalibrationResult::RotationCenter() const -> common::Vector3D { retur
 auto StoredCalibrationResult::TorchToLpcsTranslation() const -> common::Vector3D { return torch_to_lpcs_translation_; }
 
 auto StoredCalibrationResult::ResidualStandardError() const -> double { return residual_standard_error_; }
+
+auto StoredCalibrationResult::WeldObjectRadius() const -> double { return weld_object_radius_; }
 
 void StoredCalibrationResult::SetWeldObjectRotationAxis(const common::Vector3D& value) {
   weld_object_rotation_axis_ = value;
@@ -39,10 +41,13 @@ void StoredCalibrationResult::SetTorchToLpcsTranslation(const common::Vector3D& 
 }
 void StoredCalibrationResult::SetResidualStandardError(double value) { residual_standard_error_ = value; }
 
+void StoredCalibrationResult::SetWeldObjectRadius(double value) { weld_object_radius_ = value; }
+
 auto StoredCalibrationResult::ToString() const -> std::string {
-  return fmt::format("rotation_axis: {}, rotation_center: {}, torch_to_lpcs: {}, residual_std_err: {:.6f}",
-                     common::ToString(weld_object_rotation_axis_), common::ToString(rotation_center_),
-                     common::ToString(torch_to_lpcs_translation_), residual_standard_error_);
+  return fmt::format(
+      "rotation_axis: {}, rotation_center: {}, torch_to_lpcs: {}, residual_std_err: {:.6f}, weld_object_radius: {:.2f}",
+      common::ToString(weld_object_rotation_axis_), common::ToString(rotation_center_),
+      common::ToString(torch_to_lpcs_translation_), residual_standard_error_, weld_object_radius_);
 }
 
 auto StoredCalibrationResult::ToJson() const -> nlohmann::json {
@@ -50,7 +55,8 @@ auto StoredCalibrationResult::ToJson() const -> nlohmann::json {
       {"weldObjectRotationAxis", common::ToJson(weld_object_rotation_axis_)},
       {"rotationCenter",         common::ToJson(rotation_center_)          },
       {"torchToLpcsTranslation", common::ToJson(torch_to_lpcs_translation_)},
-      {"residualStandardError",  residual_standard_error_                  }
+      {"residualStandardError",  residual_standard_error_                  },
+      {"weldObjectRadius",       weld_object_radius_                       }
   };
 }
 
@@ -75,6 +81,10 @@ auto StoredCalibrationResult::FromJson(const nlohmann::json& json_obj) -> std::o
       result.residual_standard_error_ = json_obj.at("residualStandardError").get<double>();
     }
 
+    if (json_obj.contains("weldObjectRadius")) {
+      result.weld_object_radius_ = json_obj.at("weldObjectRadius").get<double>();
+    }
+
   } catch (const nlohmann::json::exception& e) {
     LOG_ERROR("Failed to parse StoredCalibrationResult from JSON - exception: {}", e.what());
     return std::nullopt;
@@ -83,14 +93,15 @@ auto StoredCalibrationResult::FromJson(const nlohmann::json& json_obj) -> std::o
   return result;
 }
 
-auto StoredCalibrationResult::FromCalibrationResult(const calibration::CalibrationResult& data)
-    -> StoredCalibrationResult {
+auto StoredCalibrationResult::FromCalibrationResult(const calibration::CalibrationResult& data,
+                                                    double weld_object_radius) -> StoredCalibrationResult {
   StoredCalibrationResult result;
 
   result.SetWeldObjectRotationAxis(data.weld_object_rotation_axis);
   result.SetRotationCenter(data.rotation_center);
   result.SetTorchToLpcsTranslation(data.torch_to_lpcs_translation);
   result.SetResidualStandardError(data.residual_standard_error);
+  result.SetWeldObjectRadius(weld_object_radius);
   return result;
 }
 
@@ -100,7 +111,8 @@ auto StoredCalibrationResult::IsValid() const -> bool {
   };
 
   return is_finite(weld_object_rotation_axis_) && is_finite(rotation_center_) &&
-         is_finite(torch_to_lpcs_translation_) && (residual_standard_error_ >= 0.0);
+         is_finite(torch_to_lpcs_translation_) && (residual_standard_error_ >= 0.0) &&
+         std::isfinite(weld_object_radius_);
 }
 
 void StoredCalibrationResult::CreateTable(SQLite::Database* db) {
@@ -114,7 +126,8 @@ void StoredCalibrationResult::CreateTable(SQLite::Database* db) {
       "weld_object_rotation_axis TEXT, "
       "rotation_center TEXT, "
       "torch_to_lpcs_translation TEXT, "
-      "residual_standard_error REAL)",
+      "residual_standard_error REAL, "
+      "weld_object_radius REAL)",
       CALIBRATION_RESULT_TABLE_NAME);
 
   db->exec(cmd);
@@ -126,12 +139,14 @@ auto StoredCalibrationResult::StoreFn() -> std::function<bool(SQLite::Database*,
     LOG_TRACE("Store StoredCalibrationResult {}", result.ToString());
 
     try {
-      std::string cmd = fmt::format("INSERT OR REPLACE INTO {} VALUES (1, ?, ?, ?, ?)", CALIBRATION_RESULT_TABLE_NAME);
+      std::string cmd =
+          fmt::format("INSERT OR REPLACE INTO {} VALUES (1, ?, ?, ?, ?, ?)", CALIBRATION_RESULT_TABLE_NAME);
 
       SQLite::Statement query(*db, cmd);
       SQLite::bind(query, common::ToJson(result.weld_object_rotation_axis_).dump(),
                    common::ToJson(result.rotation_center_).dump(),
-                   common::ToJson(result.torch_to_lpcs_translation_).dump(), result.residual_standard_error_);
+                   common::ToJson(result.torch_to_lpcs_translation_).dump(), result.residual_standard_error_,
+                   result.weld_object_radius_);
 
       return query.exec() == 1;
     } catch (const std::exception& e) {
@@ -169,6 +184,7 @@ auto StoredCalibrationResult::GetFn() -> std::function<std::optional<StoredCalib
     result.rotation_center_           = *rot_center;
     result.torch_to_lpcs_translation_ = *translation;
     result.residual_standard_error_   = query.getColumn(4).getDouble();
+    result.weld_object_radius_        = query.getColumn(5).getDouble();
 
     return result;
   };

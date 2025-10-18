@@ -116,7 +116,7 @@ image_logging:
   # - direct: image logging on when JT or ABP is active.
   # - on_error: image logging when image processing fails and JT or ABP is active.
   # - on_error_welding: same as 'on_error' but only active when welding.
-  mode: on_error
+  mode: off
   sample_rate: 1
   # used for 'on_error*' modes to also log 'buffer_size' of previous images.
   buffer_size: 10

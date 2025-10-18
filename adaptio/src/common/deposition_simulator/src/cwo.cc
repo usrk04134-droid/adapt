@@ -36,146 +36,34 @@ auto CircularWeldObject::SetTorchPlaneAngle(double angle) -> void { this->torch_
 auto CircularWeldObject::GetSlice(int index) -> JointSlice * { return &this->slices_[index]; }
 
 auto CircularWeldObject::MoveToNextSlice() -> JointSlice * {
-  // double curr_angle = this->slices_.at(this->head_slice_index_).GetSliceAngle();
-  // double new_angle = NAN;
   size_t slice_index = this->head_slice_index_;
   if (slice_index == this->slices_.size() - 1) {
     slice_index = 0;
-    // new_angle = this->slices_.at(slice_index).GetSliceAngle() + (2 * std::numbers::pi);
   } else {
-    // new_angle = this->slices_.at(slice_index).GetSliceAngle();
     slice_index++;
   }
 
-  // const double angle_incr = new_angle - curr_angle;
-  // this->current_rot_angle_ += angle_incr;
-
   this->head_slice_index_ = slice_index;
-  // return std::make_shared<JointSlice>(this->slices_.at(slice_index));
   return &this->slices_.at(slice_index);
 }
 
 auto CircularWeldObject::MoveToPrevSlice() -> JointSlice * {
-  // double curr_angle = this->slices_.at(this->head_slice_index_).GetSliceAngle();
-  // double new_angle = NAN;
   size_t slice_index = this->head_slice_index_;
   if (slice_index == 0) {
     slice_index = this->slices_.size() - 1;
-    // curr_angle = this->slices_.at(this->head_slice_index_).GetSliceAngle() + (2 * std::numbers::pi);
   } else {
-    // curr_angle = this->slices_.at(this->head_slice_index_).GetSliceAngle();
     slice_index--;
   }
 
-  // new_angle = this->slices_.at(slice_index).GetSliceAngle();
-  // const double angle_incr = new_angle - curr_angle;
-  // this->current_rot_angle_ += angle_incr;
-
   this->head_slice_index_ = slice_index;
-  // return std::make_shared<JointSlice>(this->slices_.at(slice_index));
   return &this->slices_.at(slice_index);
 }
-
-// auto CircularWeldObject::IncrWeldObjectRotation(double delta_ang) -> void{
-//   this->current_rot_angle_+=delta_ang;
-// }
-
-// auto CircularWeldObject::GetWeldObjectRotation() const -> double {
-//   return this->current_rot_angle_;
-// }
-
-// NOLINTBEGIN(bugprone-easily-swappable-parameters, misc-unused-parameters)
-// auto CircularWeldObject::AddDeposit(const Point2d &torchpos_in_slice, double torch_clock_angle, double rot_angle,
-//                                     double bead_area, double bead_radius, double stickout) -> void {
-//   // NOLINTEND(bugprone-easily-swappable-parameters, misc-unused-parameters)
-//   //  Find and update affected slices
-//   //  A slice angle of zero <==> vertical direction in world.
-
-//   // double rTorchPos = sqrt(pow(torchPos_rocs.GetY(),2) + pow(torchPos_rocs.GetZ(),2));
-//   // double xTorchPos = torchPos_rocs.GetX();
-//   double curr_slice_angle = NAN;  // Total revolution since start
-//   //  const double new_slice_angle   = NAN;  // Total revolution since start
-//   double rot_left_to_12_oclock   = NAN;  // Rotation needed to bring slice to 12 o'clock
-//   double rot_left_to_torch       = NAN;
-//   const double two_pi            = 2 * std::numbers::pi;
-//   const int nbr_full_revolutions = static_cast<int>(rot_angle / two_pi);
-
-//   // Handle rotations greater than one full revolution. Should not be used but just in case.
-//   for (int i = 0; i < nbr_full_revolutions; i++) {
-//     for (auto &slice : this->slices_) {
-//       slice.AddBead(bead_area, bead_radius, /*stickout,*/ torchpos_in_slice);
-//     }
-//   }
-
-//   // Handle partial revolutions --> only some slices affected.
-//   // int slice_index = 0;
-//   for (auto &slice : this->slices_) {
-//     curr_slice_angle      = this->current_rot_angle_ + slice.GetSliceAngle();
-//     rot_left_to_12_oclock = two_pi * (1.0 - (curr_slice_angle / two_pi - std::floor(curr_slice_angle / two_pi)));
-//     rot_left_to_torch     = rot_left_to_12_oclock - (two_pi - torch_clock_angle);
-
-//     if (rot_left_to_torch > 0 && rot_left_to_torch <= rot_angle)  // Slice will pass torch during this rotation
-//     {
-//       // std::cout << "Adding bead to slice " << sliceIndex << std::endl;
-//       // Slice modifications are done in radial slice plane (2D). y-dir in slice <==> radial dir in 3D weld object. x
-//       // <==> x
-//       slice.AddBead(bead_area, bead_radius, /*stickout,*/ torchpos_in_slice);
-//     }
-//     // slice_index++;
-//   }
-
-//   this->current_rot_angle_ += rot_angle;
-// }
 
 auto CircularWeldObject::AddJointBottom(double curv_radius, double joint_depth, int nbr_arc_points) -> void {
   for (JointSlice &slice : this->slices_) {
     slice.AddJointBottom(joint_depth, curv_radius, nbr_arc_points);
   }
 }
-
-// auto CircularWeldObject::GetAbwCurve(int abw_index) const -> std::vector<Line3d> {
-//   Line3d line;
-//   Point3d start;
-//   Point3d end;
-//   const Vector3d dir;
-//   std::unique_ptr<std::vector<std::optional<Point2d>>> abw_points_in_slice;
-//   std::vector<Line3d> abw_lines;
-//   Eigen::Matrix3d rotmat;
-//   Vector3d abwpos_slice;
-//   Vector3d abwpos_rocs;
-//   // const int n_slices   = this->slices_.size();
-//   bool got_first = false;
-//   // abwPointsInSlice = slices[0].GetAbwPoints();
-
-//   for (const auto &slice : this->slices_) {
-//     abw_points_in_slice = slice.GetAbwPoints();
-//     rotmat              = Eigen::AngleAxisd(slice.GetSliceAngle(), Vector3d(1, 0, 0)).toRotationMatrix();
-
-//     if (abw_points_in_slice == nullptr) {
-//       throw std::runtime_error(
-//           "Could not compute abw points for slice");  // TODO(zachjz): Consider changing this from throwing
-//                                                       // to returning nothing... or something.
-//     }
-
-//     abwpos_slice = Vector3d((*abw_points_in_slice)[abw_index].GetX(), 0,
-//                             (*abw_points_in_slice)[abw_index].GetY());  // Y --> Z (ROCS)
-//     abwpos_rocs  = rotmat * abwpos_slice;
-
-//     end = Point3d(abwpos_rocs(0), abwpos_rocs(1), abwpos_rocs(2), ROCS);
-
-//     if (!got_first) {
-//       start     = end;
-//       got_first = true;
-//       continue;
-//     }
-
-//     line = Line3d::FromPoints(start, end);
-//     abw_lines.push_back(line);
-//     start = end;
-//   }
-
-//   return abw_lines;
-// }
 
 // NOLINTNEXTLINE(readability*)
 auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Point3d &closest_point_filter_rocs,
@@ -209,16 +97,9 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
   for (size_t si = 0; si <= this->slices_.size(); si++) {
     real_index = si % n_slices;
     slice      = this->slices_[real_index];
-    // slice     = this->slices_[si];
-    // std::cout << "Checking slice" << real_index <<std::endl;
-    //  std::cout << "Slice with angle: " << slice.GetSliceAngle() <<std::endl;
+
     slice_abw_points = slice.GetAbwPoints(allow_cap_points);
     rotmat           = Eigen::AngleAxisd(slice.GetSliceAngle(), Vector3d(1, 0, 0)).toRotationMatrix();
-    // std::cout << slice_abw_points->size() << "\n";
-    //  for (int i = 0; i < 3; i++)
-    //  {
-    //      std::cout << R(i,0) << "," << R(i,1) << "," << R(i,2) << std::endl;
-    //  }
 
     if (slice_abw_points == nullptr) {
       throw std::runtime_error(

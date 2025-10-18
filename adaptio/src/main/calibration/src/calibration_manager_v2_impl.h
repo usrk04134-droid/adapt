@@ -5,7 +5,7 @@
 #include <chrono>
 #include <optional>
 
-#include "calibration/calibration_metrics.h"
+#include "calibration/src/calibration_metrics.h"
 #include "calibration_sequence_runner.h"
 #include "calibration_solver.h"
 #include "common/clock_functions.h"
@@ -38,7 +38,7 @@ class CalibrationManagerV2Impl : public scanner_client::ScannerObserver, public 
   // ScannerObserver
   void OnScannerStarted(bool success) override;
   void OnScannerStopped(bool success) override;
-  void OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position) override;
+  void OnScannerDataUpdate(const lpcs::Slice& data, const common::Point& axis_position) override;
 
   // coordination::CalibrationStatus
   auto WeldObjectCalibrationValid() const -> bool override;
@@ -67,7 +67,7 @@ class CalibrationManagerV2Impl : public scanner_client::ScannerObserver, public 
   // This is a regular member (not optional) for simplicity,
   // since the active session state is already managed via activity_status_.
   struct CalibrationContext {
-    macs::Point top_center;
+    common::Point top_center;
     StoredLaserTorchConfiguration laser_torch_config;
     double wire_diameter{};
     double stickout{};
@@ -75,7 +75,7 @@ class CalibrationManagerV2Impl : public scanner_client::ScannerObserver, public 
     joint_geometry::JointGeometry joint_geometry;
     std::vector<Observation> observations;
 
-    std::optional<macs::Point> top;
+    std::optional<common::Point> top;
     Observation left;
     Observation right;
 
@@ -84,16 +84,16 @@ class CalibrationManagerV2Impl : public scanner_client::ScannerObserver, public 
 
   // Procedure Handlers and helpers
   void SendCalibrationStartFailure(const std::string& reason);
-  void HandleTopPosData(const macs::Point& axis_position);
-  void HandleLeftPosData(const lpcs::Slice& data, const macs::Point& axis_position);
-  void HandleRightPosData(const lpcs::Slice& data, const macs::Point& axis_position);
-  void OnTopPosProcedureComplete(const macs::Point& axis_position);
+  void HandleTopPosData(const common::Point& axis_position);
+  void HandleLeftPosData(const lpcs::Slice& data, const common::Point& axis_position);
+  void HandleRightPosData(const lpcs::Slice& data, const common::Point& axis_position);
+  void OnTopPosProcedureComplete(const common::Point& axis_position);
   void HandleTopTouchFailure(const std::string& reason);
   void OnLeftPosProcedureComplete(const std::optional<Observation>& observation);
   void HandleLeftTouchFailure(const std::string& reason);
   void OnRightPosProcedureComplete(const std::optional<Observation>& observation);
   void HandleRightTouchFailure(const std::string& reason);
-  auto CalculateTopCenter() -> std::optional<macs::Point>;
+  auto CalculateTopCenter() -> std::optional<common::Point>;
   auto GenerateGridPoints() -> std::vector<GridPoint>;
   void StartCalibrationSequence(std::vector<GridPoint> grid_points);
   void OnCalibrationSequenceComplete(const std::vector<Observation>& observations);
@@ -110,7 +110,7 @@ class CalibrationManagerV2Impl : public scanner_client::ScannerObserver, public 
   // Busy() will return true, preventing the start of a new calibration session.
   using StartProcedure = std::optional<std::function<void(bool)>>;
   StartProcedure calibration_start_procedure_;
-  using PositionProcedure = std::optional<std::function<void(const macs::Point&)>>;
+  using PositionProcedure = std::optional<std::function<void(const common::Point&)>>;
   PositionProcedure calibration_top_pos_procedure_;
   using ObservationProcedure = std::optional<std::function<void(const std::optional<Observation>&)>>;
   ObservationProcedure calibration_left_pos_procedure_;

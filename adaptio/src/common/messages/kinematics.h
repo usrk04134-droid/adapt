@@ -53,6 +53,7 @@ struct GetWeldAxisDataRsp {
   double position{};
   double velocity{};
   double radius{};
+  double linear_object_distance{};
 };
 
 struct Release {

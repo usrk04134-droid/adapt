@@ -4,16 +4,14 @@
 #include <regex>
 
 #include "../web_hmi.h"
-#include "calibration/calibration_manager.h"
-#include "calibration/calibration_metrics.h"
+#include "calibration/src/calibration_metrics.h"
+#include "common/groove/point.h"
 #include "common/zevs/zevs_core.h"
 #include "coordination/activity_status.h"
 #include "joint_geometry/joint_geometry_provider.h"
 #include "kinematics/kinematics_client.h"
-#include "macs/macs_point.h"
 #include "macs/macs_slice.h"
 #include "slice_translator/slice_observer.h"
-#include "web_hmi_calibration.h"
 
 namespace web_hmi {
 
@@ -27,7 +25,7 @@ class WebHmiServer : public slice_translator::SliceObserver, public WebHmi {
   void OnMessage(zevs::MessagePtr message);
 
   // SliceObserver
-  void Receive(const macs::Slice& machine_data, const lpcs::Slice& scanner_data, const macs::Point& axis_position,
+  void Receive(const macs::Slice& machine_data, const lpcs::Slice& scanner_data, const common::Point& axis_position,
                const double angle_from_torch_to_scanner) override;
 
   // WebHmi interface
@@ -46,7 +44,7 @@ class WebHmiServer : public slice_translator::SliceObserver, public WebHmi {
   calibration::CalibrationMetrics* calibration_metrics_;
 
   // Last groove estimate
-  std::optional<macs::Groove> groove_;
+  std::optional<common::Groove> groove_;
 
   auto CheckSubscribers(std::string const& topic, nlohmann::json const& payload) -> bool;
 

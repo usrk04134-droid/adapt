@@ -5,9 +5,6 @@
 #include <numbers>
 #include <optional>
 
-#include "block_tests/helpers_abp_parameters.h"
-#include "block_tests/helpers_joint_geometry.h"
-#include "block_tests/helpers_settings.h"
 #include "common/math/math.h"
 #include "common/messages/kinematics.h"
 #include "common/messages/management.h"
@@ -15,11 +12,14 @@
 #include "common/messages/weld_system.h"
 #include "event_handler/event_codes.h"
 #include "event_handler/src/event_types.h"
-#include "helpers.h"
-#include "helpers_event_handling.h"
-#include "helpers_kinematics.h"
-#include "helpers_weld_control.h"
-#include "helpers_weld_system.h"
+#include "helpers/helpers.h"
+#include "helpers/helpers_abp_parameters.h"
+#include "helpers/helpers_event_handling.h"
+#include "helpers/helpers_joint_geometry.h"
+#include "helpers/helpers_kinematics.h"
+#include "helpers/helpers_settings.h"
+#include "helpers/helpers_weld_control.h"
+#include "helpers/helpers_weld_system.h"
 #include "tracking/tracking_manager.h"
 #include "weld_control/weld_control_types.h"
 #include "weld_system_client/weld_system_types.h"
@@ -83,11 +83,12 @@ TEST_SUITE("WeldControl") {
                                                                                  .vertical   = 5});
 
     double const position = 1.23;
+    double const distance = 1.0;
     double const velocity = 2.55;
     double const radius   = 3500;
 
     // Check GetWeldAxis request and dispatch response
-    CheckAndDispatchGetWeldAxis(fixture, position, velocity, radius);
+    CheckAndDispatchGetWeldAxis(fixture, position, distance, velocity, radius);
 
     const common::msg::weld_system::GetWeldSystemDataRsp weld_system_status_rsp1{
         .voltage           = 30.123456,
@@ -141,7 +142,7 @@ TEST_SUITE("WeldControl") {
 
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 100.0);
+    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
 
     common::msg::management::TrackingStart start_joint_tracking_msg{
         .joint_tracking_mode = static_cast<uint32_t>(tracking::TrackingMode::TRACKING_LEFT_HEIGHT),
@@ -175,7 +176,7 @@ TEST_SUITE("WeldControl") {
                                                                                  .horizontal = -20,
                                                                                  .vertical   = 5});
     // Check GetWeldAxis request and dispatch response
-    CheckAndDispatchGetWeldAxis(fixture, 0.1, 0.1, 2500);
+    CheckAndDispatchGetWeldAxis(fixture, 0.1, 0.1, 0.1, 2500);
 
     const common::msg::weld_system::GetWeldSystemDataRsp weld_system_status_rsp{
         .voltage           = 30.123456,
@@ -214,7 +215,7 @@ TEST_SUITE("WeldControl") {
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
     DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 100.0);
+    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
 
     StartABP(fixture);
     CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "abp"});
@@ -231,7 +232,7 @@ TEST_SUITE("WeldControl") {
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
     DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 100.0);
+    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
 
     auto setup = [&fixture](weld_control::Mode mode) {
       StoreSettings(fixture, TestSettings{.use_edge_sensor = false}, true);
@@ -257,7 +258,7 @@ TEST_SUITE("WeldControl") {
       CHECK(fixture.Scanner()->Receive<common::msg::scanner::Start>());
     };
 
-    auto input = [&fixture](double position, double velocity, double radius) {
+    auto input = [&fixture](double position, double distance, double velocity, double radius) {
       // ABW points on scanner interface
       fixture.Scanner()->Dispatch(fixture.ScannerData()->Get());
 
@@ -272,7 +273,7 @@ TEST_SUITE("WeldControl") {
                                                         .horizontal = -20,
                                                         .vertical   = 5});
       // Check GetWeldAxis request and dispatch response
-      CheckAndDispatchGetWeldAxis(fixture, position, velocity, radius);
+      CheckAndDispatchGetWeldAxis(fixture, position, distance, velocity, radius);
 
       const common::msg::weld_system::GetWeldSystemDataRsp weld_system_status_rsp{
           .voltage           = 30.123456,
@@ -301,14 +302,14 @@ TEST_SUITE("WeldControl") {
     /* invalid weld-axis position */
     {
       setup(weld_control::Mode::JOINT_TRACKING);
-      input(-0.1, 0.012, 5000);
+      input(-0.1, -0.1, 0.012, 5000);
       CheckEvents(fixture, {event_invalid_input});
       CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
 
       /* --- repeat test for ABP --- */
 
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
-      input(-0.1, 0.012, 5000);
+      input(-0.1, -0.1, 0.012, 5000);
       CheckEvents(fixture, {event_invalid_input});
       CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
     }
@@ -316,14 +317,14 @@ TEST_SUITE("WeldControl") {
     /* invalid weld-object radius */
     {
       setup(weld_control::Mode::JOINT_TRACKING);
-      input(0.0, 0.012, 0.0);
+      input(0.0, 0.0, 0.012, 0.0);
       CheckEvents(fixture, {event_invalid_input});
       CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
 
       /* --- repeat test for ABP --- */
 
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
-      input(0.0, 0.012, -0.1);
+      input(0.0, 0.0, 0.012, -0.1);
       CheckEvents(fixture, {event_invalid_input});
       CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
     }
@@ -332,20 +333,20 @@ TEST_SUITE("WeldControl") {
      * followed by a postion > 363 degrees - NOK */
     {
       setup(weld_control::Mode::JOINT_TRACKING);
-      input((2 * std::numbers::pi) + common::math::DegToRad(1.0), 0.012, 750.0);
+      input((2 * std::numbers::pi) + common::math::DegToRad(1.0), 0.0, 0.012, 750.0);
       CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "jt"});
 
-      input((2 * std::numbers::pi) + common::math::DegToRad(4.0), 0.012, 750.0);
+      input((2 * std::numbers::pi) + common::math::DegToRad(4.0), 0.0, 0.012, 750.0);
       CheckEvents(fixture, {event_weld_axis_position});
       CheckWeldControlStatus(fixture, WeldControlStatus{.weld_control_mode = "idle"});
 
       /* --- repeat test for ABP --- */
 
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
-      input((2 * std::numbers::pi) + common::math::DegToRad(1.0), 0.012, 750.0);
+      input((2 * std::numbers::pi) + common::math::DegToRad(1.0), 0.0, 0.012, 750.0);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
 
-      input((2 * std::numbers::pi) + common::math::DegToRad(4.0), 0.012, 750.0);
+      input((2 * std::numbers::pi) + common::math::DegToRad(4.0), 0.0, 0.012, 750.0);
       CheckEvents(fixture, {event_weld_axis_position});
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "idle");
     }
@@ -355,13 +356,13 @@ TEST_SUITE("WeldControl") {
     {
       auto const radius = 1000;
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
-      input(common::math::DegToRad(100.0), 0.012, radius);
+      input(common::math::DegToRad(100.0), 0.0, 0.012, radius);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
 
-      input(common::math::DegToRad(100.0) - common::math::LinearToAngular(9, radius), 0.012, radius);
+      input(common::math::DegToRad(100.0) - common::math::LinearToAngular(9, radius), 0.0, 0.012, radius);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
 
-      input(common::math::DegToRad(100.0) - common::math::LinearToAngular(11, radius), 0.012, radius);
+      input(common::math::DegToRad(100.0) - common::math::LinearToAngular(11, radius), 0.0, 0.012, radius);
       CheckEvents(fixture, {event_invalid_input});
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "idle");
     }
@@ -376,7 +377,7 @@ TEST_SUITE("WeldControl") {
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
     DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 100.0);
+    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
 
     auto setup = [&fixture](weld_control::Mode mode) {
       StoreSettings(fixture, TestSettings{.use_edge_sensor = false}, true);
@@ -402,7 +403,7 @@ TEST_SUITE("WeldControl") {
       CHECK(fixture.Scanner()->Receive<common::msg::scanner::Start>());
     };
 
-    auto input = [&fixture](double position, double velocity, double radius) {
+    auto input = [&fixture](double position, double distance, double velocity, double radius) {
       // ABW points on scanner interface
       fixture.Scanner()->Dispatch(fixture.ScannerData()->Get());
 
@@ -417,7 +418,7 @@ TEST_SUITE("WeldControl") {
                                                         .horizontal = -20,
                                                         .vertical   = 5});
       // Check GetWeldAxis request and dispatch response
-      CheckAndDispatchGetWeldAxis(fixture, position, velocity, radius);
+      CheckAndDispatchGetWeldAxis(fixture, position, distance, velocity, radius);
 
       const common::msg::weld_system::GetWeldSystemDataRsp weld_system_status_rsp{
           .voltage           = 30.123456,
@@ -443,18 +444,18 @@ TEST_SUITE("WeldControl") {
     /* test lost arcing on weld-system 1 */
     {
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
-      input(0.0, 0.012, 5000);
+      input(0.0, 0.0, 0.012, 5000);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
 
       DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID1,
                                     common::msg::weld_system::OnWeldSystemStateChange::State::INIT);
 
       fixture.GetClockNowFuncWrapper()->StepSteadyClock(duration_lost_arcing_grace);
-      input(0.1, 0.012, 5000);
+      input(0.1, 0.0, 0.012, 5000);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
 
       fixture.GetClockNowFuncWrapper()->StepSteadyClock(std::chrono::milliseconds(1));
-      input(0.2, 0.012, 5000);
+      input(0.2, 0.0, 0.012, 5000);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "idle");
       CheckEvents(fixture, {event_arcing_lost});
     }
@@ -462,14 +463,14 @@ TEST_SUITE("WeldControl") {
     /* test lost arcing on weld-system 2 */
     {
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
-      input(0.0, 0.012, 5000);
+      input(0.0, 0.0, 0.012, 5000);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
 
       DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID2,
                                     common::msg::weld_system::OnWeldSystemStateChange::State::INIT);
 
       fixture.GetClockNowFuncWrapper()->StepSteadyClock(duration_lost_arcing_grace + std::chrono::milliseconds(1));
-      input(0.1, 0.012, 5000);
+      input(0.1, 0.0, 0.012, 5000);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "idle");
       CheckEvents(fixture, {event_arcing_lost});
     }
@@ -477,21 +478,21 @@ TEST_SUITE("WeldControl") {
     /* test lost arcing and regained on weld-system 1 - no event/stop */
     {
       setup(weld_control::Mode::AUTOMATIC_BEAD_PLACEMENT);
-      input(0.0, 0.012, 5000);
+      input(0.0, 0.0, 0.012, 5000);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
 
       DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID1,
                                     common::msg::weld_system::OnWeldSystemStateChange::State::INIT);
 
       fixture.GetClockNowFuncWrapper()->StepSteadyClock(duration_lost_arcing_grace);
-      input(0.1, 0.012, 5000);
+      input(0.1, 0.0, 0.012, 5000);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
 
       DispatchWeldSystemStateChange(fixture, weld_system::WeldSystemId::ID1,
                                     common::msg::weld_system::OnWeldSystemStateChange::State::ARCING);
 
       fixture.GetClockNowFuncWrapper()->StepSteadyClock(std::chrono::milliseconds(10));
-      input(0.2, 0.012, 5000);
+      input(0.2, 0.0, 0.012, 5000);
       CHECK(GetWeldControlStatus(fixture).weld_control_mode.value() == "abp");
     }
   }
@@ -515,7 +516,7 @@ TEST_SUITE("WeldControl") {
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
     DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 100.0);
+    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
 
     // Start and stop ABP
     fixture.Management()->Dispatch(common::msg::management::ABPStart{});
@@ -534,7 +535,7 @@ TEST_SUITE("WeldControl") {
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
     DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 100.0);
+    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
 
     common::msg::management::TrackingStart start_joint_tracking_msg{
         .joint_tracking_mode = static_cast<uint32_t>(tracking::TrackingMode::TRACKING_LEFT_HEIGHT),
@@ -559,7 +560,7 @@ TEST_SUITE("WeldControl") {
     StoreDefaultABPParams(fixture);
     DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
     DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 100.0);
+    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
 
     auto setup = [&fixture](weld_control::Mode mode) {
       StoreSettings(fixture, TestSettings{.use_edge_sensor = false}, true);
@@ -604,7 +605,7 @@ TEST_SUITE("WeldControl") {
                                                         .vertical   = 5});
       if (!stopped_or_no_previous_valid_data) {
         // Check GetWeldAxis request and dispatch response
-        CheckAndDispatchGetWeldAxis(fixture, 0.1, 0.1, 2500);
+        CheckAndDispatchGetWeldAxis(fixture, 0.1, 0.0, 0.1, 2500);
 
         const common::msg::weld_system::GetWeldSystemDataRsp weld_system_status_rsp{
             .voltage           = 30.123456,

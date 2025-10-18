@@ -27,16 +27,6 @@ The WebHMI Interface is a set of json messages distinguished by the "name" attri
 {"name":"GetAdaptioVersion","payload":{}}
 ```
 
-**Message:** GetLaserToTorchCalibrationRsp \
-**Direction:** Out \
-**Description:** Adaptio version
-
-**Example:**
-
-```json
-{"name":"GetAdaptioVersionRsp","payload":{"version":"0.1.8"}}
-```
-
 ## JointGeometry
 
 **Message:** SetJointGeometry \
@@ -87,140 +77,6 @@ The WebHMI Interface is a set of json messages distinguished by the "name" attri
     "upper_joint_width_mm":42.0
   }
 }
-```
-
-## LaserToTorchCalibration
-
-The precondition for a successful calibration sequence is that the scanner can detect a joint which matches the geometry of a "calibration fixture" as specified in the configuration file "calibration_fixture_joint_geometry.yaml".
-
-For test purposes it is possible to use a simulated camera which reads images from a file. This is used in the system test.
-
-A picture explaining the calibration setup, including the fixture, is found in the frontend.
-
-**Message:** LaserToTorchCalibration \
-**Direction:** In \
-**Description:** Request a calibration measurement and calculation, no state change or storage
-
-**Example:**
-
-```json
-{"name":"LaserToTorchCalibration","payload":{"offset":200,"angle":0.26,"stickout":30}}
-```
-
-**Message:** LaserToTorchCalibrationRsp \
-**Direction:** Out \
-**Description:** The "valid" attribute indicates if the calibration was successful (valid=true) or not (valid=false).
-
-**Example:**
-
-```json
-{"name":"LaserToTorchCalibrationRsp","payload":{"angle":0.26,"valid":true,"x":6.9,"y":200.1,"z":-29.5}}
-```
-
-**Message:** SetLaserToTorchCalibration \
-**Direction:** In \
-**Description:** Set and store calibration data in the application
-
-**Example:**
-
-```json
-{"name":"SetLaserToTorchCalibration","payload":{"angle":0.26,"x":6.9,"y":200.1,"z":-29.5}}
-```
-
-**Message:** SetLaserToTorchCalibrationRsp \
-**Direction:** Out \
-**Description:** The "result" attribute indicates if the set operation was successful (result=true) or not (result=false).
-
-**Example:**
-
-```json
-{"name":"SetLaserToTorchCalibrationRsp","payload":{"result":true}}
-```
-
-**Message:** GetLaserToTorchCalibration \
-**Direction:** In \
-**Description:** Request stored calibration data
-
-**Example:**
-
-```json
-{"name":"GetLaserToTorchCalibration","payload":{}}
-```
-
-**Message:** GetLaserToTorchCalibrationRsp \
-**Direction:** Out \
-**Description:** Response with stored calibration data
-
-**Example:**
-
-```json
-{"name":"GetLaserToTorchCalibrationRsp","payload":{"angle":0.26,"valid":true,"x":6.9,"y":200.1,"z":-29.5}}
-```
-
-## WeldObjectCalibration
-
-The precondition for a successful calibration sequence is that the scanner can detect a joint which matches the weld object geometry as specified in the configuration file "joint_geometry.yaml".
-
-For test purposes it is possible to use a simulated camera which reads images from a file. This is used in the system test.
-
-**Message:** WeldObjectCalibration \
-**Direction:** In \
-**Description:** Request a calibration measurement and calculation, no state change or storage
-
-**Example:**
-
-```json
-{"name":"WeldObjectCalibration","payload":{"radius":8000,"stickout":30}}
-```
-
-**Message:** WeldObjectCalibrationRsp \
-**Direction:** Out \
-**Description:** The "valid" attribute indicates if the calibration was successful (valid=true) or not (valid=false).
-
-**Example:**
-
-```json
-{"name":"WeldObjectCalibrationRsp","payload":{"valid":true,"y":-8000,"z":-14.7}}
-```
-
-**Message:** SetWeldObjectCalibration \
-**Direction:** In \
-**Description:** Set and store calibration data in the application
-
-**Example:**
-
-```json
-{"name":"SetWeldObjectCalibration","payload":{"y":-8000,"z":-14.7}}
-```
-
-**Message:** SetWeldObjectCalibrationRsp \
-**Direction:** Out \
-**Description:** The "result" attribute indicates if the operation was successful (result=true) or not (result=false).
-
-**Example:**
-
-```json
-{"name":"SetWeldObjectCalibrationRsp","payload":{"result":true}}
-```
-
-**Message:** GetWeldObjectCalibration \
-**Direction:** In \
-**Description:** Request stored calibration data
-
-**Example:**
-
-```json
-{"name":"GetWeldObjectCalibration","payload":{}}
-```
-
-**Message:** GetWeldObjectCalibrationRsp \
-**Direction:** Out \
-**Description:** Response with stored calibration data
-
-**Example:**
-
-```json
-{"name":"GetWeldObjectCalibrationRsp","payload":{"valid":true,"y":-8000,"z":-14.7}}
 ```
 
 ## ActivityStatus
@@ -517,4 +373,32 @@ Slides position can be set using a service mode function. This is mainly for tes
     "useEdgeSensor": true,
   }
 }
+```
+
+## Weld Session Management
+
+**Message:** ClearWeldSession \
+**Direction:** In \
+**Description:** Request to clear the current weld session
+
+**Example:**
+
+```json
+{"name":"ClearWeldSession","payload":{}}
+```
+
+**Message:** ClearWeldSessionRsp \
+**Direction:** Out \
+**Description:** Response indicating the result of the clear weld session operation. The "result" attribute indicates if the operation was successful (result="ok") or failed (result="fail"). An optional "message" attribute provides failure details when the result is "fail".
+
+**Example (Success):**
+
+```json
+{"name":"ClearWeldSessionRsp","payload":{"result":"ok"}}
+```
+
+**Example (Failure):**
+
+```json
+{"name":"ClearWeldSessionRsp","payload":{"result":"fail","message":"Failed to clear weld session"}}
 ```

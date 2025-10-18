@@ -1,5 +1,6 @@
 #pragma once
 
+#include <prometheus/histogram.h>
 #include <prometheus/registry.h>
 #include <SQLiteCpp/Database.h>
 
@@ -11,6 +12,7 @@
 #include "bead_control/bead_control.h"
 #include "common/clock_functions.h"
 #include "common/filters/gaussian_filter.h"
+#include "common/groove/point.h"
 #include "common/logging/component_logger.h"
 #include "common/zevs/zevs_socket.h"
 #include "delay_buffer.h"
@@ -20,9 +22,7 @@
 #include "joint_geometry/joint_geometry.h"
 #include "kinematics/kinematics_client.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
 #include "macs/macs_slice.h"
-#include "performance_metrics.h"
 #include "scanner_client/scanner_client.h"
 #include "slice_translator/slice_observer.h"
 #include "slice_translator/slice_translator_service_v2.h"
@@ -34,7 +34,6 @@
 #include "weld_control/weld_control.h"
 #include "weld_control/weld_control_types.h"
 #include "weld_control/weld_state_observer.h"
-#include "weld_metrics.h"
 #include "weld_process_parameters.h"
 #include "weld_sequence_config.h"
 #include "weld_system_client/weld_system_client.h"
@@ -81,17 +80,18 @@ class WeldControlImpl : public WeldControl,
   /* ScannerObserver */
   void OnScannerStarted(bool success) override;
   void OnScannerStopped(bool success) override;
-  void OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position) override {};
+  void OnScannerDataUpdate(const lpcs::Slice& data, const common::Point& axis_position) override {};
 
   /* SliceObserver */
-  void Receive(const macs::Slice& machine_data, const lpcs::Slice& scanner_data, const macs::Point& slides_actual,
-               double angle_from_torch_to_scanner) override;
+  void Receive(const macs::Slice& machine_data, const lpcs::Slice& scanner_data, const common::Point& slides_actual,
+               double distance_from_torch_to_scanner) override;
 
   auto GetMode() const -> Mode { return mode_; }
   auto GetState() const -> State { return state_; }
   auto GetTrackingMode() const -> tracking::TrackingMode { return tracking_mode_; }
 
  private:
+  void ResetGrooveDataHomed();
   Configuration config_;
   WeldSequenceConfig* weld_sequence_config_;
   SettingsProvider* settings_provider_;
@@ -119,8 +119,9 @@ class WeldControlImpl : public WeldControl,
   double cached_weld_axis_position_{0.0};
   double cached_weld_axis_ang_velocity_{0.0};
   double cached_weld_object_radius_{0.0};
+  double cached_distance_from_torch_to_scanner_{0.0};
   double cached_edge_position_{0.0};
-
+  std::optional<double> cached_linear_object_distance_;
   std::optional<double> last_weld_axis_position_;
   bool ready_for_jt_to_auto_cap_{false};
 
@@ -128,7 +129,6 @@ class WeldControlImpl : public WeldControl,
   lpcs::Slice cached_lpcs_{};
   std::optional<macs::Slice> last_confident_mcs_;
   std::optional<lpcs::Slice> last_confident_lpcs_;
-  double cached_torch_to_scanner_angle_{0.0};
 
   struct WeldSystem {
     weld_system::WeldSystemState state{weld_system::WeldSystemState::INIT};
@@ -143,9 +143,9 @@ class WeldControlImpl : public WeldControl,
   std::optional<std::chrono::steady_clock::time_point> handover_to_abp_cap_timestamp_;
   std::optional<std::chrono::steady_clock::time_point> handover_to_manual_timestamp_;
   double cached_groove_area_{0.0};
-  std::optional<macs::Groove> cached_delayed_mcs_;
+  std::optional<common::Groove> cached_delayed_mcs_;
   std::optional<tracking::TrackingManager::Output> slides_desired_;
-  macs::Point slides_actual_;
+  common::Point slides_actual_;
   double horizontal_offset_{0.0};
   double vertical_offset_{0.0};
   tracking::TrackingMode tracking_mode_{tracking::TrackingMode::TRACKING_LEFT_HEIGHT};
@@ -168,8 +168,6 @@ class WeldControlImpl : public WeldControl,
   std::optional<kinematics::EdgeState> edge_state_;
 
   /* Metrics */
-  std::unique_ptr<PerformanceMetrics> perf_metrics_;
-  std::unique_ptr<WeldMetrics> weld_metrics_;
 
   common::filters::GaussianFilter smooth_weld_speed_;
   common::filters::GaussianFilter smooth_ws2_current_;
@@ -182,6 +180,13 @@ class WeldControlImpl : public WeldControl,
       prometheus::Counter* translation_failed;
     } confident_slice;
     prometheus::Gauge* confident_slice_buffer_fill_ratio;
+    prometheus::Histogram* abw_latency_lpcs_seconds;
+    struct {
+      prometheus::Gauge* top_width_mm;
+      prometheus::Gauge* bottom_width_mm;
+      prometheus::Gauge* area_mm;
+      prometheus::Gauge* top_height_diff_mm;
+    } groove;
   } metrics_;
 
   struct {
@@ -200,11 +205,11 @@ class WeldControlImpl : public WeldControl,
   void UpdateConfidentSlice();
   void UpdateReadyForABPCap();
   void ProcessInput();
-  auto GetDelayedGrooveMCS(double delay) -> macs::Groove;
-  auto StoreGrooveInDelayBuffer() -> bool;
-  auto GetHybridGrooveMCS() const -> macs::Groove;
-  auto GetSampleToTorchDistRad(uint64_t ts_sample, double ang_velocity, double torch_to_scanner_angle) -> double;
-  auto GetSmoothMCS(double smooth_ang_distance) -> std::optional<macs::Groove>;
+  auto GetDelayedGrooveMCS() -> common::Groove;
+  void StoreGrooveInDelayBuffer();
+  auto GetHybridGrooveMCS() const -> common::Groove;
+  auto GetSampleToTorchDist(uint64_t ts_sample, double ang_velocity, double torch_to_scanner_dist) -> double;
+  auto GetSmoothMCS(double smooth_ang_distance) -> std::optional<common::Groove>;
   void UpdateTrackingPosition();
   void SetupMetrics(prometheus::Registry* registry);
   void UpdateBeadControlParameters();

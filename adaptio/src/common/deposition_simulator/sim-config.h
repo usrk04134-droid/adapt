@@ -1,9 +1,13 @@
 #pragma once
 
 #include <cmath>
+#include <numbers>
 #include <set>
 #include <vector>
 namespace deposition_simulator {
+
+const double RAD_PER_POS_STEP = std::numbers::pi / 180.0;
+const double DEFAULT_STICKOUT = 25.0e-3;
 
 struct JointDef {
   double basemetal_thickness{0.0};
@@ -27,13 +31,14 @@ struct JointDeltas {
 };
 
 struct JointDeviation {
-  double slice_angle{0.0};  // Interval [0, 2*PI)
+  int position{0};  // Interval [0, 360)
   JointDeltas deltas_left;
   JointDeltas deltas_right;
   double delta_root_gap{0.0};
   double center_line_offset{0.0};
 
-  auto operator<(const JointDeviation &other) const -> bool { return slice_angle < other.slice_angle; }
+  auto operator<(const JointDeviation &other) const -> bool { return position < other.position; }
+  auto GetSliceAngle() const -> double { return position * RAD_PER_POS_STEP; }
 };
 
 // struct MacsConfig {
@@ -67,7 +72,8 @@ struct OpcsConfig {
 class SimConfig {
  public:
   SimConfig();
-  double target_stickout{};
+  double target_stickout{DEFAULT_STICKOUT};
+  bool use_process_dependent_deposition{false};
   int nbr_abw_points{};
   double travel_speed{};
   double root_gap{};

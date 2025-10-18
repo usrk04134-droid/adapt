@@ -16,10 +16,8 @@ const double MM_PER_METER = 1000.0;
 
 ScannerServer::ScannerServer(zevs::SocketPtr socket) : socket_(socket) { LOG_DEBUG("Creating ScannerServer"); }
 
-void ScannerServer::ScannerOutput(const joint_tracking::JointSlice& joint_slice,
-                                  const std::array<joint_tracking::Coord, common::msg::scanner::LINE_ARRAY_SIZE>& line,
-                                  const std::optional<double> area, uint64_t time_stamp,
-                                  joint_tracking::SliceConfidence confidence) {
+void ScannerServer::ScannerOutput(const joint_tracking::JointSlice& joint_slice, const std::optional<double> area,
+                                  uint64_t time_stamp, joint_tracking::SliceConfidence confidence) {
   common::msg::scanner::SliceData input{
       .groove_area = area.has_value() ? area.value() : 0.,
   };
@@ -46,11 +44,6 @@ void ScannerServer::ScannerOutput(const joint_tracking::JointSlice& joint_slice,
       break;
   }
 
-  for (int i = 0; i < common::msg::scanner::LINE_ARRAY_SIZE; i++) {
-    auto x_mm     = MM_PER_METER * line[i].x;
-    auto z_mm     = MM_PER_METER * line[i].z;
-    input.line[i] = {x_mm, z_mm};
-  }
   input.time_stamp = time_stamp;
   socket_->Send(input);
 }

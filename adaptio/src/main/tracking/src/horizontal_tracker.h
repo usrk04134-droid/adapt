@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "macs/macs_groove.h"
+#include "common/groove/groove.h"
 
 namespace tracking {
 
@@ -23,7 +23,7 @@ enum class HorizontalTrackingReference {
 class HorizontalTracker {
  public:
   explicit HorizontalTracker(HorizontalTrackingMode mode) : mode_(mode) {};
-  void SetJoint(const macs::Groove& joint) { joint_ = joint; };
+  void SetJoint(const common::Groove& joint) { joint_ = joint; };
   void SetOffset(double offset) { offset_ = offset; };
   void SetTrackingMode(HorizontalTrackingMode mode) { mode_ = mode; };
   void SetTrackingReference(HorizontalTrackingReference reference) { reference_ = reference; };
@@ -34,6 +34,6 @@ class HorizontalTracker {
   std::optional<double> offset_;
   HorizontalTrackingMode mode_;
   HorizontalTrackingReference reference_{HorizontalTrackingReference::BOTTOM};
-  std::optional<macs::Groove> joint_;
+  std::optional<common::Groove> joint_;
 };
 }  // namespace tracking

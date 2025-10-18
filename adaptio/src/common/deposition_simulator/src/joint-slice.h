@@ -52,7 +52,8 @@ class JointSlice {
 
   static auto ComputeLongWeldAddition(double slice_angle, const JointDef &joint_def) -> double;
   auto AddJointBottom(double joint_depth, double curv_radius, int nbr_arc_points) -> void;
-  auto AddBead(double bead_area, double bead_radius, /*double stickout,*/ const Point2d &torchpos) -> void;
+  auto AddBead(double bead_area, double bead_radius, double target_stickout, const Point2d &torchpos,
+               bool use_process_dependent_bead = false) -> void;
   auto GetSlicePoints(std::vector<double> &x_coords, std::vector<double> &y_coords) const -> void;
   auto GetSlicePoints() const -> std::vector<Point3d>;
   auto GetAbwPoints(bool allow_cap_points = false) const -> std::unique_ptr<std::vector<std::optional<Point2d>>>;

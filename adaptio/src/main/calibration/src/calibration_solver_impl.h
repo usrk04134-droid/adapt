@@ -6,9 +6,8 @@
 #include <utility>
 #include <vector>
 
-#include "calibration/calibration_types.h"
 #include "calibration/src/calibration_solver.h"
-#include "macs/macs_point.h"
+#include "common/groove/point.h"
 #include "slice_translator/model_extract.h"
 #include "slice_translator/src/model_impl.h"
 
@@ -82,6 +81,6 @@ class CalibrationSolverImpl : public CalibrationSolver {
   auto SolveClockPosition(const GeometricConstants &geometric_constants, const TorchPlaneInfo &torch_plane_info,
                           const std::vector<Observation> &observations) -> std::pair<bool, Eigen::VectorXd>;
   auto ComputeModelQuality(CalibrationResult &result, const std::vector<Observation> &observations,
-                           const GeometricConstants &constants, const macs::Point ref_point_macs) const -> void;
+                           const GeometricConstants &constants, const common::Point ref_point_macs) const -> void;
 };
 }  // namespace calibration

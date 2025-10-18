@@ -16,9 +16,8 @@ class ScannerServer : public ScannerOutputCB {
 
   virtual ~ScannerServer() = default;
 
-  void ScannerOutput(const joint_tracking::JointSlice& joint_slice, const std::array<joint_tracking::Coord, 15>& line,
-                     const std::optional<double> area, uint64_t time_stamp,
-                     joint_tracking::SliceConfidence confidence) override;
+  void ScannerOutput(const joint_tracking::JointSlice& joint_slice, const std::optional<double> area,
+                     uint64_t time_stamp, joint_tracking::SliceConfidence confidence) override;
 
  private:
   zevs::SocketPtr socket_;

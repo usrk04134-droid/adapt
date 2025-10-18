@@ -4,10 +4,10 @@
 
 #include <chrono>
 
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "joint_geometry/joint_geometry.h"
 #include "lpcs/lpcs_slice.h"
-#include "macs/macs_point.h"
 #include "main/lpcs/lpcs_point.h"
 
 namespace scanner_client {
@@ -18,9 +18,9 @@ class ScannerObserver {
  public:
   virtual ~ScannerObserver() = default;
 
-  virtual void OnScannerStarted(bool success)                                                 = 0;
-  virtual void OnScannerStopped(bool success)                                                 = 0;
-  virtual void OnScannerDataUpdate(const lpcs::Slice& data, const macs::Point& axis_position) = 0;
+  virtual void OnScannerStarted(bool success)                                                   = 0;
+  virtual void OnScannerStopped(bool success)                                                   = 0;
+  virtual void OnScannerDataUpdate(const lpcs::Slice& data, const common::Point& axis_position) = 0;
 };
 
 enum class ScannerSensitivity {

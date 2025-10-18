@@ -16,8 +16,8 @@ class ModelConfig {
 
   virtual auto Set(const common::Vector3D& rot_center, std::array<double, 3> scanner_angles,
                    const common::Vector3D& weld_object_rotation_axis,
-                   const common::Vector3D& torch_to_laser_translation) -> void = 0;
-  virtual void Reset()                                                         = 0;
+                   const common::Vector3D& torch_to_laser_translation, double weld_object_radius) -> void = 0;
+  virtual void Reset()                                                                                    = 0;
 };
 
 }  // namespace slice_translator

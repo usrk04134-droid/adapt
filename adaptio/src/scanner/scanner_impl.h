@@ -60,6 +60,9 @@ class ScannerImpl : public Scanner {
 
   static auto NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int>;
 
+  // Test-only hook: let tests run image processing in same thread
+  void SetPostExecutorForTests(std::function<void(std::function<void()>)> exec);
+
  private:
   void SetupMetrics(prometheus::Registry* registry);
 
@@ -89,12 +92,13 @@ class ScannerImpl : public Scanner {
     prometheus::Histogram* image_processing_time;
     prometheus::Gauge* image_consecutive_errors;
   } metrics_;
+
+  std::function<void(std::function<void()>)> post_;
 };
 
 class ScannerOutputCBImpl : public ScannerOutputCB {
  public:
-  void ScannerOutput(const joint_tracking::JointSlice& joint_slice, const std::array<joint_tracking::Coord, 15>& line,
-                     std::optional<double> area, uint64_t time_stamp,
+  void ScannerOutput(const joint_tracking::JointSlice& joint_slice, std::optional<double> area, uint64_t time_stamp,
                      joint_tracking::SliceConfidence confidence) override {};
 };
 

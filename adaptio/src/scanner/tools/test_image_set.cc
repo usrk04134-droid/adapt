@@ -83,8 +83,7 @@ void Exit(int signum) {
 
 class ScannerOutputCBImpl : public scanner::ScannerOutputCB {
  public:
-  void ScannerOutput(const scanner::joint_tracking::JointSlice& joint_slice,
-                     const std::array<scanner::joint_tracking::Coord, 15>& line, const std::optional<double> area,
+  void ScannerOutput(const scanner::joint_tracking::JointSlice& joint_slice, const std::optional<double> area,
                      uint64_t time_stamp, scanner::joint_tracking::SliceConfidence confidence) override {};
 };
 
