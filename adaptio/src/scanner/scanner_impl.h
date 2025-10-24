@@ -22,6 +22,7 @@ namespace scanner {
 auto const WINDOW_MARGIN      = 100;
 auto const MOVE_MARGIN        = 40;
 auto const MINIMUM_FOV_HEIGHT = 500;
+auto const MINIMUM_FOV_WIDTH  = 800;
 
 using LaserCallback = std::function<void(bool state)>;
 using Timestamp     = std::chrono::time_point<std::chrono::high_resolution_clock>;

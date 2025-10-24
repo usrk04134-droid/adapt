@@ -227,6 +227,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
       const int current_offset = image->GetVerticalCropStart();
       const int current_height = image->Data().rows();
+      const int current_width  = image->Data().cols();
       const auto [top, bottom] = profile.vertical_limits;
       m_config_mutex.lock();
       const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
@@ -269,6 +270,38 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
         frames_since_gain_change_ = 0;
       }
       m_config_mutex.unlock();
+
+      // Horizontal FOV adjustment based on median slice width
+      if (median_profile.has_value()) {
+        const auto& median = median_profile.value();
+        // Convert workspace X to image columns using camera model
+        auto abw_wcs = joint_model::ABWPointsToMatrix({median.points[0], median.points[1], median.points[2],
+                                                       median.points[3], median.points[4], median.points[5],
+                                                       median.points[6]});
+        auto maybe_img_pts = joint_model_->WorkspaceToImage(abw_wcs, image->GetVerticalCropStart());
+        if (maybe_img_pts) {
+          const auto img_pts = maybe_img_pts.value();
+          const int left_col = std::max(0, static_cast<int>(std::floor(img_pts(0, 0))) - WINDOW_MARGIN);
+          const int right_col = std::min(current_width, static_cast<int>(std::ceil(img_pts(0, 6))) + WINDOW_MARGIN);
+          int desired_width = right_col - left_col;
+          if (desired_width < MINIMUM_FOV_WIDTH) {
+            int delta = (MINIMUM_FOV_WIDTH - desired_width) / 2;
+            int new_left_col = std::max(0, left_col - delta);
+            int new_right_col = std::min(current_width, right_col + delta);
+            left_col  = new_left_col;
+            desired_width = new_right_col - new_left_col;
+          }
+
+          // Only adjust if we can significantly shrink width
+          if (desired_width + 2 * MOVE_MARGIN < current_width) {
+            LOG_TRACE("Change horizontal FOV based on abw0/abw6, left {} right {}, width {}",
+                      left_col, left_col + desired_width, desired_width);
+            m_config_mutex.lock();
+            image_provider_->SetHorizontalFOV(left_col, desired_width);
+            m_config_mutex.unlock();
+          }
+        }
+      }
 
       if (metrics_.image.contains(slice.num_walls_found)) {
         metrics_.image.at(slice.num_walls_found)->Increment();
