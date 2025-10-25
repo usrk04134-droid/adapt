@@ -163,6 +163,7 @@ struct JointProfile {
       Point{0, 0}
   };
   std::tuple<int, int> vertical_limits        = {0, 0};
+  std::tuple<int, int> horizontal_limits      = {0, 0};
   std::optional<double> suggested_gain_change = std::nullopt;
   bool approximation_used                     = false;
   auto LeftDepth() const -> double { return points[0].y - points[1].y; };

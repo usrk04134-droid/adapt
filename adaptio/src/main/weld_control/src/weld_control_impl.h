@@ -181,6 +181,7 @@ class WeldControlImpl : public WeldControl,
     } confident_slice;
     prometheus::Gauge* confident_slice_buffer_fill_ratio;
     prometheus::Histogram* abw_latency_lpcs_seconds;
+    prometheus::Histogram* camera_to_set_slides_seconds;
     struct {
       prometheus::Gauge* top_width_mm;
       prometheus::Gauge* bottom_width_mm;

@@ -16,6 +16,7 @@
 #include <pylon/TypeMappings.h>
 
 #include <algorithm>
+#include <fstream>
 #include <boost/outcome/result.hpp>
 #include <boost/thread/thread.hpp>
 #include <chrono>
@@ -151,6 +152,14 @@ auto BaslerCamera::Start(enum scanner::ScannerSensitivity sensitivity) -> boost:
       on_image_(std::move(image));
 
       auto const now = std::chrono::steady_clock::now();
+      // Update frame rate estimate
+      if (metrics_.frame_rate && last_image_tp_.time_since_epoch().count() != 0) {
+        std::chrono::duration<double> dt = now - last_image_tp_;
+        if (dt.count() > 0.0) {
+          metrics_.frame_rate->Set(1.0 / dt.count());
+        }
+      }
+      last_image_tp_ = now;
       if (now > last_get_scanner_metrics_ + GET_SCANNER_METRICS_INTERVAL) {
         UpdateMetrics();
         last_get_scanner_metrics_ = now;
@@ -164,6 +173,7 @@ auto BaslerCamera::Start(enum scanner::ScannerSensitivity sensitivity) -> boost:
     // Start grabbing
     camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
     LOG_INFO("Continuous grabbing started.");
+    last_image_tp_ = std::chrono::steady_clock::now();
   }
   return BOOST_OUTCOME_V2_NAMESPACE::success();
 }
@@ -173,8 +183,13 @@ void BaslerCamera::ResetFOVAndGain() {
     return;
   }
   camera_->StopGrabbing();
+  // Reset full ROI first
+  camera_->OffsetX.SetValue(0);
+  camera_->OffsetY.SetValue(0);
+  camera_->Width.SetValue(fov_.width);
   camera_->OffsetY.SetValue(0);
   camera_->Height.SetValue(fov_.height);
+  camera_->OffsetX.SetValue(fov_.offset_x);
   camera_->OffsetY.SetValue(fov_.offset_y);
   camera_->Gain.SetValue(initial_gain_);
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
@@ -189,8 +204,14 @@ void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
   if (fov_.offset_y + offset_from_top + height > fov_.height) {
     height = fov_.height - offset_from_top - fov_.offset_y;
   }
+  // Respect device increment constraints
+  auto height_inc  = static_cast<int>(camera_->Height.GetInc());
+  auto offsety_inc = static_cast<int>(camera_->OffsetY.GetInc());
+  height           = std::max(height_inc, height - (height % std::max(1, height_inc)));
+  auto y_offset    = fov_.offset_y + offset_from_top;
+  y_offset         = std::max(0, y_offset - (y_offset % std::max(1, offsety_inc)));
   camera_->Height.SetValue(height);
-  camera_->OffsetY.SetValue(fov_.offset_y + offset_from_top);
+  camera_->OffsetY.SetValue(y_offset);
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
   LOG_TRACE("Continuous grabbing restarted with offset {} and height {}.", fov_.offset_y + offset_from_top, height);
 };
@@ -230,6 +251,31 @@ void BaslerCamera::AdjustGain(double factor) {
 auto BaslerCamera::GetVerticalFOVOffset() -> int { return camera_->OffsetY.GetValue() - fov_.offset_y; };
 
 auto BaslerCamera::GetVerticalFOVHeight() -> int { return camera_->Height.GetValue(); };
+
+void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
+  if (!camera_) {
+    return;
+  }
+  camera_->StopGrabbing();
+  camera_->OffsetX.SetValue(0);
+  if (fov_.offset_x + offset_from_left + width > fov_.width) {
+    width = fov_.width - offset_from_left - fov_.offset_x;
+  }
+  // Respect device increment constraints to avoid exceptions
+  auto width_inc  = static_cast<int>(camera_->Width.GetInc());
+  auto offset_inc = static_cast<int>(camera_->OffsetX.GetInc());
+  width           = std::max(width_inc, width - (width % std::max(1, width_inc)));
+  auto x_offset   = fov_.offset_x + offset_from_left;
+  x_offset        = std::max(0, x_offset - (x_offset % std::max(1, offset_inc)));
+  camera_->Width.SetValue(width);
+  camera_->OffsetX.SetValue(x_offset);
+  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+  LOG_TRACE("Continuous grabbing restarted with X offset {} and width {}.", fov_.offset_x + offset_from_left, width);
+};
+
+auto BaslerCamera::GetHorizontalFOVOffset() -> int { return camera_->OffsetX.GetValue() - fov_.offset_x; };
+
+auto BaslerCamera::GetHorizontalFOVWidth() -> int { return camera_->Width.GetValue(); };
 
 void BaslerCamera::Stop() {
   if (Started()) {
@@ -416,6 +462,32 @@ void BaslerCamera::SetupMetrics(prometheus::Registry* registry) {
     metrics_.max_temperature = &gauge.Add({});
   }
 
+  {
+    auto& gauge = prometheus::BuildGauge()
+                      .Name("adaptio_cpu_temperature")
+                      .Help("Adaptio host CPU temperature (in celcius).")
+                      .Register(*registry);
+    metrics_.cpu_temperature = &gauge.Add({});
+  }
+
+  {
+    auto& gauge = prometheus::BuildGauge().Name("basler_camera_frame_rate_hz").Help("Estimated camera frame rate.")
+                        .Register(*registry);
+    metrics_.frame_rate = &gauge.Add({});
+  }
+
+  {
+    auto& gauge = prometheus::BuildGauge().Name("basler_camera_roi_width").Help("Camera ROI width (pixels)")
+                        .Register(*registry);
+    metrics_.roi_width = &gauge.Add({});
+  }
+
+  {
+    auto& gauge = prometheus::BuildGauge().Name("basler_camera_roi_height").Help("Camera ROI height (pixels)")
+                        .Register(*registry);
+    metrics_.roi_height = &gauge.Add({});
+  }
+
   UpdateMetrics();
 }
 
@@ -450,6 +522,25 @@ void BaslerCamera::UpdateMetrics() {
   metrics_.temperature_status_error->Set(temperature_status_error_count);
   metrics_.temperature->Set(temperature);
   metrics_.max_temperature->Set(max_temperature);
+
+  // Try to read CPU temperature from standard hwmon path if available
+  try {
+    std::ifstream temp_file("/sys/class/thermal/thermal_zone0/temp");
+    if (temp_file.good()) {
+      long milli_celsius = 0;
+      temp_file >> milli_celsius;
+      if (metrics_.cpu_temperature) {
+        metrics_.cpu_temperature->Set(static_cast<double>(milli_celsius) / 1000.0);
+      }
+    }
+  } catch (...) {
+    // Ignore errors; metric remains unchanged
+  }
+
+  if (camera_) {
+    if (metrics_.roi_width) metrics_.roi_width->Set(static_cast<double>(camera_->Width.GetValue()));
+    if (metrics_.roi_height) metrics_.roi_height->Set(static_cast<double>(camera_->Height.GetValue()));
+  }
 }
 }  // namespace scanner::image_provider
 

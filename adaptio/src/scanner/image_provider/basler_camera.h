@@ -65,6 +65,9 @@ class BaslerCamera : public ImageProvider {
   void AdjustGain(double factor) override;
   auto GetVerticalFOVOffset() -> int override;
   auto GetVerticalFOVHeight() -> int override;
+  void SetHorizontalFOV(int offset_from_left, int width) override;
+  auto GetHorizontalFOVOffset() -> int override;
+  auto GetHorizontalFOVWidth() -> int override;
   auto GetSerialNumber() -> std::string override;
   void SetOnImage(OnImage on_image) override { on_image_ = on_image; };
 
@@ -89,8 +92,13 @@ class BaslerCamera : public ImageProvider {
     prometheus::Gauge *temperature_status_error{};
     prometheus::Gauge *temperature{};
     prometheus::Gauge *max_temperature{};
+    prometheus::Gauge *cpu_temperature{};
+    prometheus::Gauge *frame_rate{};
+    prometheus::Gauge *roi_width{};
+    prometheus::Gauge *roi_height{};
   } metrics_;
   std::chrono::steady_clock::time_point last_get_scanner_metrics_;
+  std::chrono::steady_clock::time_point last_image_tp_{};
 };
 
 }  // namespace scanner::image_provider

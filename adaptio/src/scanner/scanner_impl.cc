@@ -226,7 +226,11 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
       const int current_offset = image->GetVerticalCropStart();
       const int current_height = image->Data().rows();
+      const int current_start_x = image->StartCol();
+      const int current_stop_x  = image->StopCol();
+      const int current_width   = image->Cols();
       const auto [top, bottom] = profile.vertical_limits;
+      const auto [left, right] = profile.horizontal_limits;
       m_config_mutex.lock();
       const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
       if (dim_check
@@ -235,7 +239,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                 return requested_offset == current_offset && requested_height == current_height;
               })
               .value_or(true)) {
-        // Check min/max vertical pixels in the image and evaluate whether we want to adjust the FOV
+        // Check min/max vertical pixels in the image and evaluate whether we want to adjust the FOV (Y)
         // Note: this assumes that the original offset is 0.
         // We want current_offset + WINDOW_MARGIN = top
         // and current_offset + height - WINDOW_MARGIN = bottom
@@ -260,6 +264,34 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
           }
         } else {
           dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+        }
+
+        // Check horizontal image and evaluate whether we want to adjust the FOV (X)
+        // We want current_start_x + WINDOW_MARGIN_X <= left and
+        // current_stop_x - WINDOW_MARGIN_X >= right, and preferably tighter around left/right with MINIMUM_FOV_WIDTH
+        auto const desired_left_margin  = WINDOW_MARGIN_X;
+        auto const desired_right_margin = WINDOW_MARGIN_X;
+        auto const target_start_x       = std::max(0, left - desired_left_margin);
+        auto const target_stop_x        = std::min(image->Data().cols(), right + desired_right_margin);
+        auto const target_width         = std::max(MINIMUM_FOV_WIDTH, target_stop_x - target_start_x);
+
+        const bool horizontal_needs_resize =
+            std::abs(current_start_x - target_start_x) > MOVE_MARGIN_X ||
+            std::abs(current_stop_x - target_stop_x) > MOVE_MARGIN_X ||
+            current_width > target_width + MOVE_MARGIN_X || current_width < target_width - MOVE_MARGIN_X;
+
+        if (horizontal_needs_resize) {
+          // If camera supports hardware ROI-X, use that; otherwise SetHorizontalCrop on Image influences parsing only
+          if (image_provider_->GetHorizontalFOVWidth() > 0 || image_provider_->GetHorizontalFOVOffset() >= 0) {
+            const int requested_offset_x = target_start_x;
+            const int requested_width_x  = std::clamp(target_width, MINIMUM_FOV_WIDTH, image->Data().cols());
+            image_provider_->SetHorizontalFOV(requested_offset_x, requested_width_x);
+            dont_allow_horizontal_change_until_new_width_received = requested_width_x;
+          }
+          // Always tighten software crop immediately for current processing
+          image->SetHorizontalCrop(target_start_x, target_start_x + target_width);
+        } else {
+          dont_allow_horizontal_change_until_new_width_received = std::nullopt;
         }
       }
 
