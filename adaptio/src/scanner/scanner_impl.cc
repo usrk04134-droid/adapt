@@ -206,14 +206,15 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     if (result) {
       auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
       LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
-      joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
-                                        .timestamp           = image->GetTimestamp(),
-                                        .image_name          = image->GetImageName(),
-                                        .profile             = profile,
-                                        .num_walls_found     = num_walls_found,
-                                        .processing_time     = processing_time,
-                                        .vertical_crop_start = image->GetVerticalCropStart(),
-                                        .approximation_used  = profile.approximation_used};
+      joint_buffer::JointSlice slice = {.uuid                   = image->GetUuid(),
+                                        .timestamp              = image->GetTimestamp(),
+                                        .image_name             = image->GetImageName(),
+                                        .profile                = profile,
+                                        .num_walls_found        = num_walls_found,
+                                        .processing_time        = processing_time,
+                                        .vertical_crop_start    = image->GetVerticalCropStart(),
+                                        .horizontal_crop_start_ = image->GetHorizontalCropStart(),
+                                        .approximation_used     = profile.approximation_used};
       if (store_image_data_) {
         // Store image data only if necessary. Not needed when running Adaptio
         slice.image_data = image->Data();
