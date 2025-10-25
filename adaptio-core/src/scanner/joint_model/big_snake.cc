@@ -85,6 +85,18 @@ auto BigSnake::Parse(Image& image, std::optional<JointProfile> median_profile,
     auto bottom_pixel                    = static_cast<int>(abw_points_in_image_coordinates.row(1).maxCoeff());
     auto top_pixel                       = static_cast<int>(abw_points_in_image_coordinates.row(1).minCoeff());
     profile.vertical_limits              = {top_pixel + crop_start, bottom_pixel + crop_start};
+
+    // Also keep the camera model's FOV up-to-date if horizontal crop has changed.
+    // This ensures correct coordinate transforms when using a reduced horizontal ROI.
+    // Note: StartCol/StopCol are no-ops unless SetHorizontalCrop was called earlier.
+    auto start_col = image.StartCol();
+    if (start_col > 0) {
+      auto* tpc = dynamic_cast<core::image::TiltedPerspectiveCamera*>(camera_model_.get());
+      if (tpc != nullptr) {
+        tpc->SetFovOffsetX(camera_model_properties_.config_fov.offset_x + start_col);
+        tpc->SetFovWidth(image.Cols());
+      }
+    }
   }
 
   const auto min_value = static_cast<double>(snake.min_pixel_value);

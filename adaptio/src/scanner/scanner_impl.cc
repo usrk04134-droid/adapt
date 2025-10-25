@@ -263,6 +263,29 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
         }
       }
 
+      // Horizontal ROI: crop between ABW0 and ABW6 with margins once groove is known
+      {
+        const double abw0_x = profile.points[0].x;
+        const double abw6_x = profile.points[6].x;
+        if (abw6_x > abw0_x) {
+          auto maybe_img = joint_model_->WorkspaceToImage(scanner::joint_model::ABWPointsToMatrix(profile.points),
+                                                          current_offset);
+          if (maybe_img.has_value()) {
+            auto img_pts = maybe_img.value();
+            const int left_px  = static_cast<int>(std::floor(std::min(img_pts(0, 0), img_pts(0, 6)) - 60));
+            const int right_px = static_cast<int>(std::ceil(std::max(img_pts(0, 0), img_pts(0, 6)) + 60));
+            const int width_px = std::max(2000, right_px - left_px);
+
+            const int cur_off_x = image_provider_->GetHorizontalFOVOffset();
+            const int cur_w     = image_provider_->GetHorizontalFOVWidth();
+            const int tgt_off_x = std::max(0, left_px);
+            if (std::abs(cur_off_x - tgt_off_x) > 40 || std::abs(cur_w - width_px) > 40) {
+              image_provider_->SetHorizontalFOV(tgt_off_x, width_px);
+            }
+          }
+        }
+      }
+
       if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
         image_provider_->AdjustGain(profile.suggested_gain_change.value());
         frames_since_gain_change_ = 0;

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/image/camera_model.h"
+#include "core/image/tilted_perspective_camera.h"
 #include "core/scanner/scanner_configuration.h"
 
 namespace core::scanner {
@@ -216,6 +217,17 @@ class JointModel {
    * @return The groove wall angle relative to the surface normal of theweld object.
    */
   static auto LPCSFromWeldObjectAngle(double angle) -> double;
+
+  // Update camera model's horizontal FOV relative to initial configuration
+  // offset_from_left: pixels from configured base offset_x
+  // width: current ROI width in pixels
+  void UpdateHorizontalFovRelative(int offset_from_left, int width) {
+    auto* tpc = dynamic_cast<core::image::TiltedPerspectiveCamera*>(camera_model_.get());
+    if (tpc != nullptr) {
+      tpc->SetFovOffsetXRelative(offset_from_left);
+      tpc->SetFovWidth(width);
+    }
+  }
 
  protected:
   JointProperties properties_;
