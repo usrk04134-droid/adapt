@@ -73,6 +73,9 @@ class Image {
     return data_.cols();
   };
 
+  // Returns the starting column index of the horizontal crop
+  auto GetHorizontalCropStart() const -> int { return start_col_; };
+
   /**
    * Applies the given lambda to each pixel of this image (in place)
    * @tparam PixelType The type of the matrix elements
