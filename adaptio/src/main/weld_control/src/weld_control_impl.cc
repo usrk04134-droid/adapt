@@ -328,6 +328,17 @@ void WeldControlImpl::SetupMetrics(prometheus::Registry* registry) {
   }
 
   {
+    const std::vector<double> buckets = {
+        0.005, 0.010, 0.020, 0.030, 0.040, 0.050, 0.060, 0.080, 0.100, 0.150, 0.200,
+    };
+    auto& histogram = prometheus::BuildHistogram()
+                          .Name("adaptio_camera_to_set_slides_seconds")
+                          .Help("Latency from camera image timestamp to issuing SetSlidesPosition")
+                          .Register(*registry);
+    metrics_.camera_to_set_slides_seconds = &histogram.Add({}, buckets);
+  }
+
+  {
     metrics_.groove.top_width_mm = &prometheus::BuildGauge()
                                         .Name("weld_control_groove_top_width")
                                         .Help("Joint Top Width.")
@@ -1123,6 +1134,13 @@ void WeldControlImpl::UpdateTrackingPosition() {
 
       if (state_ == State::WELDING) {
         slide_vertical_velocity = VERTICAL_VELOCITY_ARCING;
+      }
+      // Observe latency from camera timestamp to the moment we request new slides position
+      if (metrics_.camera_to_set_slides_seconds) {
+        auto const now        = system_clock_now_func_();
+        auto const tp_scanner = std::chrono::system_clock::time_point{std::chrono::nanoseconds{cached_lpcs_.time_stamp}};
+        std::chrono::duration<double> const latency = now - tp_scanner;
+        metrics_.camera_to_set_slides_seconds->Observe(latency.count());
       }
       kinematics_client_->SetSlidesPosition(slides_desired_->horizontal_pos, slides_desired_->vertical_pos,
                                             slide_horizontal_lin_velocity, slide_vertical_velocity);
