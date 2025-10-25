@@ -77,6 +77,7 @@ class ScannerImpl : public Scanner {
   size_t num_received   = 0;
   Timestamp latest_sent = std::chrono::high_resolution_clock::now();
   std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_dimensions_received;
+  std::optional<std::tuple<int, int>> dont_allow_horizontal_fov_change_until_new_dimensions_received;
   size_t frames_since_gain_change_ = 0;
   bool store_image_data_;
 
@@ -86,7 +87,9 @@ class ScannerImpl : public Scanner {
     std::map<JointModelErrorCode, prometheus::Counter*> image_errors;
     std::map<uint64_t, prometheus::Counter*> image;
     prometheus::Histogram* image_processing_time;
+    prometheus::Histogram* capture_to_output_delay_time;
     prometheus::Gauge* image_consecutive_errors;
+    prometheus::Gauge* cpu_temperature;
   } metrics_;
 };
 

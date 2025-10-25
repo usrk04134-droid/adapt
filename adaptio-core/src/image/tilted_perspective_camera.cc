@@ -27,6 +27,11 @@ using Eigen::Vector3d;
 
 TiltedPerspectiveCamera::TiltedPerspectiveCamera(const TiltedPerspectiveCameraProperties& camera_properties) {
   SetCameraProperties(camera_properties);
+  if (!base_set_) {
+    base_offset_x_ = camera_properties.config_fov.offset_x;
+    base_width_    = camera_properties.config_fov.width;
+    base_set_      = true;
+  }
 }
 
 auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coordinates,
@@ -169,6 +174,11 @@ void TiltedPerspectiveCamera::SetCameraProperties(const TiltedPerspectiveCameraP
   }
 
   camera_properties_ = camera_properties;
+  if (!base_set_) {
+    base_offset_x_ = camera_properties_.config_fov.offset_x;
+    base_width_    = camera_properties_.config_fov.width;
+    base_set_      = true;
+  }
 }
 
 auto TiltedPerspectiveCamera::GetTiltTransformationMatrix() -> Eigen::Matrix<double, 3, 3, Eigen::RowMajor> {

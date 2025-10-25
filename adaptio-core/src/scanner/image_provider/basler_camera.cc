@@ -167,8 +167,12 @@ void BaslerCamera::ResetFOVAndGain() {
     return;
   }
   camera_->StopGrabbing();
+  // Reset horizontal first to avoid invalid region
+  camera_->OffsetX.SetValue(0);
+  camera_->Width.SetValue(fov_.width);
   camera_->OffsetY.SetValue(0);
   camera_->Height.SetValue(fov_.height);
+  camera_->OffsetX.SetValue(fov_.offset_x);
   camera_->OffsetY.SetValue(fov_.offset_y);
   camera_->Gain.SetValue(initial_gain_);
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
@@ -187,6 +191,22 @@ void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
   camera_->OffsetY.SetValue(fov_.offset_y + offset_from_top);
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
   LOG_TRACE("Continuous grabbing restarted with offset {} and height {}.", fov_.offset_y + offset_from_top, height);
+};
+
+void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
+  if (!camera_) {
+    return;
+  }
+  camera_->StopGrabbing();
+  camera_->OffsetX.SetValue(0);
+  if (fov_.offset_x + offset_from_left + width > fov_.width) {
+    width = fov_.width - offset_from_left - fov_.offset_x;
+  }
+  camera_->Width.SetValue(width);
+  camera_->OffsetX.SetValue(fov_.offset_x + offset_from_left);
+  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+  LOG_TRACE("Continuous grabbing restarted with horizontal offset {} and width {}.",
+            fov_.offset_x + offset_from_left, width);
 };
 
 void BaslerCamera::AdjustGain(double factor) {
@@ -209,6 +229,10 @@ void BaslerCamera::AdjustGain(double factor) {
 auto BaslerCamera::GetVerticalFOVOffset() -> int { return camera_->OffsetY.GetValue() - fov_.offset_y; };
 
 auto BaslerCamera::GetVerticalFOVHeight() -> int { return camera_->Height.GetValue(); };
+
+auto BaslerCamera::GetHorizontalFOVOffset() -> int { return camera_->OffsetX.GetValue() - fov_.offset_x; };
+
+auto BaslerCamera::GetHorizontalFOVWidth() -> int { return camera_->Width.GetValue(); };
 
 void BaslerCamera::Stop() {
   if (Started()) {

@@ -50,6 +50,13 @@ class TiltedPerspectiveCamera : public CameraModel {
    */
   void SetCameraProperties(const TiltedPerspectiveCameraProperties &camera_properties);
 
+  // Update only FOV-related fields at runtime when ROI changes
+  void SetFovOffsetX(int64_t offset_x) { camera_properties_.config_fov.offset_x = offset_x; }
+  void SetFovWidth(int64_t width) { camera_properties_.config_fov.width = width; }
+  void SetFovOffsetXRelative(int64_t offset_from_left) {
+    camera_properties_.config_fov.offset_x = base_offset_x_ + offset_from_left;
+  }
+
   /**
    * Gets the current matrix used to perform the tilt transformation.
    * @return A 3x3 matrix
@@ -59,6 +66,10 @@ class TiltedPerspectiveCamera : public CameraModel {
  private:
   TiltedPerspectiveCameraProperties camera_properties_;
   Eigen::Matrix<double, 3, 3, Eigen::RowMajor> Hp_;
+  // Remember initial configuration to support relative ROI updates
+  int64_t base_offset_x_ = 0;
+  int64_t base_width_    = 0;
+  bool base_set_         = false;
 
   /**
    * Calculates the tilt transformation matrix Hp for a tilted lens camera model with an image-side perspective lens.

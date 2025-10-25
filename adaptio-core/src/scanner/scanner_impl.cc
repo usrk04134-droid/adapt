@@ -55,6 +55,8 @@ namespace {
 const int WINDOW_MARGIN      = 100;
 const int MOVE_MARGIN        = 40;
 const int MINIMUM_FOV_HEIGHT = 500;
+const int MINIMUM_FOV_WIDTH  = 2000;  // Minimum horizontal width when groove known
+const int HORIZONTAL_MARGIN  = 100;   // Left/right slack in pixels
 }  // namespace
 
 ScannerImpl::ScannerImpl(ImageProvider* image_provider, JointBufferPtr joint_buffer, LaserCallback laser_toggle,
@@ -346,6 +348,33 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<core::image::Image> image) {
           }
         } else {
           dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+        }
+      }
+
+      // Dynamic horizontal FOV reduction when groove is known.
+      // Use ABW0..ABW6 median (profile.points[0] and [6]) to bound ROI horizontally.
+      {
+        const double abw0_x = profile.points[0].x;
+        const double abw6_x = profile.points[6].x;
+        if (abw6_x > abw0_x) {
+          // Transform ABW0/ABW6 to image coordinates to get pixel bounds
+          auto maybe_img = joint_model_->WorkspaceToImage(ABWPointsToMatrix(profile.points), current_offset);
+          if (maybe_img.has_value()) {
+            auto img_pts = maybe_img.value();
+            const int x_left  = static_cast<int>(std::floor(std::min(img_pts(0, 0), img_pts(0, 6)) - HORIZONTAL_MARGIN));
+            const int x_right = static_cast<int>(std::ceil(std::max(img_pts(0, 0), img_pts(0, 6)) + HORIZONTAL_MARGIN));
+            const int roi_width = std::max(MINIMUM_FOV_WIDTH, x_right - x_left);
+
+            // Query current ROI and only change if difference significant
+            const int cur_off_x = image_provider_->GetHorizontalFOVOffset();
+            const int cur_w     = image_provider_->GetHorizontalFOVWidth();
+
+            // Clamp offset so that offset+width <= configured width (handled in provider)
+            const int target_off_x = std::max(0, x_left);
+            if (std::abs(cur_off_x - target_off_x) > MOVE_MARGIN || std::abs(cur_w - roi_width) > MOVE_MARGIN) {
+              image_provider_->SetHorizontalFOV(target_off_x, roi_width);
+            }
+          }
         }
       }
 
