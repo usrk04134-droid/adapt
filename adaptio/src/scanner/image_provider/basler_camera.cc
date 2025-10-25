@@ -195,6 +195,31 @@ void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
   LOG_TRACE("Continuous grabbing restarted with offset {} and height {}.", fov_.offset_y + offset_from_top, height);
 };
 
+void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
+  if (!camera_) {
+    return;
+  }
+  camera_->StopGrabbing();
+  camera_->OffsetX.SetValue(0);
+  // Clamp width within available configured width
+  if (fov_.offset_x + offset_from_left + width > fov_.width) {
+    width = static_cast<int>(fov_.width - offset_from_left - fov_.offset_x);
+  }
+  if (width < 1) {
+    width = 1;
+  }
+  camera_->Width.SetValue(width);
+  camera_->OffsetX.SetValue(fov_.offset_x + offset_from_left);
+  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+  LOG_TRACE("Continuous grabbing restarted with x-offset {} and width {}.", fov_.offset_x + offset_from_left, width);
+}
+
+auto BaslerCamera::GetHorizontalFOVOffset() -> int { return camera_->OffsetX.GetValue() - fov_.offset_x; };
+
+auto BaslerCamera::GetHorizontalFOVWidth() -> int { return camera_->Width.GetValue(); };
+
+auto BaslerCamera::GetHorizontalFOVAbsoluteOffsetX() -> int { return camera_->OffsetX.GetValue(); };
+
 void BaslerCamera::AdjustGain(double factor) {
   if (!camera_) {
     return;

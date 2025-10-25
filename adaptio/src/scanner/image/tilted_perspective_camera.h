@@ -49,6 +49,11 @@ class TiltedPerspectiveCamera : public CameraModel {
    */
   void SetCameraProperties(const TiltedPerspectiveCameraProperties &camera_properties);
 
+  void SetHorizontalFOVAbsoluteOffsetX(int offset_pixels) override {
+    // Update the fov offset in the camera properties so projections account for runtime ROI changes
+    camera_properties_.config_fov.offset_x = offset_pixels;
+  }
+
   /**
    * Gets the current matrix used to perform the tilt transformation.
    * @return A 3x3 matrix
