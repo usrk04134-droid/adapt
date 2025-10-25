@@ -204,8 +204,14 @@ void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
   if (fov_.offset_y + offset_from_top + height > fov_.height) {
     height = fov_.height - offset_from_top - fov_.offset_y;
   }
+  // Respect device increment constraints
+  auto height_inc  = static_cast<int>(camera_->Height.GetInc());
+  auto offsety_inc = static_cast<int>(camera_->OffsetY.GetInc());
+  height           = std::max(height_inc, height - (height % std::max(1, height_inc)));
+  auto y_offset    = fov_.offset_y + offset_from_top;
+  y_offset         = std::max(0, y_offset - (y_offset % std::max(1, offsety_inc)));
   camera_->Height.SetValue(height);
-  camera_->OffsetY.SetValue(fov_.offset_y + offset_from_top);
+  camera_->OffsetY.SetValue(y_offset);
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
   LOG_TRACE("Continuous grabbing restarted with offset {} and height {}.", fov_.offset_y + offset_from_top, height);
 };
@@ -255,8 +261,14 @@ void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
   if (fov_.offset_x + offset_from_left + width > fov_.width) {
     width = fov_.width - offset_from_left - fov_.offset_x;
   }
+  // Respect device increment constraints to avoid exceptions
+  auto width_inc  = static_cast<int>(camera_->Width.GetInc());
+  auto offset_inc = static_cast<int>(camera_->OffsetX.GetInc());
+  width           = std::max(width_inc, width - (width % std::max(1, width_inc)));
+  auto x_offset   = fov_.offset_x + offset_from_left;
+  x_offset        = std::max(0, x_offset - (x_offset % std::max(1, offset_inc)));
   camera_->Width.SetValue(width);
-  camera_->OffsetX.SetValue(fov_.offset_x + offset_from_left);
+  camera_->OffsetX.SetValue(x_offset);
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
   LOG_TRACE("Continuous grabbing restarted with X offset {} and width {}.", fov_.offset_x + offset_from_left, width);
 };
