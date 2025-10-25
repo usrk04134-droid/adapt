@@ -63,6 +63,7 @@ class ScannerImpl : public Scanner {
   size_t CountOfReceivedImages() override;
 
   static auto NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int>;
+  static auto NewOffsetAndWidth(int left, int right, int max_width) -> std::tuple<int, int>;
 
   // Test-only hook: let tests run image processing in same thread
   void SetPostExecutorForTests(std::function<void(std::function<void()>)> exec);
