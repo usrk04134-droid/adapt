@@ -13,17 +13,16 @@
 #include <vector>
 
 #include "common/clock_functions.h"
+#include "common/groove/groove.h"
 #include "common/logging/application_log.h"
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/joint_tracking/joint_slice.h"
 #include "scanner/slice_provider/slice_provider.h"
 
 namespace scanner::slice_provider {
 
 using joint_model::HIGH_CONFIDENCE_WALL_HEIGHT;
 using joint_model::MEDIUM_CONFIDENCE_WALL_HEIGHT;
-using joint_tracking::SliceConfidence;
 using std::chrono::high_resolution_clock;
 
 const std::chrono::milliseconds NO_SLICE_DATA_TMO_MS(3000);
@@ -31,10 +30,7 @@ const uint32_t MIN_SLICES_FOR_MEDIAN = 3;
 
 SliceProviderImpl::SliceProviderImpl(joint_buffer::JointBufferPtr joint_buffer,
                                      clock_functions::SteadyClockNowFunc steady_clock_now_func)
-    : joint_buffer_(std::move(joint_buffer)), steady_clock_now_func_(steady_clock_now_func) {
-  std::array<joint_tracking::Coord, 7> coords = {};
-  latest_slice_                               = joint_tracking::JointSlice(coords, joint_tracking::SliceConfidence::NO);
-}
+    : joint_buffer_(std::move(joint_buffer)), steady_clock_now_func_(steady_clock_now_func) {}
 
 void SliceProviderImpl::AddSlice(const scanner::joint_buffer::JointSlice& slice) {
   // If this is older than the last item in the buffer, don't add it.
@@ -55,35 +51,32 @@ auto SliceProviderImpl::GetSlice() -> std::optional<joint_model::JointProfile> {
   return std::nullopt;
 }
 
-auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<joint_tracking::JointSlice, uint64_t, double>> {
-  std::tuple<joint_tracking::JointSlice, uint64_t, double> result = {};
-  auto maybe_slice                                                = MedianOfRecentSlices();
+auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> {
+  std::tuple<common::Groove, SliceConfidence, uint64_t> result = {};
+  auto maybe_slice                                             = MedianOfRecentSlices();
   if (maybe_slice.has_value()) {
     auto slice = maybe_slice.value();
-    auto area  = slice.profile.area;
 
     if (slice.profile.points.size() != 7) {
       return std::nullopt;
     }
 
-    std::array<joint_tracking::Coord, 7> points = {};
+    common::Groove groove;
 
     uint32_t index = 0;
     for (const auto& point : slice.profile.points) {
-      points[index++] = {point.x, point.y};
+      groove[index++] = {.horizontal = point.x, .vertical = point.y};
     }
 
-    joint_tracking::SliceConfidence confidence = GetConfidence(slice);
-    auto tracking_slice                        = joint_tracking::JointSlice(points, confidence);
-    latest_slice_ = joint_tracking::JointSlice(points, joint_tracking::SliceConfidence::NO);
-    last_area_    = area;
-    result        = std::make_tuple(tracking_slice, slice.timestamp.time_since_epoch().count(), area);
+    auto confidence = GetConfidence(slice);
+    latest_slice_   = {groove, SliceConfidence::NO};
+    result          = std::make_tuple(groove, confidence, slice.timestamp.time_since_epoch().count());
   } else {
     auto time_stamp = high_resolution_clock::now().time_since_epoch().count();
-    result          = std::make_tuple(latest_slice_, time_stamp, last_area_);
+    result          = std::make_tuple(std::get<0>(latest_slice_), std::get<1>(latest_slice_), time_stamp);
   }
 
-  auto confidence = get<0>(result).GetConfidence();
+  auto confidence = get<1>(result);
   switch (confidence) {
     case SliceConfidence::NO:
     case SliceConfidence::LOW:
@@ -143,7 +136,6 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
         slice.profile.points[i].x += old->profile.points[i].x;
         slice.profile.points[i].y += old->profile.points[i].y;
       }
-      slice.profile.area    += old->profile.area;
       slice.num_walls_found += old->num_walls_found;
       times.push_back(old->timestamp);
       if (old->approximation_used) {
@@ -158,7 +150,7 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
     slice.profile.points[i].x /= included;
     slice.profile.points[i].y /= included;
   }
-  slice.profile.area    /= included;
+
   slice.num_walls_found /= included;
   std::nth_element(times.begin(), times.begin() + included / 2, times.end());
   slice.timestamp = times[included / 2];
@@ -166,24 +158,24 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
   return slice;
 }
 
-auto SliceProviderImpl::GetConfidence(joint_buffer::JointSlice slice) -> joint_tracking::SliceConfidence {
-  auto left_depth                            = slice.profile.points[0].y - slice.profile.points[1].y;
-  auto right_depth                           = slice.profile.points[6].y - slice.profile.points[5].y;
-  joint_tracking::SliceConfidence confidence = joint_tracking::SliceConfidence::LOW;
+auto SliceProviderImpl::GetConfidence(joint_buffer::JointSlice slice) -> SliceConfidence {
+  auto left_depth  = slice.profile.points[0].y - slice.profile.points[1].y;
+  auto right_depth = slice.profile.points[6].y - slice.profile.points[5].y;
+  auto confidence  = SliceConfidence::LOW;
 
   if (slice.approximation_used) {
-    confidence = joint_tracking::SliceConfidence::MEDIUM;
+    confidence = SliceConfidence::MEDIUM;
   } else if (slice.num_walls_found == 2) {
-    confidence = joint_tracking::SliceConfidence::MEDIUM;
+    confidence = SliceConfidence::MEDIUM;
 
     if (left_depth > HIGH_CONFIDENCE_WALL_HEIGHT && right_depth > HIGH_CONFIDENCE_WALL_HEIGHT) {
-      confidence = joint_tracking::SliceConfidence::HIGH;
+      confidence = SliceConfidence::HIGH;
     }
   } else if (slice.num_walls_found == 1) {
-    confidence = joint_tracking::SliceConfidence::LOW;
+    confidence = SliceConfidence::LOW;
 
     if (left_depth > MEDIUM_CONFIDENCE_WALL_HEIGHT || right_depth > MEDIUM_CONFIDENCE_WALL_HEIGHT) {
-      confidence = joint_tracking::SliceConfidence::MEDIUM;
+      confidence = SliceConfidence::MEDIUM;
     }
   }
 

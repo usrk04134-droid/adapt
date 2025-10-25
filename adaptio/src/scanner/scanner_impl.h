@@ -10,10 +10,10 @@
 #include <ctime>
 #include <functional>
 
+#include "common/groove/groove.h"
 #include "scanner/image_logger/image_logger.h"
 #include "scanner/image_provider/image_provider.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/joint_tracking/joint_slice.h"
 #include "scanner/scanner.h"
 #include "scanner/slice_provider/slice_provider.h"
 
@@ -98,8 +98,8 @@ class ScannerImpl : public Scanner {
 
 class ScannerOutputCBImpl : public ScannerOutputCB {
  public:
-  void ScannerOutput(const joint_tracking::JointSlice& joint_slice, std::optional<double> area, uint64_t time_stamp,
-                     joint_tracking::SliceConfidence confidence) override {};
+  void ScannerOutput(const common::Groove& groove, uint64_t time_stamp,
+                     slice_provider::SliceConfidence confidence) override {};
 };
 
 class ScannerExposed : public ScannerImpl {

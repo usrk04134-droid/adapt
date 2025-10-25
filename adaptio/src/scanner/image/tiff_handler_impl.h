@@ -84,7 +84,7 @@ auto inline ReadFovOffset(const std::filesystem::path& file_path) -> std::option
 class TiffHandlerImpl : public TiffHandler {
  public:
   TiffHandlerImpl();
-  TiffHandlerImpl(const std::string& joint_geometry_yaml, const std::string& scanner_calib_yaml);
+  ~TiffHandlerImpl() override;
 
   auto Write(const Image* image, const std::filesystem::path& log_path, uint32_t x_offset, uint32_t y_offset)
       -> void override;

@@ -30,7 +30,6 @@
 #include "scanner/image_provider/image_provider.h"
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/joint_tracking/joint_slice.h"
 #include "scanner/scanner.h"
 #include "scanner/scanner_types.h"
 #include "scanner/slice_provider/slice_provider.h"
@@ -334,9 +333,9 @@ void ScannerImpl::Update() {
   m_buffer_mutex.unlock();
 
   if (tracking_data.has_value()) {
-    auto [slice, time_stamp, area] = tracking_data.value();
+    auto [groove, confidence, time_stamp] = tracking_data.value();
 
-    scanner_output_->ScannerOutput(slice, area, time_stamp, slice.GetConfidence());
+    scanner_output_->ScannerOutput(groove, time_stamp, confidence);
   } else {
     // This should not happen
     LOG_ERROR("No slice sent due to missing ABW points.");

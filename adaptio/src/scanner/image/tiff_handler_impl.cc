@@ -55,11 +55,9 @@ TiffHandlerImpl::TiffHandlerImpl() {
   }
 }
 
-TiffHandlerImpl::TiffHandlerImpl(const std::string& joint_geometry_yaml, const std::string& scanner_calib_yaml)
-    : joint_geometry_yaml_(joint_geometry_yaml), scanner_calib_yaml_(scanner_calib_yaml) {
-  if (parent_extender == nullptr) {
-    parent_extender = (TIFFSetTagExtender(registerCustomTIFFTags));
-  }
+TiffHandlerImpl::~TiffHandlerImpl() {
+  parent_extender = nullptr;
+  TIFFSetTagExtender(nullptr);
 }
 
 void TiffHandlerImpl::Write(const Image* image, const std::filesystem::path& log_path, uint32_t x_offset,

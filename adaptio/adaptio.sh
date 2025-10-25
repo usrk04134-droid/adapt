@@ -24,14 +24,13 @@ usage() {
  echo "--check-clang-tidy Uses clang-tidy to check the code base"
  echo "--fix-clang-tidy   Uses clang-tidy to fix clang-tidy violations in the code base"
  echo "--run-all          Runs all docker images and then starts the adaptio binary"
- echo "--system-tests     Runs all system tests, arguments passed after -- will be passed to the test runner"
  echo "--unit-tests       Runs all unit tests, arguments passed after -- will be passed to the test runner"
  echo "--block-tests      Runs all block tests, arguments passed after -- will be passed to the test runner"
  echo "--docs             Opens the doxygen docs in the standard browser, docs are built with --build --release"
  echo "--clean-direnv     Removes the .direnv directory"
  echo ""
  echo "Example: Build release binary: $(basename "$0") --build --release"
- echo "Example: Run system tests with debug output: $(basename "$0") --system-tests -- --debug"
+ echo "Example: Run block tests with debug output: $(basename "$0") --block-tests -- --debug"
 }
 
 if [ $# -eq 0 ]
@@ -54,7 +53,6 @@ do
     --check-clang-tidy ) COMMAND="check-clang-tidy" ;;
     --fix-clang-tidy ) COMMAND="fix-clang-tidy" ;;
     --run-all ) COMMAND="run-all" ;;
-    --system-tests ) COMMAND="system-tests" ;;
     --unit-tests ) COMMAND="unit-tests" ;;
     --block-tests ) COMMAND="block-tests" ;;
     --docs ) COMMAND="docs" ;;
@@ -171,22 +169,6 @@ start_adaptio() {
   fi
 }
 
-run_system_tests() {
-  echo "Running system tests..."
-  debug=$1
-  shift
-
-  REPORT_NAME=${CI_PIPELINE_ID:-$(date +%Y%m%d-%H%M%S)}
-  if [ "$debug" = true ]
-  then
-    pytest -vs --junitxml="pytest-adaptio-report-$REPORT_NAME.xml" tests \
-      --path build/debug/src/adaptio "$@"
-  else
-    pytest -vs --junitxml="pytest-adaptio-report-$REPORT_NAME.xml" tests \
-      --path build/release/src/adaptio "$@"
-  fi
-}
-
 run_unit_tests() {
   echo "Running unit tests..."
   debug=$1
@@ -257,9 +239,6 @@ case "$COMMAND" in
     start_docker_containers
     start_adaptio $DEBUG "$@"
     stop_docker_containers
-    ;;
-  system-tests )
-    run_system_tests $DEBUG "$@"
     ;;
   unit-tests )
     run_unit_tests $DEBUG "$@"

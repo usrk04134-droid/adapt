@@ -2,10 +2,10 @@
 
 #include <boost/circular_buffer.hpp>
 #include <chrono>
-#include <memory>
 #include <optional>
 
 #include "common/clock_functions.h"
+#include "common/groove/groove.h"
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/slice_provider.h"
@@ -21,21 +21,21 @@ class SliceProviderImpl : public SliceProvider {
 
   void AddSlice(const scanner::joint_buffer::JointSlice& slice) override;
   auto GetSlice() -> std::optional<joint_model::JointProfile> override;
-  auto GetTrackingSlice() -> std::optional<std::tuple<joint_tracking::JointSlice, uint64_t, double>> override;
+  auto GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> override;
   auto SliceDegraded() -> bool override { return slice_degraded_; };
   void Reset() override;
+  auto GetLatestSlice() -> std::optional<scanner::joint_buffer::JointSlice> { return joint_buffer_->GetSlice(); };
 
  private:
   auto GetLatestTimestamp() const -> std::optional<Timestamp> { return joint_buffer_->GetLatestTimestamp(); };
   auto MedianOfRecentSlices() -> std::optional<joint_buffer::JointSlice>;
-  auto GetConfidence(joint_buffer::JointSlice slice) -> joint_tracking::SliceConfidence;
+  auto GetConfidence(joint_buffer::JointSlice slice) -> SliceConfidence;
 
   joint_buffer::JointBufferPtr joint_buffer_;
-  joint_tracking::JointSlice latest_slice_;
+  std::tuple<common::Groove, SliceConfidence> latest_slice_;
   std::optional<std::chrono::time_point<std::chrono::steady_clock>> last_sent_ts_;
   bool slice_degraded_{false};
   clock_functions::SteadyClockNowFunc steady_clock_now_func_;
-  double last_area_{0.0};
 };
 
 }  // namespace scanner::slice_provider

@@ -58,8 +58,6 @@ class BigSnake : public JointModel {
 
   void CropImageHorizontal(image::Image& image, std::optional<JointProfile> median_profile);
 
-  static auto CalculateJointArea(const ABWPoints& points) -> double;
-
  private:
   int threshold_;
   bool found_out_of_spec_joint_width_{};

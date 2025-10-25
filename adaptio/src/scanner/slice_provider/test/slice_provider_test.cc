@@ -8,7 +8,6 @@
 #include "scanner/joint_buffer/circular_joint_buffer.h"
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/joint_tracking/joint_slice.h"
 #include "scanner/slice_provider/slice_provider_impl.h"
 
 // NOLINTBEGIN(*-magic-numbers)
@@ -46,8 +45,8 @@ TEST_SUITE("Slice provider") {
 
     auto tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    auto confidence = get<0>(tracking.value()).GetConfidence();
-    CHECK(confidence == joint_tracking::SliceConfidence::HIGH);
+    auto confidence = get<1>(tracking.value());
+    CHECK(confidence == slice_provider::SliceConfidence::HIGH);
 
     slice_provider.Reset();
     CHECK(!slice_provider.GetSlice());
@@ -64,8 +63,8 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<0>(tracking.value()).GetConfidence();
-    CHECK(confidence == joint_tracking::SliceConfidence::MEDIUM);
+    confidence = get<1>(tracking.value());
+    CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
     CHECK(!slice_provider.GetSlice());
@@ -83,8 +82,8 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<0>(tracking.value()).GetConfidence();
-    CHECK(confidence == joint_tracking::SliceConfidence::MEDIUM);
+    confidence = get<1>(tracking.value());
+    CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
     CHECK(!slice_provider.GetSlice());
@@ -104,8 +103,8 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<0>(tracking.value()).GetConfidence();
-    CHECK(confidence == joint_tracking::SliceConfidence::MEDIUM);
+    confidence = get<1>(tracking.value());
+    CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
     CHECK(!slice_provider.GetSlice());
@@ -123,8 +122,8 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<0>(tracking.value()).GetConfidence();
-    CHECK(confidence == joint_tracking::SliceConfidence::LOW);
+    confidence = get<1>(tracking.value());
+    CHECK(confidence == slice_provider::SliceConfidence::LOW);
   }
 }
 }  // namespace scanner::slice_provider

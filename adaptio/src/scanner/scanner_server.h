@@ -1,6 +1,6 @@
 #pragma once
+#include "common/groove/groove.h"
 #include "common/zevs/zevs_socket.h"
-#include "scanner/joint_tracking/joint_slice.h"
 #include "scanner/scanner.h"
 
 namespace scanner {
@@ -16,8 +16,8 @@ class ScannerServer : public ScannerOutputCB {
 
   virtual ~ScannerServer() = default;
 
-  void ScannerOutput(const joint_tracking::JointSlice& joint_slice, const std::optional<double> area,
-                     uint64_t time_stamp, joint_tracking::SliceConfidence confidence) override;
+  void ScannerOutput(const common::Groove& groove, uint64_t time_stamp,
+                     slice_provider::SliceConfidence confidence) override;
 
  private:
   zevs::SocketPtr socket_;

@@ -1,126 +1,77 @@
-
-#include <doctest/doctest.h>
-
-#include <nlohmann/json_fwd.hpp>
-#include <utility>
-
-#include "common/messages/kinematics.h"
-#include "common/messages/management.h"
+#include "controller/controller_data.h"
 #include "helpers/helpers.h"
 #include "helpers/helpers_abp_parameters.h"
 #include "helpers/helpers_calibration_v2.h"
 #include "helpers/helpers_joint_geometry.h"
-#include "helpers/helpers_kinematics.h"
 #include "helpers/helpers_settings.h"
-#include "web_hmi/web_hmi_json_helpers.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
 
-TEST_SUITE("Ready state") {
-  TEST_CASE("Basic") {
-    TestFixture fixture;
-    fixture.StartApplication();
+#include <doctest/doctest.h>
+#include <fmt/core.h>
 
-    StoreDefaultJointGeometryParams(fixture);
+using controller::AxisInput;
+using controller::TrackInput;
 
-    fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
-    auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
-    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-    DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::TRACKING_READY);
+TEST_SUITE("MultiblockReadyState") {
+  TEST_CASE("tracking_not_ready_on_weld_calibration") {
+    MultiFixture mfx;
 
-    // Start calibration (V2) should transition to NOT_READY immediately
-    WeldObjectCalStart(fixture, 4.0, 25.0, 1000.0);
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
+    StoreSettings(mfx.Main(), TestSettings{.use_edge_sensor = false}, true);
+    StoreDefaultJointGeometryParams(mfx.Main());
+
+    CHECK(mfx.Ctrl().Mock()->adaptio_output.get_status_ready_for_tracking());
+
+    WeldObjectCalStart(mfx.Main(), 4.0, 25.0, 1000.0);
+    mfx.PlcDataUpdate();
+    CHECK_FALSE(mfx.Ctrl().Mock()->adaptio_output.get_status_ready_for_tracking());
   }
 
-  TEST_CASE("ABP ready 1") {
-    TestFixture fixture;
-    fixture.StartApplication();
+  TEST_CASE("abp_ready_1") {
+    MultiFixture mfx;
+    AxisInput axis_data{};
 
-    StoreDefaultJointGeometryParams(fixture);
+    StoreSettings(mfx.Main(), TestSettings{.use_edge_sensor = false}, true);
+    StoreDefaultJointGeometryParams(mfx.Main());
 
-    fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
-    auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
-    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-    DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::TRACKING_READY);
+    CHECK(mfx.Ctrl().Mock()->adaptio_output.get_status_ready_for_tracking());
+    CHECK_FALSE(mfx.Ctrl().Mock()->adaptio_output.get_status_ready_for_abp());
 
-    StoreDefaultABPParams(fixture);
+    StoreDefaultABPParams(mfx.Main());
+    axis_data.set_status_homed(true);
+    mfx.Ctrl().Sut()->OnWeldAxisInputUpdate(axis_data);
 
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::ABP_READY);
+    mfx.PlcDataUpdate();
+
+    CHECK(mfx.Ctrl().Mock()->adaptio_output.get_status_ready_for_abp());
   }
 
-  TEST_CASE("ABP ready 2") {
-    TestFixture fixture;
-    fixture.StartApplication();
+  TEST_CASE("abp_jt_ready_with_edge_sensor") {
+    MultiFixture mfx;
+    AxisInput axis_data{};
+    TrackInput tracking_data{};
 
-    StoreDefaultJointGeometryParams(fixture);
+    StoreDefaultJointGeometryParams(mfx.Main());
 
-    fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
-    auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
-    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-    DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::TRACKING_READY);
+    StoreDefaultABPParams(mfx.Main());
+    StoreSettings(mfx.Main(), TestSettings{.use_edge_sensor = true}, true);
 
-    StoreDefaultABPParams(fixture);
-    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
+    axis_data.set_status_homed(true);
+    mfx.Ctrl().Sut()->OnWeldAxisInputUpdate(axis_data);
+    mfx.PlcDataUpdate();
 
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
+    CHECK_FALSE(mfx.Ctrl().Mock()->adaptio_output.get_status_ready_for_tracking());
 
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::ABP_READY);
-  }
+    tracking_data.set_status_edge_tracker_value_valid(true);
+    mfx.Ctrl().Sut()->OnTrackingInputUpdate(tracking_data);
 
-  TEST_CASE("ABP / JT ready no edge-sensor") {
-    TestFixture fixture;
-    fixture.StartApplication();
+    axis_data.set_position(0.0);
+    axis_data.set_velocity(0.0);
+    tracking_data.set_weld_object_radius(100.0);
+    mfx.Ctrl().Sut()->OnWeldAxisInputUpdate(axis_data);
+    mfx.Ctrl().Sut()->OnTrackingInputUpdate(tracking_data);
 
-    StoreDefaultJointGeometryParams(fixture);
-    StoreDefaultABPParams(fixture);
-    StoreSettings(fixture, TestSettings{.use_edge_sensor = false}, true);
-
-    fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
-    auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::TRACKING_READY);
-
-    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
-
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::ABP_READY);
-  }
-
-  TEST_CASE("ABP / JT ready edge-sensor") {
-    TestFixture fixture;
-    fixture.StartApplication();
-
-    StoreDefaultJointGeometryParams(fixture);
-    StoreDefaultABPParams(fixture);
-    StoreSettings(fixture, TestSettings{.use_edge_sensor = true}, true); /* same as default value */
-
-    fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
-    auto msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
-
-    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::NOT_READY);
-
-    DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    CheckAndDispatchGetWeldAxis(fixture, 0.0, 0.0, 0.0, 100.0);
-    msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK_EQ(msg->state, common::msg::management::ReadyState::State::ABP_READY);
+    mfx.PlcDataUpdate();
+    CHECK(mfx.Ctrl().Mock()->adaptio_output.get_status_ready_for_abp());
   }
 }
-
-// NOLINTEND(*-magic-numbers, *-optional-access)

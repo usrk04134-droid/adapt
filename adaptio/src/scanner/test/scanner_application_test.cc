@@ -12,6 +12,7 @@
 #include <trompeloeil/mock.hpp>
 #include <utility>
 
+#include "common/groove/groove.h"
 #include "common/messages/scanner.h"
 #include "common/zevs/zevs_core.h"
 #include "common/zevs/zevs_socket.h"
@@ -20,11 +21,11 @@
 #include "mock/image_logger_mock.h"
 #include "mock/stub_core_factory.h"
 #include "scanner/image_provider/image_provider_configuration.h"
-#include "scanner/joint_tracking/joint_slice.h"
 #include "scanner/scanner.h"
 #include "scanner/scanner_calibration_configuration.h"
 #include "scanner/scanner_configuration.h"
 #include "scanner/scanner_factory.h"
+#include "scanner/slice_provider/slice_provider.h"
 
 using trompeloeil::_;
 
@@ -75,10 +76,9 @@ TEST_SUITE("Test Scanner Adapter Scanner") {
     REQUIRE_CALL(*image_logger_mock, FlushBuffer());
     scanner_mocket->Dispatch(common::msg::scanner::FlushImageBuffer{});
 
-    std::array<joint_tracking::Coord, 7> points;
-    joint_tracking::JointSlice joint_slice(points, joint_tracking::SliceConfidence::HIGH);
+    common::Groove groove;
 
-    factory.GetScannerOutput()->ScannerOutput(joint_slice, 0, 1, joint_tracking::SliceConfidence::HIGH);
+    factory.GetScannerOutput()->ScannerOutput(groove, 1, slice_provider::SliceConfidence::HIGH);
 
     auto output_msg = scanner_mocket->Receive<common::msg::scanner::SliceData>();
 

@@ -260,6 +260,14 @@ def load_and_filter_entries(input_path, pos_deg, stickout, post_scan=False):
                     if not ok_h:
                         continue
 
+                    weld_systems = entry.get("weldSystems", [])
+                    if len(weld_systems) < 2:
+                        continue
+                    ws0_arcing = weld_systems[0].get("state") == "arcing"
+                    ws1_arcing = weld_systems[1].get("state") == "arcing"
+                    if not (ws0_arcing and ws1_arcing):
+                        continue
+
                     slides = entry["slides"]["actual"]
                     # Store horizontal/vertical relative to HYBRID ABW0
                     # NOTE: subtract stickout here instead of adding it to ABW profile points
@@ -269,7 +277,6 @@ def load_and_filter_entries(input_path, pos_deg, stickout, post_scan=False):
                     velocity_actual = entry["weldAxis"]["velocity"]["actual"]
                     position = entry["weldAxis"]["position"]
                     radius = entry["weldAxis"]["radius"]
-                    weld_systems = entry["weldSystems"]
 
                     # New metrics from beadControl (default to 0.0 if missing)
                     bc = entry.get("beadControl", {})

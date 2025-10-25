@@ -709,28 +709,22 @@ auto JointSlice::AddBead(double target_bead_area, double bead_radius, double tar
 }
 
 auto JointSlice::GetAbwPoints(bool allow_cap_points) const -> std::unique_ptr<std::vector<std::optional<Point2d>>> {
-  std::vector<std::optional<Point2d>> abw{};
-  std::optional<Point2d> abw0 = std::nullopt;
-  std::optional<Point2d> abw1 = std::nullopt;
-  std::optional<Point2d> abw5 = std::nullopt;
-  std::optional<Point2d> abw6 = std::nullopt;
-
-  Line2d tmp_line;
+  std::vector<std::optional<Point2d>> abw;
+  abw.reserve(DEFAULT_NBR_ABW_POINTS);
 
   // First try determine the two leftest and rightest points. May not be possible if top edges
   // are covered by beads. In such cases, fall back to original base metal lines and find
   // top surface at the same horizontal position as original groove edge.
+  const auto abw0 = ComputeTopLeftAbw();
+  const auto abw6 = ComputeTopRightAbw();
 
-  abw0 = ComputeTopLeftAbw();
-  abw6 = ComputeTopRightAbw();
-
-  if (!abw0.has_value() || !abw6.has_value()) {
-    return std::make_unique<std::vector<std::optional<Point2d>>>(abw);
+  if (!abw0 || !abw6) {
+    return std::make_unique<std::vector<std::optional<Point2d>>>(std::move(abw));
   }
 
-  abw1                           = ComputeBottomLeftAbw(abw0.value());
-  abw5                           = ComputeBottomRightAbw(abw6.value());
-  const bool both_sides_detected = abw1.has_value() && abw5.has_value();
+  const auto abw1                = ComputeBottomLeftAbw(*abw0);
+  const auto abw5                = ComputeBottomRightAbw(*abw6);
+  const bool both_sides_detected = abw1 && abw5;
 
   abw.push_back(abw0);
   abw.push_back(abw1);
@@ -738,33 +732,30 @@ auto JointSlice::GetAbwPoints(bool allow_cap_points) const -> std::unique_ptr<st
   abw.push_back(abw6);
 
   if (!both_sides_detected) {
-    return std::make_unique<std::vector<std::optional<Point2d>>>(abw);
+    return std::make_unique<std::vector<std::optional<Point2d>>>(std::move(abw));
   }
 
-  // Compute the remaining "bottom" points. Insert after first ABW 0 and 1
-  const double n_bottom = DEFAULT_NBR_ABW_POINTS - 4;
-  const double x_max    = abw1->GetX();
-  const double x_min    = abw5->GetX();
-  const double x_step   = (x_max - x_min) / (n_bottom + 1);
-  const double y0       = this->GetMaxY();
-  const Eigen::Vector2d dir(0, 1);
+  // Compute intermediate bottom points
+  constexpr int FIXED_POINTS = 4;
+  const int n_bottom         = DEFAULT_NBR_ABW_POINTS - FIXED_POINTS;
+  const double x_left        = abw5->GetX();
+  const double x_right       = abw1->GetX();
+  const double x_step        = (x_right - x_left) / (n_bottom + 1);
+  const double y0            = GetMaxY();
+  const Eigen::Vector2d dir(0.0, 1.0);
 
-  for (int i = 1; i <= n_bottom; i++) {
-    if (!both_sides_detected) {
-      // No edge points detected -> impossible to compute bottom
-      abw.insert(abw.end() - 2, std::nullopt);
-      continue;
-    }
+  std::vector<std::optional<Point2d>> bottom_points;
+  bottom_points.reserve(n_bottom);
 
-    tmp_line           = Line2d(Point2d(x_max - (i * x_step), y0), dir);
-    auto surface_point = this->FindIntersectionWithSurface(tmp_line);
-
-    if (surface_point.has_value()) {
-      abw.insert(abw.end() - 2, surface_point);
-    }
+  for (int i = 1; i <= n_bottom; ++i) {
+    const Line2d tmp_line(Point2d(x_right - i * x_step, y0), dir);
+    bottom_points.push_back(FindIntersectionWithSurface(tmp_line));
   }
 
-  return std::make_unique<std::vector<std::optional<Point2d>>>(abw);
+  // Insert bottom points between bottom-left and bottom-right
+  abw.insert(abw.begin() + 2, bottom_points.begin(), bottom_points.end());
+
+  return std::make_unique<std::vector<std::optional<Point2d>>>(std::move(abw));
 }
 
 auto JointSlice::FindIntersectionWithSurface(const Line2d &line) const -> std::optional<Point2d> {
@@ -776,7 +767,7 @@ auto JointSlice::FindIntersectionWithSurface(const Line2d &line) const -> std::o
   return std::nullopt;
 }
 
-auto JointSlice::ComputeBottomLeftAbw(Point2d &top_left_abw) const -> std::optional<Point2d> {
+auto JointSlice::ComputeBottomLeftAbw(const Point2d &top_left_abw) const -> std::optional<Point2d> {
   // ABW 1
   const Point2d line_start{top_left_abw.GetX() - GROOVE_FACE_OFFSET, top_left_abw.GetY()};
   const Vector2d groove_face_dir = {std::sin(joint_def_left_.groove_ang), std::cos(joint_def_left_.groove_ang)};
@@ -800,7 +791,7 @@ auto JointSlice::ComputeBottomLeftAbw(Point2d &top_left_abw) const -> std::optio
   return abw1;
 }
 
-auto JointSlice::ComputeBottomRightAbw(Point2d &top_right_abw) const -> std::optional<Point2d> {
+auto JointSlice::ComputeBottomRightAbw(const Point2d &top_right_abw) const -> std::optional<Point2d> {
   // ABW 5
   Point2d line_start{top_right_abw.GetX() + GROOVE_FACE_OFFSET, top_right_abw.GetY()};
   Vector2d groove_face_dir = {-std::sin(joint_def_right_.groove_ang), std::cos(joint_def_right_.groove_ang)};

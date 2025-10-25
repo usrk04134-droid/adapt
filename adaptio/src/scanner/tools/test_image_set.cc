@@ -3,7 +3,6 @@
 #include <signal.h>
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <boost/program_options.hpp>
 #include <boost/range/numeric.hpp>
@@ -32,6 +31,7 @@
 #include <vector>
 
 #include "common/file/yaml.h"
+#include "common/groove/groove.h"
 #include "common/logging/application_log.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image/tiff_handler_impl.h"
@@ -44,7 +44,6 @@
 #include "scanner/joint_buffer/circular_joint_buffer.h"
 #include "scanner/joint_model/big_snake.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/joint_tracking/joint_slice.h"
 #include "scanner/scanner.h"
 #include "scanner/scanner_impl.h"
 #include "scanner/scanner_types.h"
@@ -65,6 +64,7 @@ using scanner::joint_buffer::CircularJointBuffer;
 using scanner::joint_model::BigSnake;
 using scanner::joint_model::JointModelPtr;
 using scanner::joint_model::JointProperties;
+using scanner::slice_provider::SliceConfidence;
 
 std::atomic<bool> should_shutdown = false;
 int exit_code                     = 0;
@@ -83,8 +83,7 @@ void Exit(int signum) {
 
 class ScannerOutputCBImpl : public scanner::ScannerOutputCB {
  public:
-  void ScannerOutput(const scanner::joint_tracking::JointSlice& joint_slice, const std::optional<double> area,
-                     uint64_t time_stamp, scanner::joint_tracking::SliceConfidence confidence) override {};
+  void ScannerOutput(const common::Groove& groove, uint64_t time_stamp, SliceConfidence confidence) override {};
 };
 
 auto getNumberOfImages(std::filesystem::path search_path) -> int {
@@ -266,12 +265,12 @@ auto main(int argc, char* argv[]) -> int {
   auto camera_model            = std::make_unique<TiltedPerspectiveCamera>(camera_properties);
   const auto* camera_model_raw = camera_model.get();
 
-  auto joint_buffer            = std::make_unique<CircularJointBuffer>();
-  const auto* joint_buffer_raw = joint_buffer.get();
-  auto steady_clock_now_func   = []() { return std::chrono::steady_clock::now(); };
+  auto joint_buffer          = std::make_unique<CircularJointBuffer>();
+  auto steady_clock_now_func = []() { return std::chrono::steady_clock::now(); };
   auto slice_provider =
       std::make_unique<scanner::slice_provider::SliceProviderImpl>(std::move(joint_buffer), steady_clock_now_func);
-  auto joint_geo_map = maybe_joint_geo.value()->AsUnorderedMap();
+  auto* slice_provider_raw = slice_provider.get();
+  auto joint_geo_map       = maybe_joint_geo.value()->AsUnorderedMap();
   // Properties for images in test/assets/v-joint
   const JointProperties properties = {
       .upper_joint_width           = joint_geo_map.at("joint/upper_joint_width").Value<double>().value(),
@@ -338,7 +337,7 @@ auto main(int argc, char* argv[]) -> int {
 
     // We disregard the normal callback into ScannerOutput. Instead we directly look at the joint_buffer
     // that we passed to the ScannerImpl object.
-    auto maybe_slice = joint_buffer_raw->GetSlice();
+    auto maybe_slice = slice_provider_raw->GetLatestSlice();
 
     if (maybe_slice.has_value()) {
       auto slice = maybe_slice.value();

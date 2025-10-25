@@ -4,7 +4,6 @@ add_subdirectory(image_provider)
 add_subdirectory(joint_model)
 add_subdirectory(joint_buffer)
 add_subdirectory(image_logger)
-add_subdirectory(joint_tracking)
 add_subdirectory(slice_provider)
 
 target_sources(${ADAPTIO_APPLICATION}

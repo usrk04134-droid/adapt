@@ -40,8 +40,8 @@ class JointSlice {
   auto FindHighestPointInJoint() -> double;
   auto ComputeTopLeftAbw() const -> std::optional<Point2d>;
   auto ComputeTopRightAbw() const -> std::optional<Point2d>;
-  auto ComputeBottomLeftAbw(Point2d &top_left_abw) const -> std::optional<Point2d>;
-  auto ComputeBottomRightAbw(Point2d &top_right_abw) const -> std::optional<Point2d>;
+  auto ComputeBottomLeftAbw(const Point2d &top_left_abw) const -> std::optional<Point2d>;
+  auto ComputeBottomRightAbw(const Point2d &top_right_abw) const -> std::optional<Point2d>;
   auto FindIntersectionWithSurface(const Line2d &line) const -> std::optional<Point2d>;
 
  public:

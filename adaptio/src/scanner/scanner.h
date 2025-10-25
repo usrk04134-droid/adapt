@@ -4,11 +4,11 @@
 #include <memory>
 #include <optional>
 
+#include "common/groove/groove.h"
 #include "scanner/image/image.h"
-#include "scanner/image_provider/image_provider.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/joint_tracking/joint_slice.h"
 #include "scanner/scanner_types.h"
+#include "scanner/slice_provider/slice_provider.h"
 
 namespace scanner {
 
@@ -21,8 +21,8 @@ enum class ScannerErrorCode : uint32_t {
 
 class ScannerOutputCB {
  public:
-  virtual void ScannerOutput(const joint_tracking::JointSlice& joint_slice, const std::optional<double> area,
-                             uint64_t time_stamp, joint_tracking::SliceConfidence confidence) = 0;
+  virtual void ScannerOutput(const common::Groove& groove, uint64_t time_stamp,
+                             slice_provider::SliceConfidence confidence) = 0;
 };
 
 class Scanner {

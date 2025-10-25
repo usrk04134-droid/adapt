@@ -335,9 +335,7 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
 
   fixture.GetConfigManagerMock()->SetWeldControlConfiguration(weld_control_config);
 
-  // Starting the application like this does not set a default calibration
-  fixture.Sut()->Start();
-  fixture.SetupMockets();
+  fixture.StartApplication();
 
   StoreSettings(fixture, TestSettings{.use_edge_sensor = test_parameters.welding_parameters.use_edge_sensor}, true);
 
@@ -383,8 +381,7 @@ auto AdativeWeldingTest(help_sim::TestParameters &test_parameters) -> void {
   fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
   auto ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
   CHECK(ready_msg.has_value());
-  CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::NOT_READY);
-  SetDefaultCalibration(fixture);
+  CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::TRACKING_READY);
 
   simulator->Initialize(sim_config);
 

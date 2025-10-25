@@ -69,10 +69,7 @@ auto BigSnake::Parse(image::Image& image, std::optional<JointProfile> median_pro
 
   auto [points, num_walls, approximation_used] = maybe_slice.value();
 
-  JointProfile profile;
-  profile.points             = points;
-  profile.area               = BigSnake::CalculateJointArea(profile.points);
-  profile.approximation_used = approximation_used;
+  JointProfile profile = {.points = points, .approximation_used = approximation_used};
 
   // Vertical limits
   const auto crop_start = image.GetVerticalCropStart();
@@ -178,16 +175,5 @@ void BigSnake::CropImageHorizontal(image::Image& image, std::optional<JointProfi
     auto stop  = static_cast<int>(points.row(0)[6] + START_SNAKE_OFFSET);
     image.SetHorizontalCrop(start, stop);
   }
-}
-
-auto BigSnake::CalculateJointArea(const ABWPoints& points) -> double {
-  // Calculate the area with the shoelace formula
-  double area = 0;
-  for (int i = 0; i < 7; i++) {
-    int j  = (i == 0) ? 6 : (i - 1);
-    area  += points[j].x * points[i].y - points[i].x * points[j].y;
-  }
-
-  return 0.5 * area;
 }
 }  // namespace scanner::joint_model

@@ -181,7 +181,7 @@ auto Naive::Parse(image::Image& image, std::optional<JointProfile> median_profil
       return std::unexpected(JointModelErrorCode::GROOVE_BOTTOM_NOT_FOUND);
     }
 
-    profile.area = GetJointArea(joint_bottom.value(), pwl_wedge);
+    // profile.area = GetJointArea(joint_bottom.value(), pwl_wedge);
 
     auto groove_bottom = GrooveBottomLine(joint_bottom.value().row(0), joint_bottom.value().row(1), pwl_wedge);
     if (!groove_bottom.has_value()) {
@@ -192,7 +192,7 @@ auto Naive::Parse(image::Image& image, std::optional<JointProfile> median_profil
     if (wedge_buffer_.size() == 0) {
       return std::unexpected(JointModelErrorCode::MISSING_WEDGE_HISTORY);
     }
-    profile.area = 0.0;  // TODO: calculate area from ABW points.
+    // profile.area = 0.0;  // TODO: calculate area from ABW points.
 
     maybe_abw_points = ExtractABWPointsCapWeldingMode(maybe_left_groove_wall, maybe_right_groove_wall, left_surface,
                                                       right_surface, joint);

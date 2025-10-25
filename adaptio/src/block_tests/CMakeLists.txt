@@ -15,6 +15,7 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     helpers/helpers_state_monitor.h
     helpers/helpers_mfx.h
     scanner/on_demand_file_image_provider.h
+    helpers/helpers_mfx_calibration.h
 
     helpers/helpers.cc
     joint_tracking_test.cc
@@ -25,13 +26,12 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     weld_program_test.cc
     abp_parameters_test.cc
     shutdown_test.cc
-    ready_state_test.cc
     weld_process_parameters_test.cc
     adaptive_welding_test.cc
-    calibration_v2_test.cc
     settings_test.cc
     weld_session.cc
-    multiblock_ready_state_test.cc
+    ready_state_test.cc
     scanner_basic_test.cc
     scanner/on_demand_file_image_provider.cc
+    calibration_test.cc
 )

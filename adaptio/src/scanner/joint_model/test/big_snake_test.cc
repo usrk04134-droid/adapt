@@ -324,7 +324,7 @@ TEST_SUITE("Test Big Snake") {
           auto big_snake = scanner::joint_model::BigSnake(test_data.joint_properties, test_data.scanner_config,
                                                           std::move(camera_model));
 
-          LOG_INFO("Reading image from {}", abs_path);
+          LOG_TRACE("Reading image from {}", abs_path);
           auto grayscale_image = imread(abs_path.string(), cv::IMREAD_GRAYSCALE);
           REQUIRE_MESSAGE(!grayscale_image.empty(),
                           fmt::format("Failed to read image: {} (absolute: {})", td.filename, abs_path));
@@ -333,15 +333,12 @@ TEST_SUITE("Test Big Snake") {
           auto* image      = maybe_image.value().get();
 
           auto res = big_snake.Parse(*image, {}, {}, false, {});
-          if (!res.has_value()) {
-            LOG_INFO("Failed to parse image: {}", td.filename);
-            continue;
-          }
+          CHECK(res.has_value());
 
           auto parsed   = res.value();
           auto& profile = std::get<0>(parsed);
 
-          LOG_INFO("Testing image: {} (ID: {})", td.filename, td.image_id);
+          LOG_TRACE("Testing image: {} (ID: {})", td.filename, td.image_id);
 
           // Check all 7 points with tolerances
           const double tol_mm = 0.49;  // tolerance in mm
