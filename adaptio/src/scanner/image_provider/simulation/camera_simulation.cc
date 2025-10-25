@@ -38,7 +38,8 @@ using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 
 CameraSimulation::CameraSimulation(const SimConfig& config, bool loop)
-    : started_(false), real_time_mode_(config.realtime), loop_(loop), previous_time_stamp_(0), offset_(0), height_(0) {
+    : started_(false), real_time_mode_(config.realtime), loop_(loop), previous_time_stamp_(0), offset_(0), height_(0),
+      hoffset_(0), width_(0) {
   auto search_path                          = fs::path(config.images_path);
   std::vector<std::string> supported_images = {"bmp", "tiff"};
 
@@ -185,6 +186,15 @@ void CameraSimulation::AdjustGain(double factor) {}
 auto CameraSimulation::GetVerticalFOVOffset() -> int { return offset_; };
 
 auto CameraSimulation::GetVerticalFOVHeight() -> int { return height_; };
+
+void CameraSimulation::SetHorizontalFOV(int offset_from_left, int width) {
+  hoffset_ = offset_from_left;
+  width_   = width;
+}
+
+auto CameraSimulation::GetHorizontalFOVOffset() -> int { return hoffset_; }
+
+auto CameraSimulation::GetHorizontalFOVWidth() -> int { return width_; }
 
 auto CameraSimulation::GetImage()
     -> std::tuple<std::optional<std::unique_ptr<scanner::image::Image>>, std::optional<uint32_t>> {

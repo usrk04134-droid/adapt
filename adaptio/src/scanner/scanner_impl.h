@@ -22,6 +22,10 @@ namespace scanner {
 auto const WINDOW_MARGIN      = 100;
 auto const MOVE_MARGIN        = 40;
 auto const MINIMUM_FOV_HEIGHT = 500;
+// Horizontal ROI tuning
+auto const WINDOW_MARGIN_X      = 200;
+auto const MOVE_MARGIN_X        = 80;
+auto const MINIMUM_FOV_WIDTH    = 2000;
 
 using LaserCallback = std::function<void(bool state)>;
 using Timestamp     = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -81,6 +85,7 @@ class ScannerImpl : public Scanner {
   size_t num_received   = 0;
   Timestamp latest_sent = std::chrono::high_resolution_clock::now();
   std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_dimensions_received;
+  std::optional<int> dont_allow_horizontal_change_until_new_width_received;
   size_t frames_since_gain_change_ = 0;
   bool store_image_data_;
 

@@ -223,6 +223,10 @@ auto Naive::Parse(image::Image& image, std::optional<JointProfile> median_profil
     auto bottom_pixel       = static_cast<int>(abw_points_in_image_coordinates.block(1, 0, 1, 7).maxCoeff());
     auto top_pixel          = static_cast<int>(abw_points_in_image_coordinates.block(1, 0, 1, 7).minCoeff());
     profile.vertical_limits = {top_pixel, bottom_pixel};
+
+    auto left_pixel  = static_cast<int>(abw_points_in_image_coordinates.block(0, 0, 1, 7).minCoeff());
+    auto right_pixel = static_cast<int>(abw_points_in_image_coordinates.block(0, 0, 1, 7).maxCoeff());
+    profile.horizontal_limits = {left_pixel, right_pixel};
   }
 
   processing_time = (std::clock() - start) * 1000 / CLOCKS_PER_SEC;
