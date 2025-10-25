@@ -278,7 +278,8 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<core::image::Image> image) {
                           .profile             = profile,
                           .num_walls_found     = num_walls_found,
                           .processing_time     = processing_time,
-                          .vertical_crop_start = image->GetVerticalCropStart()};
+                          .vertical_crop_start = image->GetVerticalCropStart(),
+                          .horizontal_crop_start = image->GetHorizontalCropStart()};
       if (store_image_data_) {
         // Store image data only if necessary. Not needed when running Adaptio
         slice.image_data = image->Data();
@@ -392,7 +393,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<core::image::Image> image) {
 
     ImageLoggerEntry entry = {
         .image    = image.get(),
-        .x_offset = 0,
+        .x_offset = static_cast<uint32_t>(image->GetHorizontalCropStart()),
         .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
     };
 
