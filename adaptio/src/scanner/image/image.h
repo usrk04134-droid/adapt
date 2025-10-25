@@ -93,6 +93,7 @@ class Image {
         .cast<uint8_t>();
   }
   auto GetVerticalCropStart() const -> int { return vertical_crop_start_; };
+  auto GetHorizontalCropStart() const -> int { return start_col_; };
 
  private:
   RawImageData data_;
