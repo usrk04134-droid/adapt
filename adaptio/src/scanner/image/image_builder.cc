@@ -46,6 +46,8 @@ auto ImageBuilder::From(std::filesystem::path path) -> ImageBuilder {
   ImagePtr image_ptr;
   image_ptr.reset(new Image(std::move(raw_image)));
   image_ptr->vertical_crop_start_ = fov_y;
+  // Capture horizontal crop start from metadata (fov_x)
+  image_ptr->SetHorizontalCrop(static_cast<int>(fov_x), static_cast<int>(columns));
 
   builder.image_ = std::move(image_ptr);
 
