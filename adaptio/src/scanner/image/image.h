@@ -44,6 +44,10 @@ class Image {
 
   auto GetImageName() const -> std::string;
 
+  // Horizontal crop start relative to the full sensor/image space (not the ROI matrix)
+  auto GetHorizontalCropStart() const -> int { return horizontal_crop_start_; }
+  void SetHorizontalCropStart(int start) { horizontal_crop_start_ = start; }
+
   auto SetHorizontalCrop(int start_column, int stop_column) -> void {
     start_col_ = start_column;
     stop_col_  = stop_column;
@@ -101,6 +105,7 @@ class Image {
   std::string img_name_;
 
   int vertical_crop_start_ = 0;
+  int horizontal_crop_start_ = 0;
 
   explicit Image(RawImageData matrix);
   Image(RawImageData matrix, const std::string &img_name);

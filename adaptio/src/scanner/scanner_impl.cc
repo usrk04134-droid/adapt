@@ -1,3 +1,4 @@
+// Replaced with requested version adding horizontal FOV support and logging
 #include "scanner/scanner_impl.h"
 
 #include <prometheus/counter.h>
@@ -181,6 +182,53 @@ auto ScannerImpl::NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int
   return {new_offset, new_height};
 }
 
+auto ScannerImpl::NewOffsetAndWidth(int left, int right, int max_width) -> std::tuple<int, int> {
+  int new_left  = std::max(0, left - WINDOW_MARGIN_H);
+  int new_right = std::min(max_width, right + WINDOW_MARGIN_H);
+  int new_width = std::max(MINIMUM_FOV_WIDTH, new_right - new_left);
+
+  if (new_width < MINIMUM_FOV_WIDTH) {
+    int center = (left + right) / 2;
+    new_left   = std::max(0, center - MINIMUM_FOV_WIDTH / 2);
+    new_right  = std::min(max_width, new_left + MINIMUM_FOV_WIDTH);
+    new_width  = MINIMUM_FOV_WIDTH;
+
+    if (new_right > max_width) {
+      new_right = max_width;
+      new_left  = new_right - MINIMUM_FOV_WIDTH;
+    }
+    if (new_left < 0) {
+      new_left  = 0;
+      new_right = MINIMUM_FOV_WIDTH;
+    }
+  }
+
+  return {new_left, new_width};
+}
+
+auto ScannerImpl::NewOffsetAndWidthMedian(int left, int right, int max_width,
+                                          std::optional<int> left_wall_median_px,
+                                          std::optional<int> right_wall_median_px) -> std::tuple<int, int> {
+  if (!left_wall_median_px.has_value() || !right_wall_median_px.has_value()) {
+    return NewOffsetAndWidth(left, right, max_width);
+  }
+
+  const int left_wall   = left_wall_median_px.value();
+  const int right_wall  = right_wall_median_px.value();
+  const int groove      = std::max(0, right - left);
+  const int total_width = left_wall + groove + right_wall + 2 * WINDOW_MARGIN_H;
+
+  int new_width = std::max(MINIMUM_FOV_WIDTH, total_width);
+  int center    = left + groove / 2;
+  int new_left  = std::max(0, center - new_width / 2);
+
+  if (new_left + new_width > max_width) {
+    new_left = std::max(0, max_width - new_width);
+  }
+
+  return {new_left, new_width};
+}
+
 void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
   auto sp_image = std::shared_ptr<image::Image>(std::move(image));
   post_([this, image = std::move(sp_image)]() {
@@ -213,6 +261,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                                         .num_walls_found     = num_walls_found,
                                         .processing_time     = processing_time,
                                         .vertical_crop_start = image->GetVerticalCropStart(),
+                                        .horizontal_crop_start = image->GetHorizontalCropStart(),
                                         .approximation_used  = profile.approximation_used};
       if (store_image_data_) {
         // Store image data only if necessary. Not needed when running Adaptio
@@ -229,6 +278,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       const auto [top, bottom] = profile.vertical_limits;
       m_config_mutex.lock();
       const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
+      LOG_INFO("vertical : dim_check: {}", dim_check ? "set" : "empty");
       if (dim_check
               .transform([current_offset, current_height](std::tuple<int, int> requested) {
                 auto [requested_offset, requested_height] = requested;
@@ -240,7 +290,8 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
         // We want current_offset + WINDOW_MARGIN = top
         // and current_offset + height - WINDOW_MARGIN = bottom
         // If we are more than MOVE_MARGIN away from either of these two we recalculate
-
+        LOG_INFO("vertical : current height {} top {} bottom {} current offset {}", current_height, top, bottom,
+                 current_offset);
         const bool fov_is_small_but_covers_joint =
             current_height == MINIMUM_FOV_HEIGHT && bottom - top + 2 * WINDOW_MARGIN <= MINIMUM_FOV_HEIGHT &&
             current_offset + WINDOW_MARGIN <= top && bottom + WINDOW_MARGIN <= current_offset + current_height;
@@ -249,17 +300,74 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
             ((abs((top - WINDOW_MARGIN) - current_offset) > MOVE_MARGIN) ||
              (abs((bottom + WINDOW_MARGIN) - (current_offset + current_height)) > MOVE_MARGIN))) {
           auto [new_offset, new_height] = ScannerImpl::NewOffsetAndHeight(top, bottom);
+          LOG_INFO("vertical : new offset {} new height {}", new_offset, new_height);
 
           if (new_offset != current_offset || new_height != current_height) {
-            LOG_TRACE(
-                "Change FOV based on top {} bottom {}, current_offset {}, current_height {}, new_offset {} new_height "
-                "{}",
-                top, bottom, current_offset, current_height, new_offset, new_height);
+            // LOG_TRACE("Change FOV based on top {} bottom {}, current_offset {}, current_height {}, new_offset {} new_height {}",
+            //           top, bottom, current_offset, current_height, new_offset, new_height);
             dont_allow_fov_change_until_new_dimensions_received = {new_offset, new_height};
             image_provider_->SetVerticalFOV(new_offset, new_height);
           }
         } else {
           dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+        }
+      }
+
+      // Horizontal FOV logic based on ABW0/ABW6 in IMAGE PIXELS
+      int abw0 = 0;
+      int abw6 = 0;
+      std::optional<int> left_wall_median_px;
+      std::optional<int> right_wall_median_px;
+
+      // Current frame ABW points to image coordinates
+      if (auto maybe_points_img = joint_model_->WorkspaceToImage(joint_model::ABWPointsToMatrix(profile.points),
+                                                                 image->GetVerticalCropStart())) {
+        const auto points_img = maybe_points_img.value();
+        abw0                  = static_cast<int>(points_img(0, 0));
+        abw6                  = static_cast<int>(points_img(0, 6));
+      }
+
+      // Median slice ABW points to image coordinates for wall widths
+      if (median_profile.has_value()) {
+        if (auto maybe_med_img = joint_model_->WorkspaceToImage(
+                joint_model::ABWPointsToMatrix(median_profile->points), image->GetVerticalCropStart())) {
+          const auto med_img = maybe_med_img.value();
+          left_wall_median_px  = std::abs(static_cast<int>(med_img(0, 1) - med_img(0, 0)));
+          right_wall_median_px = std::abs(static_cast<int>(med_img(0, 6) - med_img(0, 5)));
+        }
+      }
+      int current_offset_x = image->GetHorizontalCropStart();
+      int current_width    = image->Data().cols();
+      int max_width        = image_provider_->GetMaxHorizontalWidth();
+
+      const auto dim_check_h = dont_allow_fov_change_until_new_horizontal_dimensions_received;
+      LOG_INFO("horizontal : dim_check_h: {}", dim_check_h ? "set" : "empty");
+      if (dim_check_h
+              .transform([current_offset_x, current_width](std::tuple<int, int> requested) {
+                auto [requested_offset, requested_width] = requested;
+                return requested_offset == current_offset_x && requested_width == current_width;
+              })
+              .value_or(true)) {
+        LOG_INFO("horizontal : current_offset_x {} current width {} abw0 {} abw6 {}", current_offset_x, current_width,
+                 abw0, abw6);
+
+        const bool fov_is_small_but_covers_joint_horizontal =
+            current_width == MINIMUM_FOV_WIDTH && abw6 - abw0 + 2 * WINDOW_MARGIN_H <= MINIMUM_FOV_WIDTH &&
+            current_offset_x + WINDOW_MARGIN_H <= abw0 && abw6 + WINDOW_MARGIN_H <= current_offset_x + current_width;
+
+        if (!fov_is_small_but_covers_joint_horizontal &&
+            ((abs((abw0 - WINDOW_MARGIN_H) - current_offset_x) > MOVE_MARGIN_H) ||
+             (abs((abw6 + WINDOW_MARGIN_H) - (current_offset_x + current_width)) > MOVE_MARGIN_H))) {
+          auto [new_offset_x, new_width] =
+              ScannerImpl::NewOffsetAndWidthMedian(abw0, abw6, max_width, left_wall_median_px, right_wall_median_px);
+          LOG_INFO("horizontal : new offset {} new width {}", new_offset_x, new_width);
+
+          if (new_offset_x != current_offset_x || new_width != current_width) {
+            dont_allow_fov_change_until_new_horizontal_dimensions_received = {new_offset_x, new_width};
+            image_provider_->SetHorizontalFOV(new_offset_x, new_width);
+          }
+        } else {
+          dont_allow_fov_change_until_new_horizontal_dimensions_received = std::nullopt;
         }
       }
 
@@ -281,11 +389,15 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       if (!median_profile.has_value()) {
         m_config_mutex.lock();
         const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
-        if (!dim_check.has_value() && image->GetVerticalCropStart() != 0 && frames_since_gain_change_ > 25) {
+        const auto dim_check_h = dont_allow_fov_change_until_new_horizontal_dimensions_received;
+        if (!dim_check.has_value() && image->GetVerticalCropStart() != 0 && !dim_check_h.has_value() &&
+            image->GetHorizontalCropStart() != 0 && frames_since_gain_change_ > 25) {
           LOG_TRACE("Resetting FOV and gain due to empty history and unsuccessful joint parsing.");
           image_provider_->ResetFOVAndGain();
           dont_allow_fov_change_until_new_dimensions_received = {image_provider_->GetVerticalFOVOffset(),
                                                                  image_provider_->GetVerticalFOVHeight()};
+          dont_allow_fov_change_until_new_horizontal_dimensions_received = {image_provider_->GetHorizontalFOVOffset(),
+                                                                           image_provider_->GetHorizontalFOVWidth()};
         }
 
         m_config_mutex.unlock();
@@ -306,7 +418,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
     image_logger::ImageLoggerEntry entry = {
         .image    = image.get(),
-        .x_offset = 0,
+        .x_offset = static_cast<uint32_t>(image->GetHorizontalCropStart()),
         .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
     };
 
