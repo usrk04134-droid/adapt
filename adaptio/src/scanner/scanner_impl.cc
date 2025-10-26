@@ -306,7 +306,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
     image_logger::ImageLoggerEntry entry = {
         .image    = image.get(),
-        .x_offset = 0,
+        .x_offset = static_cast<uint32_t>(image->GetHorizontalCropStart()),
         .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
     };
 

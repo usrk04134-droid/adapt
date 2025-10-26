@@ -38,6 +38,10 @@ class CameraSimulation : public core::scanner::ImageProvider {
   void SetVerticalFOV(int offset_from_top, int height) override;
   auto GetVerticalFOVOffset() -> int override;
   auto GetVerticalFOVHeight() -> int override;
+  // Horizontal ROI control (no-op in simulation)
+  void SetHorizontalFOV(int offset_from_left, int width) override {}
+  auto GetHorizontalFOVOffset() -> int override { return 0; }
+  auto GetHorizontalFOVWidth() -> int override { return 0; }
   auto GetSerialNumber() -> std::string override;
   void SetOnImage(OnImage on_image) override { on_image_ = on_image; };
 

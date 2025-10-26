@@ -81,6 +81,7 @@ void BaslerCameraUpstreamImageEventHandler::OnImageGrabbed(CInstantCamera& camer
 
     auto image_data = scanner::image::RawImageData(Eigen::Map<scanner::image::RawImageData>(buffer, height, width));
     auto image      = scanner::image::ImageBuilder::From(image_data, offset - original_offset_).Finalize().value();
+    image->SetSensorHorizontalOffset(camera.OffsetX.GetValue());
 
     image->SetTimestamp(std::chrono::high_resolution_clock::now() - delay);
 
@@ -230,6 +231,20 @@ void BaslerCamera::AdjustGain(double factor) {
 auto BaslerCamera::GetVerticalFOVOffset() -> int { return camera_->OffsetY.GetValue() - fov_.offset_y; };
 
 auto BaslerCamera::GetVerticalFOVHeight() -> int { return camera_->Height.GetValue(); };
+
+void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
+  camera_->StopGrabbing();
+  camera_->OffsetX.SetValue(0);
+  if (fov_.offset_x + offset_from_left + width > fov_.width) {
+    width = fov_.width - offset_from_left - fov_.offset_x;
+  }
+  camera_->Width.SetValue(width);
+  camera_->OffsetX.SetValue(fov_.offset_x + offset_from_left);
+  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+}
+
+auto BaslerCamera::GetHorizontalFOVOffset() -> int { return camera_->OffsetX.GetValue() - fov_.offset_x; }
+auto BaslerCamera::GetHorizontalFOVWidth() -> int { return camera_->Width.GetValue(); }
 
 void BaslerCamera::Stop() {
   if (Started()) {
