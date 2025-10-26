@@ -352,10 +352,10 @@ auto Snake::ConcatenateInReverse(Snake other) const -> Snake {
   return s;
 }
 
-auto Snake::ToLPCS(core::image::CameraModel* camera, int vertical_offset) const
+auto Snake::ToLPCS(core::image::CameraModel* camera, int vertical_offset, int horizontal_offset) const
     -> std::optional<std::tuple<core::image::WorkspaceCoordinates, uint8_t, uint8_t>> {
   auto c   = PlaneCoordinates(2, x.size());
-  c.row(0) = Eigen::Map<const Eigen::RowVectorXd, Eigen::Unaligned>(x.data(), x.size());
+  c.row(0) = Eigen::Map<const Eigen::RowVectorXd, Eigen::Unaligned>(x.data(), x.size()).array() + horizontal_offset;
   c.row(1) = Eigen::Map<const Eigen::RowVectorXd, Eigen::Unaligned>(y.data(), y.size());
 
   auto maybe_lpcs = camera->ImageToWorkspace(c, vertical_offset);

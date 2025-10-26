@@ -55,7 +55,8 @@ auto BigSnake::Parse(Image& image, std::optional<JointProfile> median_profile,
   const auto& snake = maybe_snake.value();
 
   // Snake from image to LPCS
-  auto maybe_snake_lpcs = snake.ToLPCS(camera_model_.get(), image.GetVerticalCropStart());
+  auto maybe_snake_lpcs =
+      snake.ToLPCS(camera_model_.get(), image.GetVerticalCropStart(), image.GetHorizontalCropStart());
   if (!maybe_snake_lpcs) {
     return std::unexpected(JointModelErrorCode::SURFACE_NOT_FOUND);
   }

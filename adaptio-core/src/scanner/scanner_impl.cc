@@ -55,6 +55,10 @@ namespace {
 const int WINDOW_MARGIN      = 100;
 const int MOVE_MARGIN        = 40;
 const int MINIMUM_FOV_HEIGHT = 500;
+// Horizontal ROI tuning
+const int H_WINDOW_MARGIN   = 200;   // pixels beyond ABW0/ABW6 on each side
+const int H_MOVE_MARGIN     = 40;    // hysteresis to avoid chattering
+const int MINIMUM_FOV_WIDTH = 1200;  // never crop narrower than this
 }  // namespace
 
 ScannerImpl::ScannerImpl(ImageProvider* image_provider, JointBufferPtr joint_buffer, LaserCallback laser_toggle,
@@ -349,6 +353,46 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<core::image::Image> image) {
         }
       }
 
+      // Horizontal ROI adjustment based on ABW0/ABW6 (median if available)
+      {
+        auto points_to_use = median_profile.value_or(profile).points;
+        auto maybe_img_pts =
+            joint_model_->WorkspaceToImage(ABWPointsToMatrix(points_to_use), image->GetVerticalCropStart());
+        if (maybe_img_pts) {
+          const auto img_pts          = maybe_img_pts.value();
+          const int abw0_x            = static_cast<int>(img_pts.row(0)[0]);
+          const int abw6_x            = static_cast<int>(img_pts.row(0)[6]);
+          const int desired_left_px   = std::max(0, std::min(abw0_x, abw6_x) - H_WINDOW_MARGIN);
+          const int desired_right_px  = std::max(abw0_x, abw6_x) + H_WINDOW_MARGIN;
+          int new_h_offset_from_left  = desired_left_px;
+          int new_h_width             = std::max(MINIMUM_FOV_WIDTH, desired_right_px - desired_left_px);
+
+          const int cur_h_offset_from_left = image_provider_->GetHorizontalFOVOffset();
+          const int cur_h_width            = image_provider_->GetHorizontalFOVWidth();
+
+          const bool width_diff  = std::abs(cur_h_width - new_h_width) > H_MOVE_MARGIN;
+          const bool offset_diff = std::abs(cur_h_offset_from_left - new_h_offset_from_left) > H_MOVE_MARGIN;
+
+          const auto hdim_check = dont_allow_hfov_change_until_new_dimensions_received;
+          if (hdim_check
+                  .transform([cur_h_offset_from_left, cur_h_width](std::tuple<int, int> requested) {
+                    auto [req_off, req_w] = requested;
+                    return req_off == cur_h_offset_from_left && req_w == cur_h_width;
+                  })
+                  .value_or(true)) {
+            if (width_diff || offset_diff) {
+              dont_allow_hfov_change_until_new_dimensions_received = {new_h_offset_from_left, new_h_width};
+              image_provider_->SetHorizontalFOV(new_h_offset_from_left, new_h_width);
+              LOG_TRACE(
+                  "Change horizontal FOV based on ABW0 {} ABW6 {}, new_offset {} new_width {} (cur_off {} cur_w {})",
+                  abw0_x, abw6_x, new_h_offset_from_left, new_h_width, cur_h_offset_from_left, cur_h_width);
+            } else {
+              dont_allow_hfov_change_until_new_dimensions_received = std::nullopt;
+            }
+          }
+        }
+      }
+
       if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
         image_provider_->AdjustGain(profile.suggested_gain_change.value());
         frames_since_gain_change_ = 0;
@@ -392,7 +436,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<core::image::Image> image) {
 
     ImageLoggerEntry entry = {
         .image    = image.get(),
-        .x_offset = 0,
+        .x_offset = static_cast<uint32_t>(image->GetHorizontalCropStart()),
         .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
     };
 

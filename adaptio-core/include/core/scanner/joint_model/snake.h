@@ -42,7 +42,7 @@ struct Snake {
    * @param vertical_offset The crop start used for this image.
    * @return 3xN Eigen matrix with LPCS coordinates, or nullopt on failure.
    */
-  auto ToLPCS(core::image::CameraModel* camera, int vertical_offset) const
+  auto ToLPCS(core::image::CameraModel* camera, int vertical_offset, int horizontal_offset) const
       -> std::optional<std::tuple<core::image::WorkspaceCoordinates, uint8_t, uint8_t>>;
 
  protected:

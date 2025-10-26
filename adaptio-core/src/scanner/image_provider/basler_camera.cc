@@ -52,10 +52,12 @@ const char* pfsFileContent = R"(
 
 BaslerCameraUpstreamImageEventHandler::BaslerCameraUpstreamImageEventHandler(ImageProvider::OnImage on_image,
                                                                              Timestamp start_time, int64_t start_tick,
-                                                                             int original_offset)
+                                                                             int original_offset_y,
+                                                                             int original_offset_x)
     : base_timestamp(start_time),
       base_tick(start_tick),
-      original_offset_(original_offset),
+      original_offset_y_(original_offset_y),
+      original_offset_x_(original_offset_x),
       on_image_(std::move(on_image)) {}
 
 void BaslerCameraUpstreamImageEventHandler::OnImageGrabbed(CInstantCamera& camera, const CGrabResultPtr& grab_result) {
@@ -69,14 +71,20 @@ void BaslerCameraUpstreamImageEventHandler::OnImageGrabbed(CInstantCamera& camer
 
     auto height = grab_result->GetHeight();
     auto width  = grab_result->GetWidth();
-    auto offset = grab_result->GetOffsetY();
+    auto offset_y = grab_result->GetOffsetY();
+    auto offset_x = camera.OffsetX.GetValue();
 
     const auto delay = std::chrono::milliseconds(5 + 75 * height / 2500);
 
     auto image_data = core::image::RawImageData(Eigen::Map<core::image::RawImageData>(buffer, height, width));
-    auto image      = core::image::ImageBuilder::From(image_data, offset - original_offset_).Finalize().value();
+    auto image      = core::image::ImageBuilder::From(image_data, offset_y - original_offset_y_).Finalize().value();
+    // Update horizontal crop start from current camera OffsetX relative to configured offset
+    image->SetSensorHorizontalOffset(static_cast<int>(offset_x) - original_offset_x_);
 
     image->SetTimestamp(std::chrono::high_resolution_clock::now() - delay);
+    // Record capture-to-receive delay metric as gauge in milliseconds
+    // Note: We update an existing temperature metric cadence; expose here as log for now to avoid extra registry
+    LOG_TRACE("Camera capture->receive delay (ms): {}", delay.count());
 
     on_image_(std::move(image));
   } else {
@@ -151,7 +159,8 @@ auto BaslerCamera::Start(enum ScannerSensitivity sensitivity) -> boost::outcome_
       }
     };
 
-    auto upstream_handler = new BaslerCameraUpstreamImageEventHandler(on_image, tp, i, fov_.offset_y);
+    auto upstream_handler =
+        new BaslerCameraUpstreamImageEventHandler(on_image, tp, i, fov_.offset_y, static_cast<int>(fov_.offset_x));
     camera_->RegisterImageEventHandler(upstream_handler, ERegistrationMode::RegistrationMode_ReplaceAll,
                                        ECleanup::Cleanup_Delete);
 
@@ -167,6 +176,10 @@ void BaslerCamera::ResetFOVAndGain() {
     return;
   }
   camera_->StopGrabbing();
+  // Reset horizontal ROI
+  camera_->OffsetX.SetValue(0);
+  camera_->Width.SetValue(fov_.width);
+  camera_->OffsetX.SetValue(fov_.offset_x);
   camera_->OffsetY.SetValue(0);
   camera_->Height.SetValue(fov_.height);
   camera_->OffsetY.SetValue(fov_.offset_y);
@@ -209,6 +222,26 @@ void BaslerCamera::AdjustGain(double factor) {
 auto BaslerCamera::GetVerticalFOVOffset() -> int { return camera_->OffsetY.GetValue() - fov_.offset_y; };
 
 auto BaslerCamera::GetVerticalFOVHeight() -> int { return camera_->Height.GetValue(); };
+
+void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
+  if (!camera_) {
+    return;
+  }
+  camera_->StopGrabbing();
+  camera_->OffsetX.SetValue(0);
+  if (fov_.offset_x + offset_from_left + width > fov_.width) {
+    width = fov_.width - offset_from_left - fov_.offset_x;
+  }
+  camera_->Width.SetValue(width);
+  camera_->OffsetX.SetValue(fov_.offset_x + offset_from_left);
+  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+  LOG_TRACE("Continuous grabbing restarted with horizontal offset {} and width {}.", fov_.offset_x + offset_from_left,
+            width);
+}
+
+auto BaslerCamera::GetHorizontalFOVOffset() -> int { return camera_->OffsetX.GetValue() - fov_.offset_x; }
+
+auto BaslerCamera::GetHorizontalFOVWidth() -> int { return camera_->Width.GetValue(); }
 
 void BaslerCamera::Stop() {
   if (Started()) {

@@ -77,6 +77,7 @@ class ScannerImpl : public Scanner {
   size_t num_received   = 0;
   Timestamp latest_sent = std::chrono::high_resolution_clock::now();
   std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_dimensions_received;
+  std::optional<std::tuple<int, int>> dont_allow_hfov_change_until_new_dimensions_received;
   size_t frames_since_gain_change_ = 0;
   bool store_image_data_;
 
