@@ -36,6 +36,12 @@ class ImageProvider {
   virtual auto GetVerticalFOVOffset() -> int                   = 0;
   virtual auto GetVerticalFOVHeight() -> int                   = 0;
   virtual auto GetSerialNumber() -> std::string                = 0;
+
+  // Horizontal FOV controls (optional for cameras that support ROI-X)
+  virtual void SetHorizontalFOV(int offset_from_left, int width) = 0;
+  virtual auto GetHorizontalFOVOffset() -> int                   = 0;
+  virtual auto GetHorizontalFOVWidth() -> int                    = 0;
+  virtual auto GetMaxHorizontalWidth() -> int                    = 0;
 };
 
 using ImageProviderPtr = std::unique_ptr<ImageProvider>;

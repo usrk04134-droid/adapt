@@ -39,6 +39,10 @@ class CameraSimulation : public ImageProvider {
   void SetVerticalFOV(int offset_from_top, int height) override;
   auto GetVerticalFOVOffset() -> int override;
   auto GetVerticalFOVHeight() -> int override;
+  void SetHorizontalFOV(int offset_from_left, int width) override {};
+  auto GetHorizontalFOVOffset() -> int override { return 0; };
+  auto GetHorizontalFOVWidth() -> int override { return 0; };
+  auto GetMaxHorizontalWidth() -> int override { return 3500; };
   auto GetSerialNumber() -> std::string override;
   void SetOnImage(OnImage on_image) override { on_image_ = on_image; };
 
