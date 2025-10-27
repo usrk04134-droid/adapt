@@ -138,6 +138,22 @@ void ScannerImpl::SetupMetrics(prometheus::Registry* registry) {
                                              .Register(*registry)
                                              .Add({});
   }
+
+  {
+    metrics_.fps = &prometheus::BuildGauge()
+                        .Name("scanner_input_fps")
+                        .Help("Incoming frames per second from camera")
+                        .Register(*registry)
+                        .Add({});
+  }
+
+  {
+    metrics_.capture_to_slider_delay_ms = &prometheus::BuildGauge()
+                                              .Name("scanner_capture_to_slider_delay_ms")
+                                              .Help("Delay from image capture to requesting new slider position (ms)")
+                                              .Register(*registry)
+                                              .Add({});
+  }
 }
 
 auto ScannerImpl::Start(enum ScannerSensitivity sensitivity) -> boost::outcome_v2::result<void> {
@@ -206,6 +222,16 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     if (result) {
       auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
       LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
+      const auto t_capture   = image->GetTimestamp();
+      const auto t_processed = std::chrono::high_resolution_clock::now();
+      const double fps = 1.0 /
+                         std::max(1e-9,
+                                  std::chrono::duration<double>(t_processed - latest_sent).count());
+      latest_sent = t_processed;
+      if (metrics_.fps) {
+        metrics_.fps->Set(fps);
+      }
+
       joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
                                         .timestamp           = image->GetTimestamp(),
                                         .image_name          = image->GetImageName(),
@@ -226,6 +252,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
       const int current_offset = image->GetVerticalCropStart();
       const int current_height = image->Data().rows();
+      const int sensor_width   = image->Data().cols();
       const auto [top, bottom] = profile.vertical_limits;
       m_config_mutex.lock();
       const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
@@ -263,10 +290,73 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
         }
       }
 
+      // Horizontal ROI: shrink width around ABW0..ABW6 when median available
+      // Compute ABW positions in image px to drive camera ROI
+      {
+        auto maybe_img = joint_model_->WorkspaceToImage(ABWPointsToMatrix(profile.points), current_offset);
+        if (maybe_img.has_value()) {
+          const auto img_pts = maybe_img.value();
+          const int abw0x    = static_cast<int>(img_pts(0, 0));
+          const int abw6x    = static_cast<int>(img_pts(0, 6));
+
+          // Desired target ROI (tuneable via configuration if available later)
+          const int margin_px    = 300;
+          const int min_width_px = 800;
+
+          int desired_left  = std::max(0, std::min(abw0x, abw6x) - margin_px);
+          int desired_right = std::min(sensor_width, std::max(abw0x, abw6x) + margin_px);
+          if (desired_right - desired_left < min_width_px) {
+            desired_right = std::min(sensor_width, desired_left + min_width_px);
+          }
+
+          // Current ROI from camera is unknown; approximate from image StartCol/StopCol
+          const int current_left  = image->StartCol();
+          const int current_right = image->StopCol();
+          const int current_width = current_right - current_left;
+
+          // Hysteresis: move only if more than deadband
+          const int hysteresis_px = 50;
+          int delta_left          = desired_left - current_left;
+          int delta_right         = desired_right - current_right;
+          bool need_move          = (std::abs(delta_left) > hysteresis_px) || (std::abs(delta_right) > hysteresis_px);
+
+          if (need_move) {
+            // Limit step per frame
+            const int step_px   = 100;
+            int next_left       = current_left + std::clamp(delta_left, -step_px, step_px);
+            int next_right      = current_right + std::clamp(delta_right, -step_px, step_px);
+            int next_width      = std::max(min_width_px, next_right - next_left);
+            next_right          = std::min(sensor_width, next_left + next_width);
+            next_left           = std::max(0, next_right - next_width);
+
+            // Don't spam camera if same request in flight
+            const auto dim_check = dont_allow_horizontal_fov_change_until_new_dimensions_received;
+            const bool allow = dim_check
+                                   .transform([next_left, next_width](std::tuple<int, int> requested) {
+                                     auto [req_left, req_width] = requested;
+                                     return req_left == next_left && req_width == next_width;
+                                   })
+                                   .value_or(true);
+            if (allow) {
+              dont_allow_horizontal_fov_change_until_new_dimensions_received = {next_left, next_width};
+              image_provider_->SetHorizontalFOV(next_left, next_width);
+            }
+          } else {
+            dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
+          }
+        }
+      }
+
       if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
         image_provider_->AdjustGain(profile.suggested_gain_change.value());
         frames_since_gain_change_ = 0;
       }
+      // Measure capture->slider-request delay (approximate: processed time - capture time)
+      if (metrics_.capture_to_slider_delay_ms) {
+        const auto delay_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t_processed - t_capture).count();
+        metrics_.capture_to_slider_delay_ms->Set(static_cast<double>(delay_ms));
+      }
+
       m_config_mutex.unlock();
 
       if (metrics_.image.contains(slice.num_walls_found)) {

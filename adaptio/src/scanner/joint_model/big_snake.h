@@ -58,9 +58,18 @@ class BigSnake : public JointModel {
 
   void CropImageHorizontal(image::Image& image, std::optional<JointProfile> median_profile);
 
+  // Compute suggested horizontal ROI [offset_x, width] given ABW0/ABW6 in image pixels
+  static auto ComputeHorizontalRoi(int sensor_width_px, int abw0_x_px, int abw6_x_px)
+      -> std::tuple<int /*offset_x*/, int /*width*/>;
+
  private:
   int threshold_;
   bool found_out_of_spec_joint_width_{};
+  // Hysteresis and margins for horizontal ROI
+  static constexpr int HORIZONTAL_MARGIN_PX = 300;
+  static constexpr int MIN_WIDTH_PX         = 800;
+  static constexpr int STEP_PX              = 100;   // Max per-frame shift
+  static constexpr int HYSTERESIS_PX        = 50;    // Deadband before adjusting
 };
 
 }  // namespace scanner::joint_model

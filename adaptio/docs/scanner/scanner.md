@@ -40,6 +40,22 @@ Several input data are used by the scanner to exctract the ABW points.
 * Approximation of ABW0 and ABW6 horizontally
    * If roller beds are homed and edge sensor is available main will update scanner with an approximation of ABW0 and ABW6 horizontal position
 
+### Horizontal ROI (FOV) adjustment
+
+To increase frame rate further when a median slice exists, the camera horizontal Region-Of-Interest (ROI) is dynamically narrowed around the groove. We compute the ABW0/ABW6 x-positions in image pixels from the current profile and request a Basler camera ROI bounded by those with a configurable margin. A small hysteresis and per-frame step cap avoid oscillations.
+
+- target_left = min(ABW0_x, ABW6_x) - margin_px
+- target_right = max(ABW0_x, ABW6_x) + margin_px
+- enforce width >= min_width_px, clamp to sensor
+- apply only if movement > hysteresis_px; shift by at most step_px per frame
+
+Defaults: margin_px=300, min_width_px=800, step_px=100, hysteresis_px=50. These can be tuned in `ScannerConfigurationData`.
+
+Metrics added for validation and tuning:
+- `scanner_input_fps`
+- `scanner_capture_to_slider_delay_ms`
+- Camera temperature gauges are already available under `basler_camera_*`.
+
 ```plantuml
 title Process one image
 
