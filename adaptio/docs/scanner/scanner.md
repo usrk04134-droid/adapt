@@ -82,3 +82,49 @@ participant "Main" as Main
     end
   end
 ```
+
+### Horizontal ROI auto-shrinking (performance)
+
+To increase camera frame rate beyond the vertical-only ROI reduction, the scanner now also reduces the horizontal ROI dynamically based on the median slice and current ABW positions.
+
+- The camera hardware ROI `Width/OffsetX` is adjusted at runtime to tightly bracket ABW0..ABW6 with a safety margin.
+- The ROI is computed from the median slice’s ABW0 and ABW6, unioned with the current frame’s ABW0/ABW6 when available, and expanded by a margin to keep context around the groove.
+- Minimum ROI size is enforced to avoid starving downstream algorithms.
+
+Parameters (defaults in code):
+- Minimum horizontal width: 500 px
+- Horizontal margin around ABW endpoints: 150 px
+- Reconfigure threshold: 40 px change in start/width
+
+Impact:
+- Default 3500x2500 → 3500x500 already gave ~50 fps. With horizontal shrinking the effective ROI can drop well below 3500, further increasing achievable fps while reducing PCIe/CPU load.
+
+How it works (high level):
+- On each successfully parsed image, the scanner computes desired horizontal bounds from the median ABW0/ABW6 in image pixels and applies margins.
+- If bounds differ sufficiently from current, it calls the image provider to apply `OffsetX/Width` and updates the camera model so workspace↔image transforms remain correct.
+
+### Measuring improvement (fps and temperatures)
+
+Use existing Prometheus metrics to quantify improvements:
+- Processing rate (fps): `sum(rate(scanner_image_process_success_total[30s]))` (sum across labels found={0,1,2}). This approximates end-to-end fps. For camera-side fps, read your grabber/driver if exposed; otherwise processing rate is sufficient when the pipeline keeps up.
+- Basler camera temperatures: `basler_camera_temperature`, `basler_camera_max_temperature`, and `basler_camera_temperate_status` gauges.
+
+CPU temperature:
+- If node exporter or lm-sensors is present, use those to collect CPU temps. On many systems you can read `/sys/class/thermal/**/temp` (values in millidegrees C).
+
+Suggested experiment procedure:
+1) Baseline (horizontal ROI disabled): run for ≥2 minutes, record mean fps and temperatures.
+2) Enable horizontal ROI auto-shrinking (default on): run the same program/test and record the same metrics.
+3) Compare averages and max values.
+
+### Capture→slider request latency
+
+Scanner timestamps each image close to the camera exposure time. The gauge
+`adaptio_abw_latency_lpcs_seconds` reports the latency from image capture
+until ABW data is produced by the scanner (in the laser plane coordinate system).
+
+To approximate “camera capture → new slider position requested”, add your
+actuation latency on top of ABW latency (the portion between scanner output
+and the slider command). If your control path exposes a timestamp for when a
+slider command is sent, subtract the ABW timestamp (carried with the slice) to
+derive this additional component.

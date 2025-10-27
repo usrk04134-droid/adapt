@@ -43,11 +43,24 @@ class TiltedPerspectiveCamera : public CameraModel {
   auto WorkspaceToImage(const WorkspaceCoordinates &workspace_coordinates, int vertical_crop_offset) const
       -> boost::outcome_v2::result<PlaneCoordinates> override;
 
+  // Add dynamic horizontal ROI offset (in pixels) to configured FOV offset_x
+  void SetDynamicHorizontalOffsetPixels(int64_t offset_pixels) override {
+    dynamic_offset_x_pixels_ = static_cast<int>(offset_pixels);
+  }
+
   /**
    * Sets the camera properties and recalculates relevant matrices.
    * @param camera_properties
    */
   void SetCameraProperties(const TiltedPerspectiveCameraProperties &camera_properties);
+
+  // Dynamically adjust horizontal FOV offset relative to configured FOV.
+  // This value represents the additional OffsetX (in pixels) applied by the
+  // camera at runtime, i.e. the hardware ROI offset from the configured
+  // image_provider::Fov.offset_x.
+  void SetHorizontalFovRelativeOffset(int64_t offset_pixels) { dynamic_offset_x_pixels_ = offset_pixels; }
+
+  void SetDynamicHorizontalOffsetPixels(int64_t offset_pixels) override { SetHorizontalFovRelativeOffset(offset_pixels); }
 
   /**
    * Gets the current matrix used to perform the tilt transformation.
@@ -58,6 +71,10 @@ class TiltedPerspectiveCamera : public CameraModel {
  private:
   TiltedPerspectiveCameraProperties camera_properties_;
   Eigen::Matrix<double, 3, 3, Eigen::RowMajor> Hp_;
+  int dynamic_offset_x_pixels_ = 0;  // additional OffsetX applied at runtime
+  // Runtime horizontal ROI offset in pixels, applied in addition to
+  // camera_properties_.config_fov.offset_x for coordinate transforms.
+  int64_t dynamic_offset_x_pixels_ = 0;
 
   /**
    * Calculates the tilt transformation matrix Hp for a tilted lens camera model with an image-side perspective lens.

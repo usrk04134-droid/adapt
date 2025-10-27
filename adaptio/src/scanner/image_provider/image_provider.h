@@ -36,6 +36,15 @@ class ImageProvider {
   virtual auto GetVerticalFOVOffset() -> int                   = 0;
   virtual auto GetVerticalFOVHeight() -> int                   = 0;
   virtual auto GetSerialNumber() -> std::string                = 0;
+
+  // Horizontal FOV controls (Width/OffsetX). The default implementation in
+  // concrete providers should keep OffsetX relative to the original FOV.
+  // For providers that cannot change horizontal FOV (e.g. simulation), these
+  // may be implemented as no-ops with cached values for observability.
+  virtual void SetHorizontalFOV(int offset_from_left, int width) = 0;
+  virtual auto GetHorizontalFOVOffset() -> int                   = 0;
+  virtual auto GetHorizontalFOVWidth() -> int                    = 0;
+  virtual auto GetHorizontalFOVAbsoluteOffset() -> int           = 0;
 };
 
 using ImageProviderPtr = std::unique_ptr<ImageProvider>;
