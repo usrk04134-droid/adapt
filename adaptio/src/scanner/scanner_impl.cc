@@ -69,6 +69,39 @@ static int GetRightWallMedianWidth(const joint_buffer::JointSlice& median) {
   return static_cast<int>(std::lround(width_m * 1000.0));
 }
 
+// Pixel-based estimation using median (historical) slice projected to image.
+// Falls back to a conservative default if projection fails.
+static int GetLeftWallMedianWidth(const joint_buffer::JointSlice& median, joint_model::JointModel* joint_model,
+                                  int current_vertical_offset) {
+  if (joint_model != nullptr) {
+    auto maybe_img = joint_model->WorkspaceToImage(joint_model::ABWPointsToMatrix(median.profile.points),
+                                                   current_vertical_offset);
+    if (maybe_img.has_value()) {
+      const auto img = maybe_img.value();
+      const auto p0x = img(0, 0);
+      const auto p1x = img(0, 1);
+      return static_cast<int>(std::lround(std::abs(p1x - p0x)));
+    }
+  }
+  // Fallback: return a safe pixel width when transform is unavailable.
+  return 30;  // px
+}
+
+static int GetRightWallMedianWidth(const joint_buffer::JointSlice& median, joint_model::JointModel* joint_model,
+                                   int current_vertical_offset) {
+  if (joint_model != nullptr) {
+    auto maybe_img = joint_model->WorkspaceToImage(joint_model::ABWPointsToMatrix(median.profile.points),
+                                                   current_vertical_offset);
+    if (maybe_img.has_value()) {
+      const auto img = maybe_img.value();
+      const auto p5x = img(0, 5);
+      const auto p6x = img(0, 6);
+      return static_cast<int>(std::lround(std::abs(p6x - p5x)));
+    }
+  }
+  return 30;  // px
+}
+
 ScannerImpl::ScannerImpl(image_provider::ImageProvider* image_provider, slice_provider::SliceProviderPtr slice_provider,
                          LaserCallback laser_toggle, ScannerOutputCB* scanner_output,
                          joint_model::JointModelPtr joint_model, image_logger::ImageLogger* image_logger,
