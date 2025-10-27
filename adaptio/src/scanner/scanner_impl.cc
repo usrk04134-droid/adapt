@@ -44,6 +44,31 @@ namespace scanner {
 #include <ostream>
 #endif
 
+// Helper functions to estimate wall widths from median slice.
+// Returns width in millimeters (rounded to nearest int).
+static int GetLeftWallMedianWidth(const joint_buffer::JointSlice& median) {
+  const auto& pts = median.profile.points;
+  const auto& p0  = pts[0];
+  const auto& p1  = pts[1];
+  // Prefer horizontal component as a width proxy; fallback to Euclidean distance.
+  double width_m = std::abs(p1.x - p0.x);
+  if (width_m <= 0.0) {
+    width_m = std::hypot(p1.x - p0.x, p1.y - p0.y);
+  }
+  return static_cast<int>(std::lround(width_m * 1000.0));
+}
+
+static int GetRightWallMedianWidth(const joint_buffer::JointSlice& median) {
+  const auto& pts = median.profile.points;
+  const auto& p5  = pts[5];
+  const auto& p6  = pts[6];
+  double width_m = std::abs(p6.x - p5.x);
+  if (width_m <= 0.0) {
+    width_m = std::hypot(p6.x - p5.x, p6.y - p5.y);
+  }
+  return static_cast<int>(std::lround(width_m * 1000.0));
+}
+
 ScannerImpl::ScannerImpl(image_provider::ImageProvider* image_provider, slice_provider::SliceProviderPtr slice_provider,
                          LaserCallback laser_toggle, ScannerOutputCB* scanner_output,
                          joint_model::JointModelPtr joint_model, image_logger::ImageLogger* image_logger,
