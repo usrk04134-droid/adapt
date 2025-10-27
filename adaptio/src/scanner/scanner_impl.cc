@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <fstream>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -138,6 +139,32 @@ void ScannerImpl::SetupMetrics(prometheus::Registry* registry) {
                                              .Register(*registry)
                                              .Add({});
   }
+
+  {
+    metrics_.roi_width_px = &prometheus::BuildGauge()
+                                 .Name("scanner_horizontal_roi_width_pixels")
+                                 .Help("Current horizontal ROI width in pixels applied to camera.")
+                                 .Register(*registry)
+                                 .Add({});
+
+    metrics_.roi_height_px = &prometheus::BuildGauge()
+                                  .Name("scanner_vertical_roi_height_pixels")
+                                  .Help("Current vertical ROI height in pixels applied to camera.")
+                                  .Register(*registry)
+                                  .Add({});
+
+    metrics_.frames_per_second = &prometheus::BuildGauge()
+                                      .Name("scanner_input_frames_per_second")
+                                      .Help("Estimated input FPS computed from inter-frame timestamps.")
+                                      .Register(*registry)
+                                      .Add({});
+
+    metrics_.cpu_temperature_c = &prometheus::BuildGauge()
+                                      .Name("scanner_cpu_temperature_celsius")
+                                      .Help("CPU temperature in Celsius (best-effort, platform dependent).")
+                                      .Register(*registry)
+                                      .Add({});
+  }
 }
 
 auto ScannerImpl::Start(enum ScannerSensitivity sensitivity) -> boost::outcome_v2::result<void> {
@@ -206,6 +233,20 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     if (result) {
       auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
       LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
+      // Update FPS estimate and ROI metrics
+      if (last_frame_timestamp_) {
+        const auto now_ts = image->GetTimestamp();
+        const auto dt     = std::chrono::duration<double>(now_ts - last_frame_timestamp_.value()).count();
+        if (dt > 0.0001 && dt < 1.0) {
+          metrics_.frames_per_second->Set(1.0 / dt);
+        }
+      }
+      last_frame_timestamp_ = image->GetTimestamp();
+      metrics_.roi_height_px->Set(image_provider_->GetVerticalFOVHeight());
+      {
+        int w = image_provider_->GetHorizontalFOVWidth();
+        if (w > 0) metrics_.roi_width_px->Set(w);
+      }
       joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
                                         .timestamp           = image->GetTimestamp(),
                                         .image_name          = image->GetImageName(),
@@ -224,9 +265,12 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       slice_provider_->AddSlice(slice);
       m_buffer_mutex.unlock();
 
-      const int current_offset = image->GetVerticalCropStart();
-      const int current_height = image->Data().rows();
-      const auto [top, bottom] = profile.vertical_limits;
+      const int current_offset  = image->GetVerticalCropStart();
+      const int current_height  = image->Data().rows();
+      const int current_width   = image->Data().cols();
+      const auto [top, bottom]  = profile.vertical_limits;
+      const auto left_px_margin = static_cast<int>(HORIZONTAL_MARGIN);
+      const auto right_px_margin= static_cast<int>(HORIZONTAL_MARGIN);
       m_config_mutex.lock();
       const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
       if (dim_check
@@ -260,6 +304,39 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
           }
         } else {
           dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+        }
+      }
+
+      // Horizontal dynamic ROI based on ABW0..ABW6 in the median profile
+      if (median_profile.has_value()) {
+        auto points_img = joint_model_->WorkspaceToImage(joint_model::ABWPointsToMatrix(median_profile->points),
+                                                         image->GetVerticalCropStart());
+        if (points_img) {
+          const auto& px = points_img.value().row(0);
+          const int abw0_px = static_cast<int>(std::round(px[0]));
+          const int abw6_px = static_cast<int>(std::round(px[6]));
+          const int desired_right = std::min(current_width - 1, abw6_px + right_px_margin);
+          // Keep left edge fixed at 0 to preserve camera model alignment
+          const int desired_width = std::max(MINIMUM_FOV_WIDTH, desired_right);
+
+          const auto width_check = dont_allow_horizontal_width_change_until_new_width_received;
+          const bool width_ok = width_check.transform([desired_width](int requested_width) {
+                                   return requested_width == desired_width;
+                                 })
+                                   .value_or(true);
+
+          if (width_ok) {
+            // Only adjust if a significant change to avoid camera churn
+            const int current_cam_width = image_provider_->GetHorizontalFOVWidth();
+            if (current_cam_width == 0 || std::abs(current_cam_width - desired_width) > 40) {
+              LOG_TRACE("Change horizontal FOV width from {} to {} (abw0 {} abw6 {})", current_cam_width,
+                        desired_width, abw0_px, abw6_px);
+              dont_allow_horizontal_width_change_until_new_width_received = desired_width;
+              image_provider_->SetHorizontalFOVWidth(desired_width);
+            } else {
+              dont_allow_horizontal_width_change_until_new_width_received = std::nullopt;
+            }
+          }
         }
       }
 
@@ -318,6 +395,24 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
     std::chrono::duration<double> const duration_seconds = std::chrono::steady_clock::now() - start_timstamp;
     metrics_.image_processing_time->Observe(duration_seconds.count());
+
+    // Best-effort CPU temperature read (Linux: /sys/class/thermal/thermal_zone0/temp)
+    // Non-fatal if unavailable
+    try {
+      if (std::chrono::steady_clock::now() - last_metrics_update_ > std::chrono::seconds(10)) {
+        std::ifstream fin("/sys/class/thermal/thermal_zone0/temp");
+        if (fin.good()) {
+          long millideg = 0;
+          fin >> millideg;
+          if (millideg > 0) {
+            metrics_.cpu_temperature_c->Set(static_cast<double>(millideg) / 1000.0);
+          }
+        }
+        last_metrics_update_ = std::chrono::steady_clock::now();
+      }
+    } catch (...) {
+      // ignore
+    }
   });
 }
 

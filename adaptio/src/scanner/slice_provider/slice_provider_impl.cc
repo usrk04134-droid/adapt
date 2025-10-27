@@ -108,29 +108,42 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
   if (recent.size() < MIN_SLICES_FOR_MEDIAN) {
     return std::nullopt;
   }
-  std::vector<double> x;
-  std::transform(recent.begin(), recent.end(), std::back_inserter(x),
+  std::vector<double> x_left;
+  std::vector<double> x_right;
+  x_left.reserve(recent.size());
+  x_right.reserve(recent.size());
+  std::transform(recent.begin(), recent.end(), std::back_inserter(x_left),
                  [](joint_buffer::JointSlice* slice) { return slice->profile.points[0].x; });
+  std::transform(recent.begin(), recent.end(), std::back_inserter(x_right),
+                 [](joint_buffer::JointSlice* slice) { return slice->profile.points[6].x; });
 
-  const auto middle    = recent.size() / 2;
-  double median_abw0_x = NAN;
-  if (recent.size() & 1) {
-    std::nth_element(x.begin(), x.begin() + middle, x.end());
-    median_abw0_x = x[middle];
-  } else {
-    std::nth_element(x.begin(), x.begin() + middle, x.end());
-    auto x1 = x[middle];
-    std::nth_element(x.begin(), x.begin() + middle + 1, x.end());
-    auto x2       = x[middle + 1];
-    median_abw0_x = 0.5 * (x1 + x2);
-  }
+  const auto middle = recent.size() / 2;
+
+  auto calc_median = [middle](std::vector<double>& v) -> double {
+    if (v.empty()) return NAN;
+    if (v.size() & 1) {
+      std::nth_element(v.begin(), v.begin() + middle, v.end());
+      return v[middle];
+    }
+    std::nth_element(v.begin(), v.begin() + middle, v.end());
+    auto a = v[middle];
+    std::nth_element(v.begin(), v.begin() + middle + 1, v.end());
+    auto b = v[middle + 1];
+    return 0.5 * (a + b);
+  };
+
+  const double median_abw0_x = calc_median(x_left);
+  const double median_abw6_x = calc_median(x_right);
   joint_buffer::JointSlice slice;
   slice.approximation_used = false;
 
   int included = 0;
   std::vector<Timestamp> times;
   for (auto& old : recent) {
-    if (fabs(old->profile.points[0].x - median_abw0_x) < 0.001) {
+    // Include slices close to both left (image left to ABW0) and right (ABW6 to image right) medians.
+    // This stabilizes the groove region [ABW0, ABW6] for downstream consumers.
+    if (fabs(old->profile.points[0].x - median_abw0_x) < 0.001 &&
+        fabs(old->profile.points[6].x - median_abw6_x) < 0.001) {
       included++;
       for (int i = 0; i < 7; i++) {
         slice.profile.points[i].x += old->profile.points[i].x;
@@ -150,6 +163,10 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
     slice.profile.points[i].x /= included;
     slice.profile.points[i].y /= included;
   }
+
+  // Provide a simple horizontal cropping hint using three-region medians
+  // Left: image left edge to ABW0, Groove: ABW0..ABW6, Right: ABW6 to image right edge
+  // Downstream code can use ABW0/ABW6 together with configured margins.
 
   slice.num_walls_found /= included;
   std::nth_element(times.begin(), times.begin() + included / 2, times.end());

@@ -51,9 +51,11 @@ TEST_SUITE("Scanner") {
 
     void ResetFOVAndGain() override {};
     void SetVerticalFOV(int offset_from_top, int height) override {};
+    void SetHorizontalFOVWidth(int width) override {};
     void AdjustGain(double factor) override {};
     auto GetVerticalFOVOffset() -> int override { return 0; };
     auto GetVerticalFOVHeight() -> int override { return 0; };
+    auto GetHorizontalFOVWidth() -> int override { return 0; };
     auto GetSerialNumber() -> std::string override { return ""; };
     void SetOnImage(OnImage on_image) override { on_image_ = on_image; }
 

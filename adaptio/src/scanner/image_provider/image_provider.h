@@ -32,9 +32,13 @@ class ImageProvider {
 
   virtual void ResetFOVAndGain()                               = 0;
   virtual void SetVerticalFOV(int offset_from_top, int height) = 0;
+  // Dynamically reduce or enlarge the horizontal readout width (keep left edge fixed)
+  virtual void SetHorizontalFOVWidth(int width)                = 0;
   virtual void AdjustGain(double factor)                       = 0;
   virtual auto GetVerticalFOVOffset() -> int                   = 0;
   virtual auto GetVerticalFOVHeight() -> int                   = 0;
+  // Current horizontal readout width in pixels
+  virtual auto GetHorizontalFOVWidth() -> int                  = 0;
   virtual auto GetSerialNumber() -> std::string                = 0;
 };
 
