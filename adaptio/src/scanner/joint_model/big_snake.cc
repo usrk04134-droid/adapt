@@ -24,7 +24,7 @@ namespace scanner::joint_model {
 
 const double MASK_OFFSET        = 0.002;
 const int NUM_TRIANGLES_TO_MASK = 4;
-const int START_SNAKE_OFFSET    = 200;
+const int START_SNAKE_OFFSET    = 200;  // Keep in sync with HORIZONTAL_MARGIN in ScannerImpl
 
 /*
  ____  _       ____              _

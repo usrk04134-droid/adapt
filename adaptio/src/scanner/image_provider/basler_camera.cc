@@ -231,6 +231,22 @@ auto BaslerCamera::GetVerticalFOVOffset() -> int { return camera_->OffsetY.GetVa
 
 auto BaslerCamera::GetVerticalFOVHeight() -> int { return camera_->Height.GetValue(); };
 
+void BaslerCamera::SetHorizontalFOVWidth(int width) {
+  if (!camera_) {
+    return;
+  }
+  camera_->StopGrabbing();
+  // Ensure width doesn't exceed sensor width from initial FOV and is >= 64 px minimum
+  int clamped = static_cast<int>(std::clamp<int64_t>(width, 64, fov_.width));
+  camera_->Width.SetValue(clamped);
+  // Keep OffsetX fixed at configured offset to simplify mapping
+  camera_->OffsetX.SetValue(fov_.offset_x);
+  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+  LOG_TRACE("Continuous grabbing restarted with width {} and offsetX {}.", clamped, fov_.offset_x);
+}
+
+auto BaslerCamera::GetHorizontalFOVWidth() -> int { return camera_->Width.GetValue(); };
+
 void BaslerCamera::Stop() {
   if (Started()) {
     camera_->StopGrabbing();

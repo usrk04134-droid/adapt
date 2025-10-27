@@ -180,11 +180,15 @@ void CameraSimulation::SetVerticalFOV(int offset_from_top, int height) {
   height_ = height;
 }
 
+void CameraSimulation::SetHorizontalFOVWidth(int width) { width_ = width; }
+
 void CameraSimulation::AdjustGain(double factor) {}
 
 auto CameraSimulation::GetVerticalFOVOffset() -> int { return offset_; };
 
 auto CameraSimulation::GetVerticalFOVHeight() -> int { return height_; };
+
+auto CameraSimulation::GetHorizontalFOVWidth() -> int { return width_; };
 
 auto CameraSimulation::GetImage()
     -> std::tuple<std::optional<std::unique_ptr<scanner::image::Image>>, std::optional<uint32_t>> {

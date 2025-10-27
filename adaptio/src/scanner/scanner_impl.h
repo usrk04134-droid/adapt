@@ -22,6 +22,8 @@ namespace scanner {
 auto const WINDOW_MARGIN      = 100;
 auto const MOVE_MARGIN        = 40;
 auto const MINIMUM_FOV_HEIGHT = 500;
+auto const MINIMUM_FOV_WIDTH  = 700;
+auto const HORIZONTAL_MARGIN  = 200;  // Similar to BigSnake START_SNAKE_OFFSET
 
 using LaserCallback = std::function<void(bool state)>;
 using Timestamp     = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -81,6 +83,7 @@ class ScannerImpl : public Scanner {
   size_t num_received   = 0;
   Timestamp latest_sent = std::chrono::high_resolution_clock::now();
   std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_dimensions_received;
+  std::optional<int> dont_allow_horizontal_width_change_until_new_width_received;
   size_t frames_since_gain_change_ = 0;
   bool store_image_data_;
 
@@ -91,9 +94,17 @@ class ScannerImpl : public Scanner {
     std::map<uint64_t, prometheus::Counter*> image;
     prometheus::Histogram* image_processing_time;
     prometheus::Gauge* image_consecutive_errors;
+    prometheus::Gauge* roi_width_px;
+    prometheus::Gauge* roi_height_px;
+    prometheus::Gauge* frames_per_second;
+    prometheus::Gauge* cpu_temperature_c;
   } metrics_;
 
   std::function<void(std::function<void()>)> post_;
+
+  // Runtime metrics helpers
+  std::optional<Timestamp> last_frame_timestamp_;
+  std::chrono::steady_clock::time_point last_metrics_update_{};
 };
 
 class ScannerOutputCBImpl : public ScannerOutputCB {
