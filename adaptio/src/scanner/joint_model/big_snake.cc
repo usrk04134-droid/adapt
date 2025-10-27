@@ -167,13 +167,31 @@ auto BigSnake::GenerateMask(image::Image& image, std::optional<JointProfile> med
 }
 
 void BigSnake::CropImageHorizontal(image::Image& image, std::optional<JointProfile> median_profile) {
-  if (median_profile.has_value()) {
-    auto points =
-        camera_model_->WorkspaceToImage(ABWPointsToMatrix(median_profile.value().points), image.GetVerticalCropStart())
-            .value();
-    auto start = static_cast<int>(points.row(0)[0] - START_SNAKE_OFFSET);
-    auto stop  = static_cast<int>(points.row(0)[6] + START_SNAKE_OFFSET);
-    image.SetHorizontalCrop(start, stop);
+  if (!median_profile.has_value()) {
+    return;
   }
+
+  auto points =
+      camera_model_->WorkspaceToImage(ABWPointsToMatrix(median_profile.value().points), image.GetVerticalCropStart())
+          .value();
+
+  // Desired ROI: pad around ABW0..ABW6 by HORIZONTAL_MARGIN_PX
+  const int abw0_x = static_cast<int>(points.row(0)[0]);
+  const int abw6_x = static_cast<int>(points.row(0)[6]);
+  int left         = std::max(0, std::min(abw0_x, abw6_x) - HORIZONTAL_MARGIN_PX);
+  int right        = std::max(abw0_x, abw6_x) + HORIZONTAL_MARGIN_PX;
+
+  // Enforce a minimum width and clamp to sensor
+  right = std::max(right, left + MIN_WIDTH_PX);
+  right = std::min(right, image.Data().cols());
+  image.SetHorizontalCrop(left, right);
+}
+
+auto BigSnake::ComputeHorizontalRoi(int sensor_width_px, int abw0_x_px, int abw6_x_px)
+    -> std::tuple<int, int> {
+  int left  = std::max(0, std::min(abw0_x_px, abw6_x_px) - HORIZONTAL_MARGIN_PX);
+  int right = std::min(sensor_width_px, std::max(abw0_x_px, abw6_x_px) + HORIZONTAL_MARGIN_PX);
+  right     = std::max(right, left + MIN_WIDTH_PX);
+  return {left, right - left};
 }
 }  // namespace scanner::joint_model

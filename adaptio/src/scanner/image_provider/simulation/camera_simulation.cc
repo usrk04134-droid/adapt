@@ -180,6 +180,11 @@ void CameraSimulation::SetVerticalFOV(int offset_from_top, int height) {
   height_ = height;
 }
 
+void CameraSimulation::SetHorizontalFOV(int offset_from_left, int width) {
+  h_offset_ = offset_from_left;
+  h_width_  = width;
+}
+
 void CameraSimulation::AdjustGain(double factor) {}
 
 auto CameraSimulation::GetVerticalFOVOffset() -> int { return offset_; };
