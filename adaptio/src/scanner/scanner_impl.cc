@@ -338,13 +338,22 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
             const auto img_coords_m = maybe_img_median.value();
             int abw0_col            = static_cast<int>(std::round(img_coords_m(0, 0)));
             int abw6_col            = static_cast<int>(std::round(img_coords_m(0, 6)));
+
+            // Compute median wall widths (in pixels) from the median slice itself
+            // Left width ≈ |ABW1_x - ABW0_x|, Right width ≈ |ABW6_x - ABW5_x|
+            int left_wall_px  = std::max(0, static_cast<int>(std::lround(std::abs(img_coords_m(0, 1) - img_coords_m(0, 0)))));
+            int right_wall_px = std::max(0, static_cast<int>(std::lround(std::abs(img_coords_m(0, 6) - img_coords_m(0, 5)))));
+
             if (maybe_img_curr.has_value()) {
               const auto img_coords_c = maybe_img_curr.value();
-              abw0_col                = std::min(abw0_col, static_cast<int>(std::round(img_coords_c(0, 0))));
-              abw6_col                = std::max(abw6_col, static_cast<int>(std::round(img_coords_c(0, 6))));
+              // Union with current frame to avoid clipping if joint moved
+              abw0_col = std::min(abw0_col, static_cast<int>(std::round(img_coords_c(0, 0))));
+              abw6_col = std::max(abw6_col, static_cast<int>(std::round(img_coords_c(0, 6))));
             }
-            int left_col          = std::min(abw0_col, abw6_col) - H_WINDOW_MARGIN;
-            int right_col         = std::max(abw0_col, abw6_col) + H_WINDOW_MARGIN;
+
+            // ROI = [ABW0 - medianLeftWidth, ABW6 + medianRightWidth]
+            int left_col  = std::min(abw0_col, abw6_col) - left_wall_px;
+            int right_col = std::max(abw0_col, abw6_col) + right_wall_px;
 
             // Enforce minimum width
             if (right_col - left_col < MINIMUM_FOV_WIDTH) {
