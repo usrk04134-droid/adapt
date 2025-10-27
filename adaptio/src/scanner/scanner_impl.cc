@@ -263,6 +263,107 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
         }
       }
 
+      // Horizontal FOV tuning based on ABW0/ABW6 median slice and current profile
+      {
+        // If we have a median slice, compute desired horizontal window around ABW0..ABW6
+        auto median_profile_opt = slice_provider_->GetSlice();
+        if (median_profile_opt.has_value()) {
+          const auto& mp = median_profile_opt.value();
+          // Use left part median up to ABW0, right part from ABW6, ensure full coverage
+          const double left_x  = std::min(mp.points[0].x, profile.points[0].x);
+          const double right_x = std::max(mp.points[6].x, profile.points[6].x);
+
+          // Project median and current ABW points to image coordinates to get pixel columns
+          auto maybe_img_median = joint_model_->WorkspaceToImage(ABWPointsToMatrix(mp.points), current_offset);
+          auto maybe_img_curr   = joint_model_->WorkspaceToImage(ABWPointsToMatrix(profile.points), current_offset);
+          if (maybe_img_median.has_value()) {
+            const auto img_coords_m = maybe_img_median.value();
+            int abw0_col            = static_cast<int>(std::round(img_coords_m(0, 0)));
+            int abw6_col            = static_cast<int>(std::round(img_coords_m(0, 6)));
+            if (maybe_img_curr.has_value()) {
+              const auto img_coords_c = maybe_img_curr.value();
+              abw0_col                = std::min(abw0_col, static_cast<int>(std::round(img_coords_c(0, 0))));
+              abw6_col                = std::max(abw6_col, static_cast<int>(std::round(img_coords_c(0, 6))));
+            }
+            int left_col          = std::min(abw0_col, abw6_col) - H_WINDOW_MARGIN;
+            int right_col         = std::max(abw0_col, abw6_col) + H_WINDOW_MARGIN;
+
+            // Enforce minimum width
+            if (right_col - left_col < MINIMUM_FOV_WIDTH) {
+              int mid       = (left_col + right_col) / 2;
+              left_col      = mid - MINIMUM_FOV_WIDTH / 2;
+              right_col     = left_col + MINIMUM_FOV_WIDTH;
+            }
+
+            // Clamp to ROI-local image coordinates
+            left_col  = std::max(0, left_col);
+            right_col = std::min(static_cast<int>(image->Data().cols()) - 1, right_col);
+
+            const int desired_width_roi = right_col - left_col + 1;
+
+            // Convert ROI-local desired start to absolute offset relative to configured FOV
+            const int current_offset_x  = image_provider_->GetHorizontalFOVOffset();
+            const int desired_offset_x  = current_offset_x + left_col;
+            const int current_width_px  = image_provider_->GetHorizontalFOVWidth();
+
+            const bool requires_reconfig =
+                (std::abs(desired_offset_x - current_offset_x) > H_MOVE_MARGIN) ||
+                (std::abs(desired_width_roi - current_width_px) > H_MOVE_MARGIN);
+
+            if (requires_reconfig) {
+              image_provider_->SetHorizontalFOV(desired_offset_x, desired_width_roi);
+              joint_model_->SetCameraDynamicHorizontalOffsetPixels(image_provider_->GetHorizontalFOVOffset());
+            }
+          }
+        }
+      }
+
+      // Horizontal FOV tuning based on ABW0/ABW6 of median slice
+      {
+        auto maybe_median = slice_provider_->GetSlice();
+        const int img_rows = image->Data().rows();
+        const int img_cols = image->Data().cols();
+
+        if (maybe_median.has_value()) {
+          const auto median = maybe_median.value();
+
+          auto maybe_img_pts = joint_model_->WorkspaceToImage(joint_model::ABWPointsToMatrix(median.points),
+                                                              image->GetVerticalCropStart());
+          if (maybe_img_pts.has_value()) {
+            const auto img_pts = maybe_img_pts.value();
+            int abw0_col       = static_cast<int>(std::lround(img_pts(0, 0)));
+            int abw6_col       = static_cast<int>(std::lround(img_pts(0, 6)));
+            int left_col       = std::min(abw0_col, abw6_col) - H_WINDOW_MARGIN;
+            int right_col      = std::max(abw0_col, abw6_col) + H_WINDOW_MARGIN;
+
+            // Enforce minimum width
+            if (right_col - left_col + 1 < MINIMUM_FOV_WIDTH) {
+              int mid = (left_col + right_col) / 2;
+              left_col = mid - MINIMUM_FOV_WIDTH / 2;
+              right_col = left_col + MINIMUM_FOV_WIDTH - 1;
+            }
+
+            // Clamp to current image dimensions
+            left_col  = std::max(0, left_col);
+            right_col = std::min(img_cols - 1, right_col);
+
+            int desired_width = right_col - left_col + 1;
+
+            // Reconfigure if large movement or width change
+            const bool need_move = (std::abs(left_col - image->StartCol()) > H_MOVE_MARGIN) ||
+                                   (std::abs(desired_width - image->Cols()) > H_MOVE_MARGIN);
+            if (need_move) {
+              dont_allow_horizontal_fov_change_until_new_dimensions_received = {left_col, desired_width};
+              image_provider_->SetHorizontalFOV(left_col, desired_width);
+              LOG_TRACE("Horizontal FOV updated: start {} width {} (abw0 {} abw6 {})", left_col, desired_width,
+                        abw0_col, abw6_col);
+            } else {
+              dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
+            }
+          }
+        }
+      }
+
       if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
         image_provider_->AdjustGain(profile.suggested_gain_change.value());
         frames_since_gain_change_ = 0;
@@ -306,7 +407,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
     image_logger::ImageLoggerEntry entry = {
         .image    = image.get(),
-        .x_offset = 0,
+        .x_offset = static_cast<uint32_t>(image_provider_->GetHorizontalFOVAbsoluteOffset()),
         .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
     };
 

@@ -226,6 +226,15 @@ class JointModel {
  protected:
   JointProperties properties_;
   image::CameraModelPtr camera_model_;
+
+ public:
+  // Propagate runtime camera ROI horizontal offset (in pixels) to the camera model
+  // so Workspace/Image transforms account for dynamic OffsetX.
+  void SetCameraDynamicHorizontalOffsetPixels(int64_t offset_pixels) {
+    if (camera_model_) {
+      camera_model_->SetDynamicHorizontalOffsetPixels(offset_pixels);
+    }
+  }
 };
 
 using JointModelPtr = std::unique_ptr<JointModel>;

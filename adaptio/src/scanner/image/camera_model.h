@@ -2,6 +2,7 @@
 
 #include <boost/outcome.hpp>
 #include <Eigen/Eigen>
+#include <cstdint>
 
 #include "image.h"
 
@@ -50,6 +51,10 @@ class CameraModel {
    */
   virtual auto WorkspaceToImage(const WorkspaceCoordinates&, int) const
       -> boost::outcome_v2::result<PlaneCoordinates> = 0;
+
+  // Optional runtime update: additional horizontal pixel offset due to camera ROI (OffsetX)
+  // Implementations should treat this as an additive offset to the configured FOV offset_x.
+  virtual void SetDynamicHorizontalOffsetPixels(int64_t /*offset_pixels*/) {}
 
  protected:
   /**
