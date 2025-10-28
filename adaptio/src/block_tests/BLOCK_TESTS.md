@@ -34,6 +34,19 @@ Refer [here](https://github.com/doctest/doctest/blob/master/doc/markdown/command
 ./build/debug/src/adaptio-block-tests --trace -aa=1
 ~~~
 
+### Persist DB in real time (optional)
+
+By default, block tests use an in-memory SQLite database. To observe and persist writes in real time during tests, set an on-disk path via `ADAPTIO_BLOCK_TEST_DB` before running. WAL mode and FULL synchronous are enabled automatically for durability.
+
+~~~bash
+export ADAPTIO_BLOCK_TEST_DB=/tmp/adaptio_block_tests.db
+adaptio --build-tests
+./build/debug/src/adaptio-block-tests --trace
+
+# Tail SQLite WAL for activity (optional)
+ls -l /tmp/adaptio_block_tests.db*
+~~~
+
 ### Enable traces
 
 Traces are not enabled by default for many block tests, same of them are prepared for tracing by uncomment a line like below.
