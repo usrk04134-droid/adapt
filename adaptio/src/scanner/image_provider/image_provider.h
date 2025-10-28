@@ -32,9 +32,14 @@ class ImageProvider {
 
   virtual void ResetFOVAndGain()                               = 0;
   virtual void SetVerticalFOV(int offset_from_top, int height) = 0;
+  // Adjust horizontal ROI (absolute sensor coordinates)
+  virtual void SetHorizontalFOV(int absolute_offset_x, int width) = 0;
   virtual void AdjustGain(double factor)                       = 0;
   virtual auto GetVerticalFOVOffset() -> int                   = 0;
   virtual auto GetVerticalFOVHeight() -> int                   = 0;
+  // Query current horizontal ROI absolute offset and width (sensor coordinates)
+  virtual auto GetHorizontalFOVOffset() -> int                 = 0;
+  virtual auto GetHorizontalFOVWidth() -> int                  = 0;
   virtual auto GetSerialNumber() -> std::string                = 0;
 };
 

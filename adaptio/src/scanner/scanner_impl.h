@@ -23,6 +23,11 @@ auto const WINDOW_MARGIN      = 100;
 auto const MOVE_MARGIN        = 40;
 auto const MINIMUM_FOV_HEIGHT = 500;
 
+// Horizontal ROI tuning
+auto const WINDOW_MARGIN_H     = 100;
+auto const MOVE_MARGIN_H       = 50;
+auto const MINIMUM_FOV_WIDTH   = 1000;
+
 using LaserCallback = std::function<void(bool state)>;
 using Timestamp     = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
@@ -81,6 +86,8 @@ class ScannerImpl : public Scanner {
   size_t num_received   = 0;
   Timestamp latest_sent = std::chrono::high_resolution_clock::now();
   std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_dimensions_received;
+  std::optional<int> dont_allow_horizontal_fov_change_until_new_width_received;
+  std::optional<int> initial_horizontal_fov_width_;
   size_t frames_since_gain_change_ = 0;
   bool store_image_data_;
 
@@ -91,6 +98,8 @@ class ScannerImpl : public Scanner {
     std::map<uint64_t, prometheus::Counter*> image;
     prometheus::Histogram* image_processing_time;
     prometheus::Gauge* image_consecutive_errors;
+    prometheus::Gauge* capture_to_slider_delay_ms;
+    prometheus::Gauge* fps_current;
   } metrics_;
 
   std::function<void(std::function<void()>)> post_;
