@@ -10,6 +10,21 @@ adaptio --build-tests
 ./build/debug/src/adaptio-block-tests --trace
 ~~~
 
+### Prometheus metrics
+
+Block tests expose metrics via an embedded Prometheus HTTP endpoint.
+
+- Default listen port: `9092`
+- Override with env var: `ADAPTIO_BLOCK_TESTS_PROMETHEUS_PORT=<port>`
+- Example scrape: visit `http://localhost:9092/metrics`
+
+Exported counters:
+
+- `block_tests_pass_total`: total number of passing test cases
+- `block_tests_fail_total`: total number of failing test cases
+
+Note: Metrics are registered when the test application starts; most block tests start it via `ApplicationWrapper`.
+
 ### Use filters
 
 ~~~bash
