@@ -1,0 +1,21 @@
+{
+  "joint": {
+    "type": "v-groove",
+    "root_opening_mm": 2.0,
+    "bevel_angle_deg": 30.0,
+    "land_thickness_mm": 1.0,
+    "torch_angle_deg": 15.0
+  },
+  "image": {
+    "width": 320,
+    "height": 240,
+    "input_image": "input.pgm"
+  },
+  "seam": {
+    "estimated_angle_deg": 91.45471206110714,
+    "num_points": 240,
+    "direction": "vertical",
+    "points_csv": "seam_points.csv",
+    "overlay_image": "seam_overlay.ppm"
+  }
+}
