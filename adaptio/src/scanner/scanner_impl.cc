@@ -322,11 +322,13 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
         // Only adjust horizontal FOV if we have no pending unmatched request, or it matched
         const bool request_satisfied = dim_check_h
-                                           .transform([current_offset_x, current_width](std::tuple<int, int> requested) {
+                                           .transform([current_width](std::tuple<int, int> requested) {
                                              auto [requested_offset, requested_width] = requested;
-                                             LOG_INFO("requested offset {} requested width {} current_offset_x {} current width {}",
-                                                      requested_offset, requested_width, current_offset_x, current_width);
-                                             return requested_offset == current_offset_x && requested_width == current_width;
+                                             LOG_INFO("requested offset {} requested width {} current width {}",
+                                                      requested_offset, requested_width, current_width);
+                                             // Some providers (Basler/simulation) do not expose absolute horizontal offset
+                                             // Accept width match as successful application of the request
+                                             return requested_width == current_width;
                                            })
                                            .value_or(true);
 
