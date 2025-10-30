@@ -167,6 +167,7 @@ void ScannerImpl::Stop() {
   maybe_abw0_abw6_horizontal_ = {};
   image_provider_->SetOnImage(nullptr);
   dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+  dont_allow_fov_change_until_new_horizontal_dimensions_received = std::nullopt;
 }
 
 auto ScannerImpl::NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int> {
@@ -270,6 +271,21 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
         frames_since_gain_change_ = 0;
       }
       m_config_mutex.unlock();
+
+      const int current_offset_x = image->GetHorizontalCropStart();
+      const int current_width    = image->Data().cols();
+      const auto dim_check_h     = dont_allow_fov_change_until_new_horizontal_dimensions_received;
+
+      const bool horizontal_dimensions_acknowledged = dim_check_h
+          .transform([current_offset_x, current_width](std::tuple<int, int> requested) {
+            auto [requested_offset, requested_width] = requested;
+            return requested_offset == current_offset_x && requested_width == current_width;
+          })
+          .value_or(true);
+
+      if (!horizontal_dimensions_acknowledged && dim_check_h.has_value()) {
+        dont_allow_fov_change_until_new_horizontal_dimensions_received = std::nullopt;
+      }
 
       if (metrics_.image.contains(slice.num_walls_found)) {
         metrics_.image.at(slice.num_walls_found)->Increment();
