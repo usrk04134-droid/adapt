@@ -21,7 +21,8 @@ struct JointSlice {
   core::image::WorkspaceCoordinates centroids;
   uint64_t num_walls_found = 0;
   uint64_t processing_time;
-  int vertical_crop_start;
+  int vertical_crop_start = 0;
+  int horizontal_crop_start = 0;
 };
 
 class JointBuffer {

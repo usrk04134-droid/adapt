@@ -141,6 +141,10 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
       if (old->approximation_used) {
         slice.approximation_used = true;
       }
+      if (included == 1) {
+        slice.vertical_crop_start   = old->vertical_crop_start;
+        slice.horizontal_crop_start = old->horizontal_crop_start;
+      }
     }
   }
   if (included == 0) {

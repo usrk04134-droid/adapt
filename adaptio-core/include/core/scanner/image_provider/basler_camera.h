@@ -22,7 +22,7 @@ class BaslerCameraUpstreamImageEventHandler : public Pylon::CImageEventHandler {
   using Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
   BaslerCameraUpstreamImageEventHandler(ImageProvider::OnImage on_image, Timestamp start_time, int64_t start_tick,
-                                        int original_offset);
+                                        int original_vertical_offset, int original_horizontal_offset);
 
   void OnImageGrabbed(Pylon::CInstantCamera &camera, const Pylon::CGrabResultPtr &) override;
   void OnImagesSkipped(Pylon::CInstantCamera &camera, size_t) override;
@@ -30,7 +30,8 @@ class BaslerCameraUpstreamImageEventHandler : public Pylon::CImageEventHandler {
  private:
   Timestamp base_timestamp;
   int64_t base_tick;
-  int original_offset_;
+  int original_vertical_offset_;
+  int original_horizontal_offset_;
   ImageProvider::OnImage on_image_;
 };
 
