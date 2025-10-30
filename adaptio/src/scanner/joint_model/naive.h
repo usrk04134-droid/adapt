@@ -202,7 +202,8 @@ class Naive : public JointModel {
    */
   auto GetWallCentroids(const LineSegment& surface, const std::tuple<double, double, double>& surface_edges,
                         const image::RawImageData& image, std::tuple<int, int> offset, int extra_vertical_offset,
-                        bool right_wall) -> std::optional<image::WorkspaceCoordinates>;
+                        int extra_horizontal_offset, bool right_wall)
+      -> std::optional<image::WorkspaceCoordinates>;
 
   auto GetMedianGrooveDepths() -> std::tuple<double, double>;
 
@@ -224,8 +225,8 @@ class Naive : public JointModel {
                                std::tuple<double, double, double>& right_surface_edges, double left_groove_depth,
                                double right_groove_depth) -> std::vector<std::tuple<double, double>>;
 
-  auto TransformCoordsImagePlane(std::vector<std::tuple<double, double>>& wall_coords_laser, int vertical_offset)
-      -> std::vector<std::tuple<int, int>>;
+  auto TransformCoordsImagePlane(std::vector<std::tuple<double, double>>& wall_coords_laser, int vertical_offset,
+                                 int horizontal_offset) -> std::vector<std::tuple<int, int>>;
 
   auto GetWallImage(std::vector<std::tuple<int, int>>& wall_coords_image, const image::RawImageData& image, bool right)
       -> std::optional<std::tuple<const image::RawImageData, std::tuple<int, int>>>;

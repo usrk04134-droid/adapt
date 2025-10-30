@@ -1,5 +1,6 @@
 #include "scanner/image_provider/simulation/camera_simulation.h"
 
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cstddef>
@@ -38,7 +39,17 @@ using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 
 CameraSimulation::CameraSimulation(const SimConfig& config, bool loop)
-    : started_(false), real_time_mode_(config.realtime), loop_(loop), previous_time_stamp_(0), offset_(0), height_(0) {
+    : started_(false),
+      real_time_mode_(config.realtime),
+      loop_(loop),
+      previous_time_stamp_(0),
+      offset_(0),
+      height_(0),
+      horizontal_offset_(0),
+      width_(0),
+      max_width_(0),
+      base_offset_x_(0),
+      base_offset_y_(0) {
   auto search_path                          = fs::path(config.images_path);
   std::vector<std::string> supported_images = {"bmp", "tiff"};
 
@@ -173,11 +184,22 @@ void CameraSimulation::Run() {
   }
 }
 
-void CameraSimulation::ResetFOVAndGain() { SetVerticalFOV(0, 0); }
+void CameraSimulation::ResetFOVAndGain() {
+  SetVerticalFOV(0, 0);
+  SetHorizontalFOV(0, max_width_ > 0 ? max_width_ : width_);
+}
 
 void CameraSimulation::SetVerticalFOV(int offset_from_top, int height) {
   offset_ = offset_from_top;
   height_ = height;
+}
+
+void CameraSimulation::SetHorizontalFOV(int offset_from_left, int width) {
+  horizontal_offset_ = std::max(0, offset_from_left);
+  if (max_width_ > 0) {
+    width = std::min(width, max_width_ - horizontal_offset_);
+  }
+  width_ = std::max(0, width);
 }
 
 void CameraSimulation::AdjustGain(double factor) {}
@@ -185,6 +207,12 @@ void CameraSimulation::AdjustGain(double factor) {}
 auto CameraSimulation::GetVerticalFOVOffset() -> int { return offset_; };
 
 auto CameraSimulation::GetVerticalFOVHeight() -> int { return height_; };
+
+auto CameraSimulation::GetHorizontalFOVOffset() -> int { return horizontal_offset_; };
+
+auto CameraSimulation::GetHorizontalFOVWidth() -> int { return width_ > 0 ? width_ : max_width_; };
+
+auto CameraSimulation::GetMaxHorizontalWidth() -> int { return max_width_; };
 
 auto CameraSimulation::GetImage()
     -> std::tuple<std::optional<std::unique_ptr<scanner::image::Image>>, std::optional<uint32_t>> {
@@ -215,7 +243,33 @@ auto CameraSimulation::GetImage()
     return {std::nullopt, time_stamp};
   }
 
-  auto maybe_image = image::ImageBuilder::From(grayscale_image, image_file.filename(), fov_y).Finalize();
+  if (max_width_ == 0) {
+    max_width_ = grayscale_image.cols;
+  }
+
+  base_offset_x_ = fov_x;
+  base_offset_y_ = fov_y;
+
+  const int image_width  = grayscale_image.cols;
+  const int image_height = grayscale_image.rows;
+
+  const int effective_offset_x = std::clamp(base_offset_x_ + horizontal_offset_, 0, std::max(0, image_width - 1));
+  const int effective_offset_y = std::clamp(base_offset_y_ + offset_, 0, std::max(0, image_height - 1));
+
+  const int available_width  = std::max(1, image_width - effective_offset_x);
+  const int available_height = std::max(1, image_height - effective_offset_y);
+
+  const int desired_width = std::clamp(width_ > 0 ? width_ : available_width, 1, available_width);
+  const int desired_height = std::clamp(height_ > 0 ? height_ : available_height, 1, available_height);
+
+  const cv::Rect roi(effective_offset_x, effective_offset_y, desired_width, desired_height);
+  auto cropped_image = grayscale_image(roi).clone();
+
+  width_  = desired_width;
+  height_ = desired_height;
+
+  auto maybe_image =
+      image::ImageBuilder::From(cropped_image, image_file.filename(), effective_offset_y, effective_offset_x).Finalize();
 
   if (!maybe_image.has_value()) {
     LOG_ERROR("Error while building image: {}", maybe_image.error().to_string());
