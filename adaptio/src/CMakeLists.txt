@@ -180,7 +180,7 @@ target_link_libraries(${TEST_IMAGES_APPLICATION} PRIVATE ${PCL_LIBRARIES})
 add_definitions(${PCL_DEFINITIONS})
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/../assets/basler/a2A4096-9gmPRO_40297732.pfs PFS_FILE_CONTENT)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/scanner/image_provider/basler_camera.cc ${CMAKE_CURRENT_SOURCE_DIR}/../build/basler_camera_with_pfs.cc)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/scanner/image_provider/src/basler_camera.cc ${CMAKE_CURRENT_SOURCE_DIR}/../build/basler_camera_with_pfs.cc)
 
 configure_file(${PROJECT_SOURCE_DIR}/src/version.h.in ${PROJECT_BINARY_DIR}/src/version.h)
 

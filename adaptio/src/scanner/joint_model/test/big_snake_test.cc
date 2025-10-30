@@ -9,12 +9,12 @@
 #include <vector>
 
 #include "common/logging/application_log.h"
+#include "scanner/core/scanner_configuration.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
 #include "scanner/image/image_builder.h"
 #include "scanner/image/tilted_perspective_camera.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/scanner_configuration.h"
 
 #ifndef DOCTEST_CONFIG_DISABLE
 #include <doctest/doctest.h>
@@ -329,7 +329,7 @@ TEST_SUITE("Test Big Snake") {
           REQUIRE_MESSAGE(!grayscale_image.empty(),
                           fmt::format("Failed to read image: {} (absolute: {})", td.filename, abs_path));
 
-          auto maybe_image = scanner::image::ImageBuilder::From(grayscale_image, td.filename, 0).Finalize();
+          auto maybe_image = scanner::image::ImageBuilder::From(grayscale_image, td.filename, 0, 0).Finalize();
           auto* image      = maybe_image.value().get();
 
           auto res = big_snake.Parse(*image, {}, {}, false, {});

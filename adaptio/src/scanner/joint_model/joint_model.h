@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "scanner/core/scanner_configuration.h"
 #include "scanner/image/camera_model.h"
-#include "scanner/scanner_configuration.h"
 
 namespace scanner::joint_model {
 
@@ -163,6 +163,7 @@ struct JointProfile {
       Point{0, 0}
   };
   std::tuple<int, int> vertical_limits        = {0, 0};
+  std::tuple<int, int> horizontal_limits      = {0, 0};
   std::optional<double> suggested_gain_change = std::nullopt;
   bool approximation_used                     = false;
   auto LeftDepth() const -> double { return points[0].y - points[1].y; };
@@ -197,9 +198,9 @@ class JointModel {
       -> std::expected<std::tuple<JointProfile, image::WorkspaceCoordinates, uint64_t, uint64_t>,
                        JointModelErrorCode> = 0;
 
-  auto WorkspaceToImage(const image::WorkspaceCoordinates& workspace_coordinates, int vertical_crop_offset) const
+  auto WorkspaceToImage(const image::WorkspaceCoordinates& workspace_coordinates, int vertical_crop_offset, int horizontal_crop_offset) const
       -> boost::outcome_v2::result<image::PlaneCoordinates> {
-    return camera_model_->WorkspaceToImage(workspace_coordinates, vertical_crop_offset);
+    return camera_model_->WorkspaceToImage(workspace_coordinates, vertical_crop_offset, horizontal_crop_offset);
   };
 
   static auto FitPoints(const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& x_and_y,

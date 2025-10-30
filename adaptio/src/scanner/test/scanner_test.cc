@@ -1,6 +1,6 @@
 // NOLINTBEGIN(*-magic-number)
 
-#include "scanner/scanner.h"
+#include "scanner/core/scanner.h"
 
 #include <doctest/doctest.h>
 #include <prometheus/registry.h>
@@ -16,15 +16,15 @@
 #include <utility>
 
 #include "common/file/yaml.h"
+#include "scanner/core/scanner_types.h"
+#include "scanner/core/src/scanner_impl.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
 #include "scanner/image/image_builder.h"
 #include "scanner/image_logger/image_logger_impl.h"
 #include "scanner/image_provider/image_provider.h"
-#include "scanner/joint_buffer/single_joint_buffer.h"
+#include "scanner/joint_buffer/src/single_joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/scanner_impl.h"
-#include "scanner/scanner_types.h"
 #include "scanner/slice_provider/slice_provider_impl.h"
 
 using common::file::Yaml;
@@ -51,9 +51,13 @@ TEST_SUITE("Scanner") {
 
     void ResetFOVAndGain() override {};
     void SetVerticalFOV(int offset_from_top, int height) override {};
+    void SetHorizontalFOV(int offset_from_left, int width) override {};
     void AdjustGain(double factor) override {};
     auto GetVerticalFOVOffset() -> int override { return 0; };
     auto GetVerticalFOVHeight() -> int override { return 0; };
+    auto GetHorizontalFOVOffset() -> int override { return 0; };
+    auto GetHorizontalFOVWidth() -> int override { return 0; };
+    auto GetMaxHorizontalWidth() -> int override { return 0; };
     auto GetSerialNumber() -> std::string override { return ""; };
     void SetOnImage(OnImage on_image) override { on_image_ = on_image; }
 
@@ -68,7 +72,7 @@ TEST_SUITE("Scanner") {
         image_data(1000, i) = static_cast<uint8_t>(255);
       }
 
-      auto image = image::ImageBuilder::From(std::move(image_data), 0).Finalize().value();
+      auto image = image::ImageBuilder::From(std::move(image_data), 0, 0).Finalize().value();
 
       on_image_(std::move(image));
     }
@@ -80,7 +84,7 @@ TEST_SUITE("Scanner") {
   };
 
   class CameraMock : public image::CameraModel {
-    auto ImageToWorkspace(const image::PlaneCoordinates& coordinates, int vertical_crop_offset) const
+    auto ImageToWorkspace(const image::PlaneCoordinates& coordinates, int vertical_crop_offset, int horizontal_crop_offset) const
         -> boost::outcome_v2::result<image::WorkspaceCoordinates> override {
       image::WorkspaceCoordinates wcs(3, coordinates.cols());
       wcs << coordinates.row(0).array(), coordinates.row(1).array(),
@@ -89,7 +93,7 @@ TEST_SUITE("Scanner") {
       return wcs;
     }
 
-    auto WorkspaceToImage(const image::WorkspaceCoordinates& coordinates, int vertical_crop_offset) const
+    auto WorkspaceToImage(const image::WorkspaceCoordinates& coordinates, int vertical_crop_offseti, int horizontal_crop_offset) const
         -> boost::outcome_v2::result<image::PlaneCoordinates> override {
       image::PlaneCoordinates image(2, coordinates.cols());
       image << coordinates.row(0).array(), coordinates.row(1).array();

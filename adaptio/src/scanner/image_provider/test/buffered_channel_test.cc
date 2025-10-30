@@ -1,4 +1,4 @@
-#include "scanner/image_provider/buffered_channel.h"
+#include "scanner/image_provider/src/buffered_channel.h"
 
 #include <doctest/doctest.h>
 

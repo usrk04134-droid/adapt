@@ -8,7 +8,7 @@
 #include "common/file/yaml.h"
 #include "conf_file_handler.h"
 #include "configuration/converter.h"
-#include "scanner/scanner_calibration_configuration.h"
+#include "scanner/core/scanner_calibration_configuration.h"
 
 namespace configuration {
 

@@ -1,11 +1,11 @@
 
 #include <utility>
 
+#include "scanner/core/scanner.h"
+#include "scanner/core/scanner_calibration_configuration.h"
+#include "scanner/core/scanner_configuration.h"
+#include "scanner/core/scanner_factory.h"
 #include "scanner/image_logger/image_logger.h"
-#include "scanner/scanner.h"
-#include "scanner/scanner_calibration_configuration.h"
-#include "scanner/scanner_configuration.h"
-#include "scanner/scanner_factory.h"
 
 // The stub constructor inserts itself to be returned when the application
 // calls getFactory. The destructor restores normal behaviour.

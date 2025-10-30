@@ -43,7 +43,7 @@ class Image {
   void SetTimestamp(Timestamp t);
 
   auto GetImageName() const -> std::string;
-
+/*
   auto SetHorizontalCrop(int start_column, int stop_column) -> void {
     start_col_ = start_column;
     stop_col_  = stop_column;
@@ -55,7 +55,7 @@ class Image {
       stop_col_ = data_.cols();
     }
   };
-
+*/
   auto Cols() const -> int {
     if (start_col_ != 0) {
       return stop_col_ - start_col_;
@@ -93,6 +93,7 @@ class Image {
         .cast<uint8_t>();
   }
   auto GetVerticalCropStart() const -> int { return vertical_crop_start_; };
+  auto GetHorizontalCropStart() const -> int { return horizontal_crop_start_; };
 
  private:
   RawImageData data_;
@@ -100,7 +101,8 @@ class Image {
   Timestamp timestamp_;
   std::string img_name_;
 
-  int vertical_crop_start_ = 0;
+  int vertical_crop_start_   = 0;
+  int horizontal_crop_start_ = 0;
 
   explicit Image(RawImageData matrix);
   Image(RawImageData matrix, const std::string &img_name);

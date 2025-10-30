@@ -5,5 +5,5 @@ target_sources(${ADAPTIO_APPLICATION}
     slice_provider.h
     slice_provider_impl.h
 
-    slice_provider_impl.cc
+    src/slice_provider_impl.cc
 )

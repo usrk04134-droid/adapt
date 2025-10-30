@@ -13,7 +13,7 @@
 #include "controller/pn_driver/pn_driver.h"
 #include "mock/mock_factory.h"
 #include "mock/mock_file_handler.h"
-#include "scanner/scanner_calibration_configuration.h"
+#include "scanner/core/scanner_calibration_configuration.h"
 
 // NOLINTBEGIN(*-magic-numbers, misc-include-cleaner)
 

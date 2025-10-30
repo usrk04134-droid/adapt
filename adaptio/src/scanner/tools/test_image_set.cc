@@ -33,20 +33,20 @@
 #include "common/file/yaml.h"
 #include "common/groove/groove.h"
 #include "common/logging/application_log.h"
+#include "scanner/core/scanner.h"
+#include "scanner/core/scanner_types.h"
+#include "scanner/core/src/scanner_impl.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image/tiff_handler_impl.h"
 #include "scanner/image/tilted_perspective_camera.h"
 #include "scanner/image_logger/image_logger_impl.h"
 #include "scanner/image_provider/basler_camera.h"
+#include "scanner/image_provider/camera_simulation.h"
 #include "scanner/image_provider/image_provider.h"
 #include "scanner/image_provider/image_provider_configuration.h"
-#include "scanner/image_provider/simulation/camera_simulation.h"
 #include "scanner/joint_buffer/circular_joint_buffer.h"
 #include "scanner/joint_model/big_snake.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/scanner.h"
-#include "scanner/scanner_impl.h"
-#include "scanner/scanner_types.h"
 #include "scanner/slice_provider/slice_provider_impl.h"
 
 namespace po = boost::program_options;
@@ -371,7 +371,7 @@ auto main(int argc, char* argv[]) -> int {
       cv::eigen2cv(slice.image_data.value(), cv_image);
       cv::cvtColor(cv_image, cv_image_color, cv::COLOR_GRAY2RGBA);
 
-      auto maybe_centroids = camera_model_raw->WorkspaceToImage(slice.centroids, slice.vertical_crop_start);
+      auto maybe_centroids = camera_model_raw->WorkspaceToImage(slice.centroids, slice.vertical_crop_start, slice.horizontal_crop_start);
 
       if (maybe_centroids.has_value()) {
         auto centroids = maybe_centroids.value();
@@ -390,7 +390,7 @@ auto main(int argc, char* argv[]) -> int {
       for (auto edge : slice.profile.points) {
         WorkspaceCoordinates wcs(3, 1);
         wcs << edge.x, edge.y, 0.0;
-        auto img = camera_model_raw->WorkspaceToImage(wcs, slice.vertical_crop_start).value();
+        auto img = camera_model_raw->WorkspaceToImage(wcs, slice.vertical_crop_start, slice.horizontal_crop_start).value();
         min_x    = std::min(static_cast<int>(img(0, 0)), min_x);
         min_y    = std::min(static_cast<int>(img(1, 0)), min_y);
         max_x    = std::max(static_cast<int>(img(0, 0)), max_x);

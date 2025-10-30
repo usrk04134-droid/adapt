@@ -23,6 +23,7 @@ struct JointSlice {
   uint64_t num_walls_found = 0;
   uint64_t processing_time;
   int vertical_crop_start;
+  int horizontal_crop_start;
   bool approximation_used;
 };
 

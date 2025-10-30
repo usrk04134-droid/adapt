@@ -16,7 +16,7 @@
 #include "common/logging/application_log.h"
 #include "conf_factory.h"
 #include "configuration_error.h"
-#include "scanner/scanner_calibration_configuration.h"
+#include "scanner/core/scanner_calibration_configuration.h"
 
 using configuration::ScannerCalibrationConverter;
 

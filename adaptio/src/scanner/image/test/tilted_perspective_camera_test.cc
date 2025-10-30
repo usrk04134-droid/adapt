@@ -169,7 +169,7 @@ TEST_SUITE("TiltedPerspectiveCamera") {
 
     auto camera = TiltedPerspectiveCamera(properties);
 
-    auto maybe_wcs = camera.ImageToWorkspace(image, 0);
+    auto maybe_wcs = camera.ImageToWorkspace(image, 0, 0);
 
     if (maybe_wcs.has_error()) {
       CHECK(false);
@@ -222,7 +222,7 @@ TEST_SUITE("TiltedPerspectiveCamera") {
 
     auto camera = TiltedPerspectiveCamera(properties);
 
-    auto maybe_wcs = camera.ImageToWorkspace(image, 0);
+    auto maybe_wcs = camera.ImageToWorkspace(image, 0, 0);
 
     if (maybe_wcs.has_error()) {
       CHECK(false);
@@ -230,7 +230,7 @@ TEST_SUITE("TiltedPerspectiveCamera") {
 
     auto wcs = maybe_wcs.value();
 
-    auto maybe_img = camera.WorkspaceToImage(wcs, 0);
+    auto maybe_img = camera.WorkspaceToImage(wcs, 0, 0);
 
     if (maybe_img.has_error()) {
       CHECK(false);

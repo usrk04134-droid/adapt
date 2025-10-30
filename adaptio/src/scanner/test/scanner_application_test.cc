@@ -20,11 +20,11 @@
 #include "mock/core_scanner_mock.h"
 #include "mock/image_logger_mock.h"
 #include "mock/stub_core_factory.h"
+#include "scanner/core/scanner.h"
+#include "scanner/core/scanner_calibration_configuration.h"
+#include "scanner/core/scanner_configuration.h"
+#include "scanner/core/scanner_factory.h"
 #include "scanner/image_provider/image_provider_configuration.h"
-#include "scanner/scanner.h"
-#include "scanner/scanner_calibration_configuration.h"
-#include "scanner/scanner_configuration.h"
-#include "scanner/scanner_factory.h"
 #include "scanner/slice_provider/slice_provider.h"
 
 using trompeloeil::_;

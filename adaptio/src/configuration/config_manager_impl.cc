@@ -23,7 +23,7 @@
 #include "configuration/scanner_converter.h"
 #include "configuration/tolerances_converter.h"
 #include "configuration/weld_control_converter.h"
-#include "scanner/scanner_calibration_configuration.h"
+#include "scanner/core/scanner_calibration_configuration.h"
 
 using configuration::ConfigManagerImpl;
 

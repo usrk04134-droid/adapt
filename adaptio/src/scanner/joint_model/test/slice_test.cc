@@ -9,7 +9,7 @@
 #include <doctest/doctest.h>
 
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/joint_model/slice.h"
+#include "scanner/joint_model/src/slice.h"
 #include "slice_test_data.h"
 
 using Eigen::Index;

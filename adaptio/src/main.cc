@@ -33,9 +33,9 @@
 #include "configuration/config_manager_impl.h"
 #include "controller/controller_factory.h"
 #include "controller/controller_messenger.h"
+#include "scanner/core/scanner_factory.h"
 #include "scanner/image_provider/image_provider_configuration.h"
 #include "scanner/scanner_application.h"
-#include "scanner/scanner_factory.h"
 #include "version.h"
 
 namespace po = boost::program_options;

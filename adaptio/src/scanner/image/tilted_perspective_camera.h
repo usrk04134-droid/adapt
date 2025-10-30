@@ -3,9 +3,9 @@
 #include <Eigen/Eigen>
 
 #include "common/data/data_value.h"
+#include "scanner/core/scanner_calibration_configuration.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image_provider/image_provider_configuration.h"
-#include "scanner/scanner_calibration_configuration.h"
 
 namespace scanner::image {
 
@@ -37,10 +37,10 @@ class TiltedPerspectiveCamera : public CameraModel {
 
   ~TiltedPerspectiveCamera() override = default;
 
-  auto ImageToWorkspace(const PlaneCoordinates &image_coordinates, int vertical_crop_offset) const
+  auto ImageToWorkspace(const PlaneCoordinates &image_coordinates, int vertical_crop_offset, int horizontal_crop_offset) const
       -> boost::outcome_v2::result<WorkspaceCoordinates> override;
 
-  auto WorkspaceToImage(const WorkspaceCoordinates &workspace_coordinates, int vertical_crop_offset) const
+  auto WorkspaceToImage(const WorkspaceCoordinates &workspace_coordinates, int vertical_crop_offset, int horizontal_crop_offset) const
       -> boost::outcome_v2::result<PlaneCoordinates> override;
 
   /**

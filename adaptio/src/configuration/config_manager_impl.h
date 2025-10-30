@@ -16,9 +16,9 @@
 #include "main/image_logging/image_logging_configuration.h"
 #include "main/joint_geometry/joint_geometry.h"
 #include "main/weld_control/weld_control_types.h"
+#include "scanner/core/scanner_calibration_configuration.h"
+#include "scanner/core/scanner_configuration.h"
 #include "scanner/image_provider/image_provider_configuration.h"
-#include "scanner/scanner_calibration_configuration.h"
-#include "scanner/scanner_configuration.h"
 
 namespace configuration {
 namespace fs = std::filesystem;

@@ -6,9 +6,9 @@
 #include <optional>
 #include <tuple>
 
+#include "scanner/core/scanner_configuration.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/scanner_configuration.h"
 
 namespace scanner::joint_model {
 

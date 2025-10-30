@@ -38,7 +38,7 @@ class CameraModel {
    * @param vertical_crop_offset Allows for dynamic resizing of the FOV vertically.
    * @return The workspace coordinates if calculations are successful.
    */
-  virtual auto ImageToWorkspace(const PlaneCoordinates&, int) const
+  virtual auto ImageToWorkspace(const PlaneCoordinates&, int, int) const
       -> boost::outcome_v2::result<WorkspaceCoordinates> = 0;
 
   /**
@@ -48,7 +48,7 @@ class CameraModel {
    * @param vertical_crop_offset Allows for dynamic resizing of the FOV vertically.
    * @return The image space coordinates if calculations are successful.
    */
-  virtual auto WorkspaceToImage(const WorkspaceCoordinates&, int) const
+  virtual auto WorkspaceToImage(const WorkspaceCoordinates&, int, int) const
       -> boost::outcome_v2::result<PlaneCoordinates> = 0;
 
  protected:

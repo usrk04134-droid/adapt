@@ -1,4 +1,4 @@
-#include "scanner/joint_model/naive.h"
+#include "scanner/joint_model/src/naive.h"
 
 #include <doctest/doctest.h>
 #include <Eigen/src/Core/Matrix.h>
@@ -22,9 +22,9 @@
 #include <vector>
 
 #include "common/logging/application_log.h"
+#include "scanner/core/scanner_configuration.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/scanner_configuration.h"
 #include "test_data.h"
 
 using Eigen::Index;

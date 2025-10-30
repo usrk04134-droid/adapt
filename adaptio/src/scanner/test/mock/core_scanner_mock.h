@@ -2,7 +2,7 @@
 
 #include <trompeloeil.hpp>
 
-#include "scanner/scanner.h"
+#include "scanner/core/scanner.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
 

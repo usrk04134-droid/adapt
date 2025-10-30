@@ -15,7 +15,7 @@ TEST_SUITE("Image") {
 
     auto matrix = Eigen::Map<RawImageData>(data, height, width);
 
-    auto image = ImageBuilder::From(matrix, 0).Finalize().value();
+    auto image = ImageBuilder::From(matrix, 0, 0).Finalize().value();
 
     image->PixelFilter<uint8_t>([](uint8_t pixel_value, Eigen::Index row, Eigen::Index column) -> uint8_t {
       if (pixel_value < 50) {

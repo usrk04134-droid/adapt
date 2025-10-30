@@ -8,7 +8,7 @@
 #include "common/logging/application_log.h"
 #include "configuration_error.h"
 #include "converter.h"
-#include "scanner/scanner_configuration.h"
+#include "scanner/core/scanner_configuration.h"
 
 namespace configuration {
 
