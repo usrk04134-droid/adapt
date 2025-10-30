@@ -93,6 +93,7 @@ class Image {
         .cast<uint8_t>();
   }
   auto GetVerticalCropStart() const -> int { return vertical_crop_start_; };
+  auto GetHorizontalCropStart() const -> int { return horizontal_crop_start_; };
 
  private:
   RawImageData data_;
@@ -101,6 +102,7 @@ class Image {
   std::string img_name_;
 
   int vertical_crop_start_ = 0;
+  int horizontal_crop_start_ = 0;
 
   explicit Image(RawImageData matrix);
   Image(RawImageData matrix, const std::string &img_name);

@@ -167,6 +167,7 @@ void ScannerImpl::Stop() {
   maybe_abw0_abw6_horizontal_ = {};
   image_provider_->SetOnImage(nullptr);
   dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+  dont_allow_fov_change_until_new_horizontal_dimensions_received = std::nullopt;
 }
 
 auto ScannerImpl::NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int> {
@@ -206,14 +207,16 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     if (result) {
       auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
       LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
-      joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
-                                        .timestamp           = image->GetTimestamp(),
-                                        .image_name          = image->GetImageName(),
-                                        .profile             = profile,
-                                        .num_walls_found     = num_walls_found,
-                                        .processing_time     = processing_time,
-                                        .vertical_crop_start = image->GetVerticalCropStart(),
-                                        .approximation_used  = profile.approximation_used};
+      joint_buffer::JointSlice slice = {
+          .uuid                   = image->GetUuid(),
+          .timestamp              = image->GetTimestamp(),
+          .image_name             = image->GetImageName(),
+          .profile                = profile,
+          .num_walls_found        = num_walls_found,
+          .processing_time        = processing_time,
+          .vertical_crop_start    = image->GetVerticalCropStart(),
+          .horizontal_crop_start  = image->GetHorizontalCropStart(),
+          .approximation_used     = profile.approximation_used};
       if (store_image_data_) {
         // Store image data only if necessary. Not needed when running Adaptio
         slice.image_data = image->Data();
@@ -269,6 +272,21 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       }
       m_config_mutex.unlock();
 
+      const int current_offset_x = image->GetHorizontalCropStart();
+      const int current_width    = image->Data().cols();
+      const auto dim_check_h     = dont_allow_fov_change_until_new_horizontal_dimensions_received;
+
+      const bool horizontal_dimensions_acknowledged = dim_check_h
+          .transform([current_offset_x, current_width](std::tuple<int, int> requested) {
+            auto [requested_offset, requested_width] = requested;
+            return requested_offset == current_offset_x && requested_width == current_width;
+          })
+          .value_or(true);
+
+      if (!horizontal_dimensions_acknowledged && dim_check_h.has_value()) {
+        dont_allow_fov_change_until_new_horizontal_dimensions_received = std::nullopt;
+      }
+
       if (metrics_.image.contains(slice.num_walls_found)) {
         metrics_.image.at(slice.num_walls_found)->Increment();
       }
@@ -306,7 +324,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
     image_logger::ImageLoggerEntry entry = {
         .image    = image.get(),
-        .x_offset = 0,
+        .x_offset = static_cast<uint32_t>(image->GetHorizontalCropStart()),
         .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
     };
 
