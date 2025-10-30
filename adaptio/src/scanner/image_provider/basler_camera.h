@@ -88,7 +88,8 @@ class BaslerCamera : public ImageProvider {
   //int horizontal_crop_offset_ = 0;
   OnImage on_image_;
 
-  double initial_gain_ = 0.0;
+  double initial_gain_       = 0.0;
+  int max_horizontal_width_  = 0;
 
   struct {
     std::map<std::string, prometheus::Gauge &> temperature_status_gauges;
