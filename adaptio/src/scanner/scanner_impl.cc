@@ -167,6 +167,7 @@ void ScannerImpl::Stop() {
   maybe_abw0_abw6_horizontal_ = {};
   image_provider_->SetOnImage(nullptr);
   dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+  dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
 }
 
 auto ScannerImpl::NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int> {
@@ -224,8 +225,10 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       slice_provider_->AddSlice(slice);
       m_buffer_mutex.unlock();
 
-      const int current_offset = image->GetVerticalCropStart();
-      const int current_height = image->Data().rows();
+      const int current_offset   = image->GetVerticalCropStart();
+      const int current_height   = image->Data().rows();
+      const int current_offset_x = image->GetHorizontalCropStart();
+      const int current_width    = image->Data().cols();
       const auto [top, bottom] = profile.vertical_limits;
       m_config_mutex.lock();
       const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
@@ -263,6 +266,71 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
         }
       }
 
+      const auto horizontal_dim_check = dont_allow_horizontal_fov_change_until_new_dimensions_received;
+      LOG_INFO("horizontal : dim_check_h: {}", horizontal_dim_check.has_value() ? "set" : "empty");
+      if (horizontal_dim_check
+              .transform([current_offset_x, current_width](std::tuple<int, int> requested) {
+                auto [requested_offset_x, requested_width] = requested;
+                return requested_offset_x == current_offset_x && requested_width == current_width;
+              })
+              .value_or(true)) {
+        auto maybe_abw_points_in_image =
+            joint_model_->WorkspaceToImage(joint_model::ABWPointsToMatrix(profile.points),
+                                           image->GetVerticalCropStart(), image->GetHorizontalCropStart());
+
+        if (maybe_abw_points_in_image) {
+          const auto& abw_points_in_image = maybe_abw_points_in_image.value();
+          const auto abw0_pixel           = static_cast<int>(std::lround(abw_points_in_image(0, 0)));
+          const auto abw6_pixel           = static_cast<int>(std::lround(abw_points_in_image(0, 6)));
+
+          if (abw6_pixel > abw0_pixel) {
+            const int abw0_absolute      = abw0_pixel + current_offset_x;
+            const int abw6_absolute      = abw6_pixel + current_offset_x;
+            const int current_right_edge = current_offset_x + current_width;
+
+            LOG_INFO("horizontal : current_offset_x {} current width {} abw0 {} abw6 {}", current_offset_x,
+                     current_width, abw0_absolute, abw6_absolute);
+
+            const bool left_outside  = std::abs((abw0_absolute - WINDOW_MARGIN) - current_offset_x) > MOVE_MARGIN;
+            const bool right_outside =
+                std::abs((abw6_absolute + WINDOW_MARGIN) - current_right_edge) > MOVE_MARGIN;
+            const bool joint_wider_than_window =
+                (abw6_absolute - abw0_absolute + 2 * WINDOW_MARGIN) > current_width;
+
+            if (left_outside || right_outside || joint_wider_than_window) {
+              int new_offset_x = std::max(abw0_absolute - WINDOW_MARGIN, 0);
+              int new_width    = std::max(abw6_absolute + WINDOW_MARGIN - new_offset_x, MINIMUM_FOV_WIDTH);
+
+              int max_width_available = image_provider_->GetMaxHorizontalWidth();
+              if (max_width_available <= 0) {
+                max_width_available = std::max(current_right_edge, new_offset_x + new_width);
+              }
+
+              new_width = std::min(new_width, max_width_available);
+              if (new_offset_x + new_width > max_width_available) {
+                new_offset_x = std::max(0, max_width_available - new_width);
+              }
+
+              if (new_offset_x != current_offset_x || new_width != current_width) {
+                LOG_INFO("horizontal : new offset {} new width {}", new_offset_x, new_width);
+                LOG_TRACE(
+                    "Change horizontal FOV based on abw0 {} abw6 {}, current_offset_x {}, current_width {}," \
+                    " new_offset_x {} new_width {}",
+                    abw0_absolute, abw6_absolute, current_offset_x, current_width, new_offset_x, new_width);
+                dont_allow_horizontal_fov_change_until_new_dimensions_received = {new_offset_x, new_width};
+                image_provider_->SetHorizontalFOV(new_offset_x, new_width);
+              } else {
+                dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
+              }
+            } else {
+              dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
+            }
+          }
+        } else {
+          dont_allow_horizontal_fov_change_until_new_dimensions_received = std::nullopt;
+        }
+      }
+
       if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
         image_provider_->AdjustGain(profile.suggested_gain_change.value());
         frames_since_gain_change_ = 0;
@@ -286,6 +354,8 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
           image_provider_->ResetFOVAndGain();
           dont_allow_fov_change_until_new_dimensions_received = {image_provider_->GetVerticalFOVOffset(),
                                                                  image_provider_->GetVerticalFOVHeight()};
+          dont_allow_horizontal_fov_change_until_new_dimensions_received = {
+              image_provider_->GetHorizontalFOVOffset(), image_provider_->GetHorizontalFOVWidth()};
         }
 
         m_config_mutex.unlock();

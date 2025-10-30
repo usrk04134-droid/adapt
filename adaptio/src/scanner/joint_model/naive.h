@@ -202,7 +202,8 @@ class Naive : public JointModel {
    */
   auto GetWallCentroids(const LineSegment& surface, const std::tuple<double, double, double>& surface_edges,
                         const image::RawImageData& image, std::tuple<int, int> offset, int extra_vertical_offset,
-                        bool right_wall) -> std::optional<image::WorkspaceCoordinates>;
+                        bool right_wall, int horizontal_crop_offset)
+      -> std::optional<image::WorkspaceCoordinates>;
 
   auto GetMedianGrooveDepths() -> std::tuple<double, double>;
 
