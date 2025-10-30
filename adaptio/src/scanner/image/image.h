@@ -43,7 +43,6 @@ class Image {
   void SetTimestamp(Timestamp t);
 
   auto GetImageName() const -> std::string;
-/*
   auto SetHorizontalCrop(int start_column, int stop_column) -> void {
     start_col_ = start_column;
     stop_col_  = stop_column;
@@ -55,7 +54,6 @@ class Image {
       stop_col_ = data_.cols();
     }
   };
-*/
   auto Cols() const -> int {
     if (start_col_ != 0) {
       return stop_col_ - start_col_;
