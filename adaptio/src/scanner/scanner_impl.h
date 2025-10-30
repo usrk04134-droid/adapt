@@ -22,6 +22,10 @@ namespace scanner {
 auto const WINDOW_MARGIN      = 100;
 auto const MOVE_MARGIN        = 40;
 auto const MINIMUM_FOV_HEIGHT = 500;
+// Horizontal FOV control
+auto const WINDOW_MARGIN_H      = 100;
+auto const MOVE_MARGIN_H        = 40;
+auto const MINIMUM_FOV_WIDTH    = 1500;
 
 using LaserCallback = std::function<void(bool state)>;
 using Timestamp     = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -81,6 +85,8 @@ class ScannerImpl : public Scanner {
   size_t num_received   = 0;
   Timestamp latest_sent = std::chrono::high_resolution_clock::now();
   std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_dimensions_received;
+  // Awaited horizontal crop: {offset_x, width}
+  std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_horizontal_dimensions_received;
   size_t frames_since_gain_change_ = 0;
   bool store_image_data_;
 
@@ -94,6 +100,9 @@ class ScannerImpl : public Scanner {
   } metrics_;
 
   std::function<void(std::function<void()>)> post_;
+  
+  // Compute a safe horizontal crop window around left/right bounds in pixels
+  static auto NewOffsetAndWidth(int left, int right, int max_width) -> std::tuple<int, int>;
 };
 
 class ScannerOutputCBImpl : public ScannerOutputCB {
