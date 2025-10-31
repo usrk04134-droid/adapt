@@ -304,9 +304,10 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       metrics_.image_consecutive_errors->Increment(1);
     }
 
+    const auto horizontal_crop_start = image->GetHorizontalCropStart();
     image_logger::ImageLoggerEntry entry = {
         .image    = image.get(),
-        .x_offset = 0,
+        .x_offset = horizontal_crop_start > 0 ? static_cast<uint32_t>(horizontal_crop_start) : 0U,
         .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
     };
 
