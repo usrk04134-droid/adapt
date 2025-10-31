@@ -12,6 +12,8 @@
 
 namespace scanner::image {
 
+auto EnsureCustomTiffTagsRegistered() -> void;
+
 enum {
   TIFFTAG_X_OFFSET = 65000,
   TIFFTAG_Y_OFFSET,
@@ -25,6 +27,9 @@ auto inline ReadTimestamp(const std::filesystem::path& file_path) -> std::option
   if (!file_path.extension().string().contains("tiff")) {
     return std::nullopt;
   }
+
+  EnsureCustomTiffTagsRegistered();
+
   TIFF* tif = TIFFOpen(file_path.c_str(), "r");
   if (tif == nullptr) {
     return std::nullopt;
@@ -52,6 +57,9 @@ auto inline ReadFovOffset(const std::filesystem::path& file_path) -> std::option
   if (!file_path.extension().string().contains("tiff")) {
     return std::nullopt;
   }
+
+  EnsureCustomTiffTagsRegistered();
+
   TIFF* tif = TIFFOpen(file_path.c_str(), "r");
   if (tif == nullptr) {
     return std::nullopt;
@@ -84,7 +92,7 @@ auto inline ReadFovOffset(const std::filesystem::path& file_path) -> std::option
 class TiffHandlerImpl : public TiffHandler {
  public:
   TiffHandlerImpl();
-  ~TiffHandlerImpl() override;
+  ~TiffHandlerImpl() override = default;
 
   auto Write(const Image* image, const std::filesystem::path& log_path, uint32_t x_offset, uint32_t y_offset)
       -> void override;

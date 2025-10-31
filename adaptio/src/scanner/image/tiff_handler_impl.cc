@@ -20,10 +20,10 @@ namespace scanner::image {
 static const TIFFFieldInfo xtiffFieldInfo[] = {
 
     // FOV x offset
-    {TIFFTAG_X_OFFSET,            1, 1, TIFF_SHORT, FIELD_CUSTOM, 0, 0, const_cast<char*>("YOffset")           },
+    {TIFFTAG_X_OFFSET,            1, 1, TIFF_LONG,  FIELD_CUSTOM, 0, 0, const_cast<char*>("XOffset")           },
 
     // FOV y offset
-    {TIFFTAG_Y_OFFSET,            1, 1, TIFF_SHORT, FIELD_CUSTOM, 0, 0, const_cast<char*>("YOffset")           },
+    {TIFFTAG_Y_OFFSET,            1, 1, TIFF_LONG,  FIELD_CUSTOM, 0, 0, const_cast<char*>("YOffset")           },
 
     // Time stamp, milli seconds since epoch. Needs to in ascii since libtiff only supports max 8 bytes
     {TIFFTAG_TIMESTAMP_RFC3339,   1, 1, TIFF_ASCII, FIELD_CUSTOM, 0, 0, const_cast<char*>("TimeStampRFC")      },
@@ -49,15 +49,14 @@ static void registerCustomTIFFTags(TIFF* tif) {
   }
 };
 
-TiffHandlerImpl::TiffHandlerImpl() {
+auto EnsureCustomTiffTagsRegistered() -> void {
   if (parent_extender == nullptr) {
-    parent_extender = (TIFFSetTagExtender(registerCustomTIFFTags));
+    parent_extender = TIFFSetTagExtender(registerCustomTIFFTags);
   }
 }
 
-TiffHandlerImpl::~TiffHandlerImpl() {
-  parent_extender = nullptr;
-  TIFFSetTagExtender(nullptr);
+TiffHandlerImpl::TiffHandlerImpl() {
+  EnsureCustomTiffTagsRegistered();
 }
 
 void TiffHandlerImpl::Write(const Image* image, const std::filesystem::path& log_path, uint32_t x_offset,
