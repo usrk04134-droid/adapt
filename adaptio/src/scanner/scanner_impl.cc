@@ -317,14 +317,23 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
           const bool change_is_small =
               (std::abs(new_offset_x - current_offset_x) < MOVE_MARGIN_H) &&
               (std::abs(new_width - current_width) < MIN_HORIZONTAL_DELTA);
+          const bool pinned_left  = current_offset_x == 0 && new_offset_x == 0;
+          const bool pinned_right =
+              (current_offset_x + current_width >= max_width) && (new_offset_x + new_width >= max_width);
 
-          if (!change_is_small) {
+          if (!change_is_small && !(new_width < current_width && (pinned_left || pinned_right))) {
             LOG_TRACE(
                 "Change horizontal FOV based on abw0 {} abw6 {}, current_offset_x {}, current_width {}, new_offset_x "
                 "{} new_width {}",
                 abw0, abw6, current_offset_x, current_width, new_offset_x, new_width);
             dont_allow_fov_change_until_new_horizontal_dimensions_received = {new_offset_x, new_width};
             image_provider_->SetHorizontalFOV(new_offset_x, new_width);
+          } else if (new_width < current_width && (pinned_left || pinned_right)) {
+            LOG_TRACE(
+                "Skip horizontal FOV reduction because crop is pinned at boundary: current_offset_x {} current_width {} "
+                "new_offset_x {} new_width {} max_width {}",
+                current_offset_x, current_width, new_offset_x, new_width, max_width);
+            dont_allow_fov_change_until_new_horizontal_dimensions_received = std::nullopt;
           } else {
             dont_allow_fov_change_until_new_horizontal_dimensions_received = std::nullopt;
           }
