@@ -19,9 +19,13 @@
 
 namespace scanner {
 
-auto const WINDOW_MARGIN      = 100;
-auto const MOVE_MARGIN        = 40;
-auto const MINIMUM_FOV_HEIGHT = 500;
+auto const WINDOW_MARGIN        = 100;
+auto const MOVE_MARGIN          = 40;
+auto const MINIMUM_FOV_HEIGHT   = 500;
+auto const WINDOW_MARGIN_H      = 300;
+auto const MOVE_MARGIN_H        = 30;
+auto const MINIMUM_FOV_WIDTH    = 1500;
+auto const MIN_HORIZONTAL_DELTA = MOVE_MARGIN_H * 2;
 
 using LaserCallback = std::function<void(bool state)>;
 using Timestamp     = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -59,6 +63,7 @@ class ScannerImpl : public Scanner {
   size_t CountOfReceivedImages() override;
 
   static auto NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int>;
+  static auto NewOffsetAndWidth(int left, int right, int max_width) -> std::tuple<int, int>;
 
   // Test-only hook: let tests run image processing in same thread
   void SetPostExecutorForTests(std::function<void(std::function<void()>)> exec);
@@ -81,6 +86,7 @@ class ScannerImpl : public Scanner {
   size_t num_received   = 0;
   Timestamp latest_sent = std::chrono::high_resolution_clock::now();
   std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_dimensions_received;
+  std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_horizontal_dimensions_received;
   size_t frames_since_gain_change_ = 0;
   bool store_image_data_;
 

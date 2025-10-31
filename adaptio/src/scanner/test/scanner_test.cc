@@ -140,6 +140,14 @@ TEST_SUITE("Scanner") {
     auto [o3, h3] = ScannerImpl::NewOffsetAndHeight(0, 300);
     CHECK_EQ(o3, 0);
     CHECK_EQ(h3, MINIMUM_FOV_HEIGHT);
+
+    auto [x1, w1] = ScannerImpl::NewOffsetAndWidth(400, 1600, 2048);
+    CHECK_EQ(x1, 100);
+    CHECK_EQ(w1, 1800);
+
+    auto [x2, w2] = ScannerImpl::NewOffsetAndWidth(300, 900, 1600);
+    CHECK_EQ(x2, 0);
+    CHECK_EQ(w2, MINIMUM_FOV_WIDTH);
   }
 
   TEST_CASE("Scan single image") {
