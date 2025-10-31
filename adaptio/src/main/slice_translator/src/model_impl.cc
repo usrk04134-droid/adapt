@@ -1,12 +1,15 @@
 #include "model_impl.h"
 
+#include "model_impl.h"
+
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <Eigen/Eigen>
 #include <numbers>
 #include <optional>
-#include <stdexcept>
 #include <vector>
 
 #include "common/geometric_primitives/src/circle3d.h"
@@ -188,9 +191,14 @@ auto ModelImpl::TransformLPCStoMACS(std::array<double, 3> scanner_angles,
 }
 
 auto ModelImpl::FindClosestPoint(std::vector<Point3d> points, Point3d ref_point) const -> Point3d {
+  if (points.empty()) {
+    LOG_TRACE("FindClosestPoint: no intersection points available, returning reference point");
+    return ref_point;
+  }
+
   int min_idx      = -1;
-  double curr_dist = NAN;
-  double min_dist  = INFINITY;
+  double curr_dist = 0.0;
+  double min_dist  = std::numeric_limits<double>::infinity();
   int count        = 0;
 
   for (const auto& p : points) {
@@ -201,11 +209,12 @@ auto ModelImpl::FindClosestPoint(std::vector<Point3d> points, Point3d ref_point)
       min_dist = curr_dist;
     }
 
-    count++;
+    ++count;
   }
 
   if (min_idx == -1) {
-    throw std::runtime_error("No point found");
+    LOG_TRACE("FindClosestPoint: unable to determine closest point, returning reference point");
+    return ref_point;
   }
 
   return points.at(min_idx);
@@ -215,6 +224,22 @@ auto ModelImpl::AngleFromTorchToScanner(const std::vector<lpcs::Point>& lpcs_poi
                                         const common::Point& axis_position) const -> std::optional<double> {
   // Here we calculate the angle between the laser plane point and its projection onto torch plane
 
+  if (lpcs_points.size() < 2) {
+    LOG_TRACE("AngleFromTorchToScanner: insufficient groove points ({})", lpcs_points.size());
+    return std::nullopt;
+  }
+
+  constexpr double kEpsilon = 1e-6;
+  const bool has_valid_point = std::any_of(lpcs_points.begin(), lpcs_points.end(), [](const lpcs::Point& point) {
+    return std::isfinite(point.x) && std::isfinite(point.y) &&
+           (std::abs(point.x) > kEpsilon || std::abs(point.y) > kEpsilon);
+  });
+
+  if (!has_valid_point) {
+    LOG_TRACE("AngleFromTorchToScanner: groove points are degenerate");
+    return std::nullopt;
+  }
+
   std::array<double, 3> scanner_angles = {scanner_mount_angle_, delta_rot_y_, delta_rot_z_};
 
   // Convert the laser point to MACS
@@ -223,16 +248,32 @@ auto ModelImpl::AngleFromTorchToScanner(const std::vector<lpcs::Point>& lpcs_poi
       TransformLPCStoMACS(scanner_angles, torch_to_laser_translation_, axis_position, laserplane_point_lpcs);
 
   // Project the laser point onto torch plane
-  common::Point tmp = TransformAndRotateToTorchPlane(rot_center_, scanner_angles, weld_object_rotation_axis_,
-                                                     torch_to_laser_translation_, lpcs_points.at(0), axis_position);
+  common::Point projected_on_torch_plane =
+      TransformAndRotateToTorchPlane(rot_center_, scanner_angles, weld_object_rotation_axis_,
+                                     torch_to_laser_translation_, lpcs_points.at(0), axis_position);
 
   // Create vectors of torch plane and laser plane points and determine angle with dot product
   Vector3d vec_rotcenter_macs  = {rot_center_.c1, rot_center_.c2, rot_center_.c3};
-  Vector3d vec_torchplane_macs = {tmp.horizontal, 0.0, tmp.vertical};
+  Vector3d vec_torchplane_macs = {projected_on_torch_plane.horizontal, 0.0, projected_on_torch_plane.vertical};
   Vector3d vec_laserplane_macs = laserplane_point_macs.ToVec();
   Vector3d vec_torchplane_rocs = vec_torchplane_macs - vec_rotcenter_macs;
   Vector3d vec_laserplane_rocs = vec_laserplane_macs - vec_rotcenter_macs;
-  double angle_between_vectors = std::acos(vec_torchplane_rocs.normalized().dot(vec_laserplane_rocs.normalized()));
+
+  const double torch_norm = vec_torchplane_rocs.norm();
+  const double laser_norm = vec_laserplane_rocs.norm();
+  if (torch_norm <= kEpsilon || laser_norm <= kEpsilon || !std::isfinite(torch_norm) || !std::isfinite(laser_norm)) {
+    LOG_TRACE("AngleFromTorchToScanner: invalid vector norms (torch: {}, laser: {})", torch_norm, laser_norm);
+    return std::nullopt;
+  }
+
+  double dot = vec_torchplane_rocs.dot(vec_laserplane_rocs) / (torch_norm * laser_norm);
+  dot        = std::clamp(dot, -1.0, 1.0);
+
+  double angle_between_vectors = std::acos(dot);
+  if (!std::isfinite(angle_between_vectors)) {
+    LOG_TRACE("AngleFromTorchToScanner: computed angle is not finite");
+    return std::nullopt;
+  }
 
   return angle_between_vectors;
 };

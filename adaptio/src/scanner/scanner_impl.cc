@@ -205,6 +205,18 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
     if (result) {
       auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
+
+      const auto centroids_rows = centroids_wcs.rows();
+      const auto centroids_cols = centroids_wcs.cols();
+      if (centroids_rows != 3 || centroids_cols < 0) {
+        LOG_WARN("Invalid workspace centroids dimensions rows {} cols {}. Resetting to empty centroids.",
+                 centroids_rows, centroids_cols);
+        centroids_wcs = image::WorkspaceCoordinates(3, 0);
+      } else if (!centroids_wcs.array().isFinite().all()) {
+        LOG_WARN("Invalid workspace centroids detected (non-finite values). Resetting to empty centroids.");
+        centroids_wcs = image::WorkspaceCoordinates(3, 0);
+      }
+
       LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
       joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
                                         .timestamp           = image->GetTimestamp(),
