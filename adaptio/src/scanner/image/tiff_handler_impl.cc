@@ -20,7 +20,7 @@ namespace scanner::image {
 static const TIFFFieldInfo xtiffFieldInfo[] = {
 
     // FOV x offset
-    {TIFFTAG_X_OFFSET,            1, 1, TIFF_SHORT, FIELD_CUSTOM, 0, 0, const_cast<char*>("YOffset")           },
+    {TIFFTAG_X_OFFSET,            1, 1, TIFF_SHORT, FIELD_CUSTOM, 0, 0, const_cast<char*>("XOffset")           },
 
     // FOV y offset
     {TIFFTAG_Y_OFFSET,            1, 1, TIFF_SHORT, FIELD_CUSTOM, 0, 0, const_cast<char*>("YOffset")           },

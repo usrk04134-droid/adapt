@@ -2,6 +2,7 @@
 
 #include <tiff.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -61,15 +62,15 @@ auto inline ReadFovOffset(const std::filesystem::path& file_path) -> std::option
   while (TIFFReadDirectory(tif) != 0) {
   };
 
-  uint32_t x_offset = 0;
-  uint32_t y_offset = 0;
+  uint16_t x_offset_raw = 0;
+  uint16_t y_offset_raw = 0;
 
-  if (!TIFFGetField(tif, TIFFTAG_X_OFFSET, &x_offset)) {
+  if (!TIFFGetField(tif, TIFFTAG_X_OFFSET, &x_offset_raw)) {
     TIFFClose(tif);
     return {};
   }
 
-  if (!TIFFGetField(tif, TIFFTAG_Y_OFFSET, &y_offset)) {
+  if (!TIFFGetField(tif, TIFFTAG_Y_OFFSET, &y_offset_raw)) {
     TIFFClose(tif);
     return {};
   }
@@ -77,7 +78,7 @@ auto inline ReadFovOffset(const std::filesystem::path& file_path) -> std::option
   TIFFClose(tif);
 
   return {
-      {x_offset, y_offset}
+      {static_cast<uint32_t>(x_offset_raw), static_cast<uint32_t>(y_offset_raw)}
   };
 };
 

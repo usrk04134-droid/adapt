@@ -19,10 +19,10 @@ enum class ImageBuilderErrorCode : uint32_t {
 class ImageBuilder {
  public:
   static auto From(std::filesystem::path path) -> ImageBuilder;
-  static auto From(const cv::Mat& matrix, int vertical_crop_start, int horizontal_crop_start) -> ImageBuilder;
+  static auto From(const cv::Mat& matrix, int vertical_crop_start, int horizontal_crop_start = 0) -> ImageBuilder;
   static auto From(const cv::Mat& matrix, const std::string& img_name, int vertical_crop_start,
-                   int horizontal_crop_start) -> ImageBuilder;
-  static auto From(RawImageData image, int vertical_crop_start, int horizontal_crop_start) -> ImageBuilder;
+                   int horizontal_crop_start = 0) -> ImageBuilder;
+  static auto From(RawImageData image, int vertical_crop_start, int horizontal_crop_start = 0) -> ImageBuilder;
 
   auto Finalize() -> boost::outcome_v2::result<std::unique_ptr<Image>>;
 
