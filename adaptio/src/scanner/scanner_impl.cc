@@ -213,6 +213,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                                         .num_walls_found     = num_walls_found,
                                         .processing_time     = processing_time,
                                         .vertical_crop_start = image->GetVerticalCropStart(),
+                                        .horizontal_crop_start = image->GetHorizontalCropStart(),
                                         .approximation_used  = profile.approximation_used};
       if (store_image_data_) {
         // Store image data only if necessary. Not needed when running Adaptio
