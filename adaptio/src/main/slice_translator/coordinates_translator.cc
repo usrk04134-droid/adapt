@@ -1,5 +1,9 @@
 #include "coordinates_translator.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 #include "common/logging/application_log.h"
 #include "lpcs/lpcs_slice.h"
 #include "macs/macs_groove.h"
@@ -7,6 +11,22 @@
 #include "macs/macs_slice.h"
 #include "slice_translator/slice_observer.h"
 #include "slice_translator/slice_translator_service_v2.h"
+
+namespace {
+
+auto GrooveHasValidPoints(const std::vector<lpcs::Point>& groove) -> bool {
+  if (groove.size() < 2) {
+    return false;
+  }
+
+  return std::any_of(groove.begin(), groove.end(), [](const lpcs::Point& point) {
+    return std::isfinite(point.x) && std::isfinite(point.y) &&
+           (std::abs(point.x) > std::numeric_limits<double>::epsilon() ||
+            std::abs(point.y) > std::numeric_limits<double>::epsilon());
+  });
+}
+
+}  // namespace
 
 using slice_translator::CoordinatesTranslator;
 
@@ -24,18 +44,24 @@ void CoordinatesTranslator::OnScannerDataUpdateV2(const lpcs::Slice& data, const
   double angle_from_torch_to_scanner = 0.0;
 
   if (data.groove.has_value()) {
-    auto groove_mcs = slice_translator_v2_->LPCSToMCS(data.groove.value(), axis_position);
-    if (groove_mcs.has_value()) {
-      machine_slice.groove = macs::Groove(groove_mcs.value());
-      LOG_DEBUG("Transformed points with axis positions hori: {:.2f}, vert: {:.2f}", axis_position.horizontal,
-                axis_position.vertical);
-      LOG_DEBUG("Machine points: {}", machine_slice.Describe());
+    const auto& groove_lpcs = data.groove.value();
+    if (GrooveHasValidPoints(groove_lpcs)) {
+      auto groove_mcs = slice_translator_v2_->LPCSToMCS(groove_lpcs, axis_position);
+      if (groove_mcs.has_value()) {
+        machine_slice.groove = macs::Groove(groove_mcs.value());
+        LOG_DEBUG("Transformed points with axis positions hori: {:.2f}, vert: {:.2f}", axis_position.horizontal,
+                  axis_position.vertical);
+        LOG_DEBUG("Machine points: {}", machine_slice.Describe());
+      } else {
+        LOG_TRACE("LPCSToMCS() failed");
+      }
+
+      auto angle = slice_translator_v2_->AngleFromTorchToScanner(groove_lpcs, axis_position);
+      if (angle.has_value()) {
+        angle_from_torch_to_scanner = angle.value();
+      }
     } else {
-      LOG_TRACE("LPCSToMCS() failed");
-    }
-    auto angle = slice_translator_v2_->AngleFromTorchToScanner(data.groove.value(), axis_position);
-    if (angle.has_value()) {
-      angle_from_torch_to_scanner = angle.value();
+      LOG_TRACE("Skipping groove conversion due to insufficient or degenerate points");
     }
   }
 
