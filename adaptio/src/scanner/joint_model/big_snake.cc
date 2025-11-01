@@ -11,7 +11,9 @@
 #include <expected>
 #include <optional>
 #include <tuple>
+#include <sstream>
 
+#include "common/logging/application_log.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
 #include "scanner/image/image_types.h"
@@ -126,6 +128,10 @@ auto BigSnake::GenerateMask(image::Image& image, std::optional<JointProfile> med
                 p[6].y - MASK_OFFSET, p[5].y, p[5].y, 
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         // clang-format on
+
+        std::ostringstream mask_points_wcs_stream;
+        mask_points_wcs_stream << mask_points_wcs;
+        LOG_DEBUG("Generated mask_points_wcs: {}", mask_points_wcs_stream.str());
 
         auto maybe_img = camera_model_->WorkspaceToImage(mask_points_wcs, image.GetVerticalCropStart());
 
