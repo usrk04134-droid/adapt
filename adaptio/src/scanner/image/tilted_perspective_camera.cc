@@ -9,6 +9,7 @@
 #include <unordered_map>
 
 #include "common/data/data_value.h"
+#include "common/logging/application_log.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/scanner_calibration_configuration.h"
 
@@ -58,9 +59,12 @@ auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coo
   workspace_coordinates << coordinates.array(), RowVectorXd::Ones(coordinates.cols()) / intrinsic.scaling_factors.w;
   workspace_coordinates = (intrinsic.scaling_factors.w * Hp_.inverse()) * workspace_coordinates;
 
-  for (auto col : workspace_coordinates.colwise()) {
-    col(0) = 1.0 / (intrinsic.scaling_factors.w * col(2)) * col(0);
-    col(1) = 1.0 / (intrinsic.scaling_factors.w * col(2)) * col(1);
+  for (Eigen::Index column_index = 0; column_index < workspace_coordinates.cols(); ++column_index) {
+    auto col = workspace_coordinates.col(column_index);
+    col(0)   = 1.0 / (intrinsic.scaling_factors.w * col(2)) * col(0);
+    col(1)   = 1.0 / (intrinsic.scaling_factors.w * col(2)) * col(1);
+    LOG_DEBUG("ImageToWorkspace::workspace_coordinates col {}: x={:.8f}, y={:.8f}, z={:.8f}", column_index, col(0),
+              col(1), col(2));
   }
 
   // Undistort the points
@@ -131,9 +135,12 @@ auto TiltedPerspectiveCamera::WorkspaceToImage(const WorkspaceCoordinates& works
         RowVectorXd::Ones(image_plane_coordinates.cols()) / intrinsic.scaling_factors.w;
     wcs_temp = intrinsic.scaling_factors.w * Hp_ * wcs_temp;
 
-    for (auto col : wcs_temp.colwise()) {
-      col(0) = 1.0 / (intrinsic.scaling_factors.w * col(2)) * col(0);
-      col(1) = 1.0 / (intrinsic.scaling_factors.w * col(2)) * col(1);
+    for (Eigen::Index column_index = 0; column_index < wcs_temp.cols(); ++column_index) {
+      auto col = wcs_temp.col(column_index);
+      col(0)   = 1.0 / (intrinsic.scaling_factors.w * col(2)) * col(0);
+      col(1)   = 1.0 / (intrinsic.scaling_factors.w * col(2)) * col(1);
+      LOG_DEBUG("WorkspaceToImage::wcs_temp col {}: x={:.8f}, y={:.8f}, z={:.8f}", column_index, col(0), col(1),
+                col(2));
     }
 
     image_plane_coordinates(seq(0, 1), all) = wcs_temp(seq(0, 1), all);
@@ -143,9 +150,11 @@ auto TiltedPerspectiveCamera::WorkspaceToImage(const WorkspaceCoordinates& works
   image_plane_coordinates = CameraModel::ScaleToPixels(image_plane_coordinates, principal_point, pixel_pitch);
 
   // Remove offset
-  for (auto col : image_plane_coordinates.colwise()) {
-    col(0) = intrinsic.scaling_factors.w * col(0) - offset(0);
-    col(1) = intrinsic.scaling_factors.w * col(1) - offset(1);
+  for (Eigen::Index column_index = 0; column_index < image_plane_coordinates.cols(); ++column_index) {
+    auto col = image_plane_coordinates.col(column_index);
+    col(0)   = intrinsic.scaling_factors.w * col(0) - offset(0);
+    col(1)   = intrinsic.scaling_factors.w * col(1) - offset(1);
+    LOG_DEBUG("WorkspaceToImage::image_plane_coordinates col {}: x={:.8f}, y={:.8f}", column_index, col(0), col(1));
   }
 
   return image_plane_coordinates;
