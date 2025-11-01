@@ -14,6 +14,8 @@ using RotationMatrix       = Eigen::Matrix<double, 3, 3, Eigen::RowMajor>;
 
 enum class CameraModelErrorCode : uint32_t {
   NO_ERROR = 0,
+  INVALID_IMAGE_COORDINATE_DIMENSION,
+  INVALID_WORKSPACE_COORDINATE_DIMENSION,
 };
 
 // NOLINTNEXTLINE(*-identifier-naming)
@@ -38,7 +40,7 @@ class CameraModel {
    * @param vertical_crop_offset Allows for dynamic resizing of the FOV vertically.
    * @return The workspace coordinates if calculations are successful.
    */
-  virtual auto ImageToWorkspace(const PlaneCoordinates&, int, int) const
+  virtual auto ImageToWorkspace(const PlaneCoordinates&, int, int horizontal_crop_offset = 0) const
       -> boost::outcome_v2::result<WorkspaceCoordinates> = 0;
 
   /**
@@ -48,7 +50,7 @@ class CameraModel {
    * @param vertical_crop_offset Allows for dynamic resizing of the FOV vertically.
    * @return The image space coordinates if calculations are successful.
    */
-  virtual auto WorkspaceToImage(const WorkspaceCoordinates&, int, int) const
+  virtual auto WorkspaceToImage(const WorkspaceCoordinates&, int, int horizontal_crop_offset = 0) const
       -> boost::outcome_v2::result<PlaneCoordinates> = 0;
 
  protected:

@@ -180,6 +180,10 @@ auto ErrorCategory::message(int error_code) const -> std::string {
   switch (static_cast<scanner::image::CameraModelErrorCode>(error_code)) {
     case scanner::image::CameraModelErrorCode::NO_ERROR:
       return "No error";
+    case scanner::image::CameraModelErrorCode::INVALID_IMAGE_COORDINATE_DIMENSION:
+      return "Invalid image coordinate dimension";
+    case scanner::image::CameraModelErrorCode::INVALID_WORKSPACE_COORDINATE_DIMENSION:
+      return "Invalid workspace coordinate dimension";
   }
 }
 
