@@ -9,6 +9,7 @@
 #include <unordered_map>
 
 #include "common/data/data_value.h"
+#include "common/logging/application_log.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/scanner_calibration_configuration.h"
 
@@ -25,9 +26,21 @@ TiltedPerspectiveCamera::TiltedPerspectiveCamera(const TiltedPerspectiveCameraPr
 }
 
 auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coordinates,
-                                               int vertical_crop_offset) const
+                                               int vertical_crop_offset, int horizontal_crop_offset) const
     -> boost::outcome_v2::result<WorkspaceCoordinates> {
   using Eigen::all;
+
+  constexpr Eigen::Index kExpectedRows         = 2;
+  constexpr Eigen::Index kMaxReasonableColumns = 1'000'000;
+  const auto rows                               = image_coordinates.rows();
+  const auto cols                               = image_coordinates.cols();
+
+  if (rows != kExpectedRows || cols <= 0 || cols > kMaxReasonableColumns) {
+    LOG_ERROR(
+        "ImageToWorkspace received invalid plane coordinates (rows: {}, cols: {}, vertical crop: {}, horizontal crop: {})",
+        static_cast<long long>(rows), static_cast<long long>(cols), vertical_crop_offset, horizontal_crop_offset);
+    return boost::outcome_v2::failure(make_error_code(CameraModelErrorCode::INVALID_IMAGE_COORDINATE_DIMENSION));
+  }
 
   auto intrinsic = camera_properties_.config_calib.intrinsic;
   auto extrinsic = camera_properties_.config_calib.extrinsic;
@@ -40,7 +53,8 @@ auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coo
   pixel_pitch << intrinsic.pixel_pitch.x, intrinsic.pixel_pitch.y;
 
   Vector2d offset;
-  offset << static_cast<double>(fov.offset_x), static_cast<double>(fov.offset_y + vertical_crop_offset);
+  offset << static_cast<double>(fov.offset_x + horizontal_crop_offset),
+      static_cast<double>(fov.offset_y + vertical_crop_offset);
 
   PlaneCoordinates coordinates = image_coordinates;
 
@@ -86,12 +100,24 @@ auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coo
 }
 
 auto TiltedPerspectiveCamera::WorkspaceToImage(const WorkspaceCoordinates& workspace_coordinates,
-                                               int vertical_crop_offset) const
+                                               int vertical_crop_offset, int horizontal_crop_offset) const
     -> boost::outcome_v2::result<PlaneCoordinates> {
   using Eigen::all;
   using Eigen::Index;
   using Eigen::seq;
   using Eigen::VectorXd;
+
+  constexpr Eigen::Index kExpectedRows         = 3;
+  constexpr Eigen::Index kMaxReasonableColumns = 1'000'000;
+  const auto rows                               = workspace_coordinates.rows();
+  const auto cols                               = workspace_coordinates.cols();
+
+  if (rows != kExpectedRows || cols <= 0 || cols > kMaxReasonableColumns) {
+    LOG_ERROR(
+        "WorkspaceToImage received invalid workspace coordinates (rows: {}, cols: {}, vertical crop: {}, horizontal crop: {})",
+        static_cast<long long>(rows), static_cast<long long>(cols), vertical_crop_offset, horizontal_crop_offset);
+    return boost::outcome_v2::failure(make_error_code(CameraModelErrorCode::INVALID_WORKSPACE_COORDINATE_DIMENSION));
+  }
 
   auto intrinsic = camera_properties_.config_calib.intrinsic;
   auto extrinsic = camera_properties_.config_calib.extrinsic;
@@ -104,7 +130,8 @@ auto TiltedPerspectiveCamera::WorkspaceToImage(const WorkspaceCoordinates& works
   pixel_pitch << intrinsic.pixel_pitch.x, intrinsic.pixel_pitch.y;
 
   Vector2d offset;
-  offset << static_cast<double>(fov.offset_x), static_cast<double>(fov.offset_y + vertical_crop_offset);
+  offset << static_cast<double>(fov.offset_x + horizontal_crop_offset),
+      static_cast<double>(fov.offset_y + vertical_crop_offset);
 
   // Flip the Y coordinates
   WorkspaceCoordinates wcs_coordinates = workspace_coordinates;
