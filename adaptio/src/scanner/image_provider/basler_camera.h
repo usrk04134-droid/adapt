@@ -62,6 +62,7 @@ class BaslerCamera : public ImageProvider {
   void Stop() override;
   auto Started() const -> bool override;
   void ResetFOVAndGain() override;
+  void SetFOV(int offset_from_top, int height, int offset_from_left, int width) override;
   void SetVerticalFOV(int offset_from_top, int height) override;
   void SetHorizontalFOV(int offset_from_left, int width) override;
   void AdjustGain(double factor) override;

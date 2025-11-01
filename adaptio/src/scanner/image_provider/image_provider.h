@@ -31,6 +31,7 @@ class ImageProvider {
   virtual auto Started() const -> bool                                                                = 0;
 
   virtual void ResetFOVAndGain()                                 = 0;
+  virtual void SetFOV(int offset_from_top, int height, int offset_from_left, int width) = 0;
   virtual void SetVerticalFOV(int offset_from_top, int height)   = 0;
   virtual void SetHorizontalFOV(int offset_from_left, int width) = 0;
   virtual void AdjustGain(double factor)                         = 0;
