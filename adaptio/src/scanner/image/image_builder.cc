@@ -45,7 +45,8 @@ auto ImageBuilder::From(std::filesystem::path path) -> ImageBuilder {
 
   ImagePtr image_ptr;
   image_ptr.reset(new Image(std::move(raw_image)));
-  image_ptr->vertical_crop_start_ = fov_y;
+  image_ptr->vertical_crop_start_   = static_cast<int>(fov_y);
+  image_ptr->horizontal_crop_start_ = static_cast<int>(fov_x);
 
   builder.image_ = std::move(image_ptr);
 
@@ -53,39 +54,55 @@ auto ImageBuilder::From(std::filesystem::path path) -> ImageBuilder {
 }
 
 auto ImageBuilder::From(const cv::Mat& matrix, int vertical_crop_start) -> ImageBuilder {
+  return From(matrix, vertical_crop_start, 0);
+}
+
+auto ImageBuilder::From(const cv::Mat& matrix, const std::string& img_name, int vertical_crop_start) -> ImageBuilder {
+  return From(matrix, img_name, vertical_crop_start, 0);
+}
+
+auto ImageBuilder::From(RawImageData image, int vertical_crop_start) -> ImageBuilder {
+  return From(std::move(image), vertical_crop_start, 0);
+}
+
+auto ImageBuilder::From(const cv::Mat& matrix, int vertical_crop_start, int horizontal_crop_start) -> ImageBuilder {
   ImageBuilder builder;
 
   auto image_data = RawImageData(Eigen::Map<RawImageData>(matrix.data, matrix.rows, matrix.cols));
 
   ImagePtr image_ptr;
   image_ptr.reset(new Image(std::move(image_data)));
-  image_ptr->vertical_crop_start_ = vertical_crop_start;
+  image_ptr->vertical_crop_start_   = vertical_crop_start;
+  image_ptr->horizontal_crop_start_ = horizontal_crop_start;
 
   builder.image_ = std::move(image_ptr);
 
   return builder;
 }
 
-auto ImageBuilder::From(const cv::Mat& matrix, const std::string& img_name, int vertical_crop_start) -> ImageBuilder {
+auto ImageBuilder::From(const cv::Mat& matrix, const std::string& img_name, int vertical_crop_start,
+                        int horizontal_crop_start) -> ImageBuilder {
   ImageBuilder builder;
 
   auto image_data = RawImageData(Eigen::Map<RawImageData>(matrix.data, matrix.rows, matrix.cols));
 
   ImagePtr image_ptr;
   image_ptr.reset(new Image(std::move(image_data), img_name));
-  image_ptr->vertical_crop_start_ = vertical_crop_start;
+  image_ptr->vertical_crop_start_   = vertical_crop_start;
+  image_ptr->horizontal_crop_start_ = horizontal_crop_start;
 
   builder.image_ = std::move(image_ptr);
 
   return builder;
 }
 
-auto ImageBuilder::From(RawImageData image, int vertical_crop_start) -> ImageBuilder {
+auto ImageBuilder::From(RawImageData image, int vertical_crop_start, int horizontal_crop_start) -> ImageBuilder {
   ImageBuilder builder;
 
   ImagePtr image_ptr;
   image_ptr.reset(new Image(std::move(image)));
-  image_ptr->vertical_crop_start_ = vertical_crop_start;
+  image_ptr->vertical_crop_start_   = vertical_crop_start;
+  image_ptr->horizontal_crop_start_ = horizontal_crop_start;
 
   builder.image_ = std::move(image_ptr);
 

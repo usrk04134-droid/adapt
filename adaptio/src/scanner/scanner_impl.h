@@ -22,6 +22,7 @@ namespace scanner {
 auto const WINDOW_MARGIN      = 100;
 auto const MOVE_MARGIN        = 40;
 auto const MINIMUM_FOV_HEIGHT = 500;
+auto const MINIMUM_FOV_WIDTH  = 500;
 
 using LaserCallback = std::function<void(bool state)>;
 using Timestamp     = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -59,11 +60,19 @@ class ScannerImpl : public Scanner {
   size_t CountOfReceivedImages() override;
 
   static auto NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int>;
+  static auto NewOffsetAndWidth(int left, int right, int max_width) -> std::tuple<int, int>;
 
   // Test-only hook: let tests run image processing in same thread
   void SetPostExecutorForTests(std::function<void(std::function<void()>)> exec);
 
  private:
+  struct RequestedFovDimensions {
+    int vertical_offset;
+    int vertical_height;
+    std::optional<int> horizontal_offset;
+    std::optional<int> horizontal_width;
+  };
+
   void SetupMetrics(prometheus::Registry* registry);
 
   image_provider::ImageProvider* image_provider_;
@@ -80,7 +89,7 @@ class ScannerImpl : public Scanner {
 
   size_t num_received   = 0;
   Timestamp latest_sent = std::chrono::high_resolution_clock::now();
-  std::optional<std::tuple<int, int>> dont_allow_fov_change_until_new_dimensions_received;
+  std::optional<RequestedFovDimensions> dont_allow_fov_change_until_new_dimensions_received;
   size_t frames_since_gain_change_ = 0;
   bool store_image_data_;
 

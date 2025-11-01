@@ -72,7 +72,8 @@ auto BigSnake::Parse(image::Image& image, std::optional<JointProfile> median_pro
   JointProfile profile = {.points = points, .approximation_used = approximation_used};
 
   // Vertical limits
-  const auto crop_start = image.GetVerticalCropStart();
+  const auto crop_start      = image.GetVerticalCropStart();
+  const auto crop_start_horizontal = image.GetHorizontalCropStart();
   auto maybe_abw_points_in_image_coordinates =
       camera_model_->WorkspaceToImage(ABWPointsToMatrix(profile.points), crop_start);
 
@@ -81,6 +82,9 @@ auto BigSnake::Parse(image::Image& image, std::optional<JointProfile> median_pro
     auto bottom_pixel                    = static_cast<int>(abw_points_in_image_coordinates.row(1).maxCoeff());
     auto top_pixel                       = static_cast<int>(abw_points_in_image_coordinates.row(1).minCoeff());
     profile.vertical_limits              = {top_pixel + crop_start, bottom_pixel + crop_start};
+    auto right_pixel                     = static_cast<int>(abw_points_in_image_coordinates.row(0).maxCoeff());
+    auto left_pixel                      = static_cast<int>(abw_points_in_image_coordinates.row(0).minCoeff());
+    profile.horizontal_limits            = {left_pixel + crop_start_horizontal, right_pixel + crop_start_horizontal};
   }
 
   const auto min_value = static_cast<double>(snake.min_pixel_value);
