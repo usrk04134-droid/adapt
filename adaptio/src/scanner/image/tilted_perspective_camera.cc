@@ -1,14 +1,17 @@
 #include "scanner/image/tilted_perspective_camera.h"
 
 #include <boost/outcome/result.hpp>
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <Eigen/Core>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 
 #include "common/data/data_value.h"
+#include "common/logging/application_log.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/scanner_calibration_configuration.h"
 
@@ -19,6 +22,29 @@ using Eigen::Vector2d;
 using Eigen::Vector3d;
 
 namespace scanner::image {
+
+namespace {
+
+template <typename Derived>
+auto FormatCoordinateSample(const Eigen::MatrixBase<Derived>& coordinates) -> std::string {
+  const Eigen::Index total_cols = coordinates.cols();
+  if (total_cols == 0) {
+    return "[]";
+  }
+
+  const Eigen::Index columns_to_log = std::min<Eigen::Index>(total_cols, static_cast<Eigen::Index>(5));
+  const Eigen::IOFormat format(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "; ", "", "", "[", "]");
+
+  std::stringstream stream;
+  stream << coordinates.derived().leftCols(columns_to_log).format(format);
+  if (columns_to_log < total_cols) {
+    stream << "; ...";
+  }
+
+  return stream.str();
+}
+
+}  // namespace
 
 TiltedPerspectiveCamera::TiltedPerspectiveCamera(const TiltedPerspectiveCameraProperties& camera_properties) {
   SetCameraProperties(camera_properties);
@@ -79,8 +105,14 @@ auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coo
                                                         intrinsic.focus_distance, intrinsic.scaling_factors.m,
                                                         intrinsic.scaling_factors.w);
 
+  LOG_DEBUG("ImageToWorkspace wcs coordinates before flip (cols={}): {}", wcs_coordinates.cols(),
+            FormatCoordinateSample(wcs_coordinates));
+
   // Flip the Y coordinates
   wcs_coordinates(1, all) = -wcs_coordinates(1, all);
+
+  LOG_DEBUG("ImageToWorkspace wcs coordinates after flip (cols={}): {}", wcs_coordinates.cols(),
+            FormatCoordinateSample(wcs_coordinates));
 
   return wcs_coordinates;
 }
@@ -106,9 +138,15 @@ auto TiltedPerspectiveCamera::WorkspaceToImage(const WorkspaceCoordinates& works
   Vector2d offset;
   offset << static_cast<double>(fov.offset_x), static_cast<double>(fov.offset_y + vertical_crop_offset);
 
+  LOG_DEBUG("WorkspaceToImage workspace coordinates before flip (cols={}): {}", workspace_coordinates.cols(),
+            FormatCoordinateSample(workspace_coordinates));
+
   // Flip the Y coordinates
   WorkspaceCoordinates wcs_coordinates = workspace_coordinates;
   wcs_coordinates(1, all)              = -wcs_coordinates(1, all);
+
+  LOG_DEBUG("WorkspaceToImage workspace coordinates after flip (cols={}): {}", wcs_coordinates.cols(),
+            FormatCoordinateSample(wcs_coordinates));
 
   PlaneCoordinates image_plane_coordinates = PlaneCoordinates::Zero(2, workspace_coordinates.cols());
 
