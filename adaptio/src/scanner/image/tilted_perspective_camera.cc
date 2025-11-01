@@ -25,17 +25,18 @@ namespace scanner::image {
 
 namespace {
 
-auto FormatWorkspaceCoordinatesSample(const WorkspaceCoordinates& coordinates) -> std::string {
+template <typename Derived>
+auto FormatCoordinateSample(const Eigen::MatrixBase<Derived>& coordinates) -> std::string {
   const Eigen::Index total_cols = coordinates.cols();
   if (total_cols == 0) {
     return "[]";
   }
 
-  const Eigen::Index columns_to_log = std::min(total_cols, static_cast<Eigen::Index>(5));
+  const Eigen::Index columns_to_log = std::min<Eigen::Index>(total_cols, static_cast<Eigen::Index>(5));
   const Eigen::IOFormat format(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "; ", "", "", "[", "]");
 
   std::stringstream stream;
-  stream << coordinates.leftCols(columns_to_log).format(format);
+  stream << coordinates.derived().leftCols(columns_to_log).format(format);
   if (columns_to_log < total_cols) {
     stream << "; ...";
   }
@@ -105,13 +106,13 @@ auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coo
                                                         intrinsic.scaling_factors.w);
 
   LOG_DEBUG("ImageToWorkspace wcs coordinates before flip (cols={}): {}", wcs_coordinates.cols(),
-            FormatWorkspaceCoordinatesSample(wcs_coordinates));
+            FormatCoordinateSample(wcs_coordinates));
 
   // Flip the Y coordinates
   wcs_coordinates(1, all) = -wcs_coordinates(1, all);
 
   LOG_DEBUG("ImageToWorkspace wcs coordinates after flip (cols={}): {}", wcs_coordinates.cols(),
-            FormatWorkspaceCoordinatesSample(wcs_coordinates));
+            FormatCoordinateSample(wcs_coordinates));
 
   return wcs_coordinates;
 }
@@ -138,14 +139,14 @@ auto TiltedPerspectiveCamera::WorkspaceToImage(const WorkspaceCoordinates& works
   offset << static_cast<double>(fov.offset_x), static_cast<double>(fov.offset_y + vertical_crop_offset);
 
   LOG_DEBUG("WorkspaceToImage workspace coordinates before flip (cols={}): {}", workspace_coordinates.cols(),
-            FormatWorkspaceCoordinatesSample(workspace_coordinates));
+            FormatCoordinateSample(workspace_coordinates));
 
   // Flip the Y coordinates
   WorkspaceCoordinates wcs_coordinates = workspace_coordinates;
   wcs_coordinates(1, all)              = -wcs_coordinates(1, all);
 
   LOG_DEBUG("WorkspaceToImage workspace coordinates after flip (cols={}): {}", wcs_coordinates.cols(),
-            FormatWorkspaceCoordinatesSample(wcs_coordinates));
+            FormatCoordinateSample(wcs_coordinates));
 
   PlaneCoordinates image_plane_coordinates = PlaneCoordinates::Zero(2, workspace_coordinates.cols());
 
