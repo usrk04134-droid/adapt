@@ -180,6 +180,10 @@ auto ErrorCategory::message(int error_code) const -> std::string {
   switch (static_cast<scanner::image::CameraModelErrorCode>(error_code)) {
     case scanner::image::CameraModelErrorCode::NO_ERROR:
       return "No error";
+    case scanner::image::CameraModelErrorCode::INVALID_IMAGE_COORDINATE_DIMENSION:
+      return "Invalid image coordinate dimension";
+    case scanner::image::CameraModelErrorCode::INVALID_WORKSPACE_COORDINATE_DIMENSION:
+      return "Invalid workspace coordinate dimension";
   }
 }
 
@@ -194,7 +198,10 @@ const ErrorCategory ERROR_CATEGORY{};
 
 }  // namespace
 
-[[maybe_unused]] auto make_error_code(scanner::image::CameraModelErrorCode error_code)
-    -> std::error_code {  // NOLINT(*-identifier-naming)
+namespace scanner::image {
+
+[[maybe_unused]] auto make_error_code(CameraModelErrorCode error_code) -> std::error_code {  // NOLINT(*-identifier-naming)
   return {static_cast<int>(error_code), ERROR_CATEGORY};
 }
+
+}  // namespace scanner::image

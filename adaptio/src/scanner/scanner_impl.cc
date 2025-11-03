@@ -97,6 +97,7 @@ void ScannerImpl::SetupMetrics(prometheus::Registry* registry) {
         joint_model::JointModelErrorCode::SURFACE_ANGLE_TOLERANCE_EXCEEDED,
         joint_model::JointModelErrorCode::JOINT_WIDTH_OUT_OF_TOLERANCE,
         joint_model::JointModelErrorCode::TWO_WALLS_NOT_FOUND,
+        joint_model::JointModelErrorCode::INVALID_CAMERA_COORDINATES,
     };
 
     for (auto code : codes) {
@@ -275,33 +276,51 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
       metrics_.image_consecutive_errors->Set(0);
     } else {
-      auto const error = result.error();
-      LOG_ERROR("Unable to parse joint in image {}: {}", image->GetImageName(), JointModelErrorCodeToString(error));
+      auto const error                 = result.error();
+      const bool camera_input_invalid  =
+          error == joint_model::JointModelErrorCode::INVALID_CAMERA_COORDINATES;
 
-      if (!median_profile.has_value()) {
-        m_config_mutex.lock();
-        const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
-        if (!dim_check.has_value() && image->GetVerticalCropStart() != 0 && frames_since_gain_change_ > 25) {
-          LOG_TRACE("Resetting FOV and gain due to empty history and unsuccessful joint parsing.");
-          image_provider_->ResetFOVAndGain();
-          dont_allow_fov_change_until_new_dimensions_received = {image_provider_->GetVerticalFOVOffset(),
-                                                                 image_provider_->GetVerticalFOVHeight()};
+      if (camera_input_invalid) {
+        LOG_WARNING("Skipping image {} due to invalid camera coordinates returned from centroid transform.",
+                    image->GetImageName());
+
+        if (metrics_.image_errors.contains(error)) {
+          metrics_.image_errors.at(error)->Increment();
+        } else {
+          LOG_ERROR("missing error counter for: {}", joint_model::JointModelErrorCodeToString(error));
         }
 
-        m_config_mutex.unlock();
-      }
-
-      if (metrics_.image_errors.contains(error)) {
-        metrics_.image_errors.at(error)->Increment();
+        log_failed_image    = true;
+        reason_failed_image = joint_model::JointModelErrorCodeToSnakeCaseString(error);
+        metrics_.image_consecutive_errors->Set(0);
       } else {
-        LOG_ERROR("missing error counter for: {}", joint_model::JointModelErrorCodeToString(error));
+        LOG_ERROR("Unable to parse joint in image {}: {}", image->GetImageName(), JointModelErrorCodeToString(error));
+
+        if (!median_profile.has_value()) {
+          m_config_mutex.lock();
+          const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
+          if (!dim_check.has_value() && image->GetVerticalCropStart() != 0 && frames_since_gain_change_ > 25) {
+            LOG_TRACE("Resetting FOV and gain due to empty history and unsuccessful joint parsing.");
+            image_provider_->ResetFOVAndGain();
+            dont_allow_fov_change_until_new_dimensions_received = {image_provider_->GetVerticalFOVOffset(),
+                                                                   image_provider_->GetVerticalFOVHeight()};
+          }
+
+          m_config_mutex.unlock();
+        }
+
+        if (metrics_.image_errors.contains(error)) {
+          metrics_.image_errors.at(error)->Increment();
+        } else {
+          LOG_ERROR("missing error counter for: {}", joint_model::JointModelErrorCodeToString(error));
+        }
+
+        /* only log the first image consecutive when the image processing fails */
+        log_failed_image    = metrics_.image_consecutive_errors->Value() == 0;
+        reason_failed_image = joint_model::JointModelErrorCodeToSnakeCaseString(error);
+
+        metrics_.image_consecutive_errors->Increment(1);
       }
-
-      /* only log the first image consecutive when the image processing fails */
-      log_failed_image    = metrics_.image_consecutive_errors->Value() == 0;
-      reason_failed_image = joint_model::JointModelErrorCodeToSnakeCaseString(error);
-
-      metrics_.image_consecutive_errors->Increment(1);
     }
 
     image_logger::ImageLoggerEntry entry = {

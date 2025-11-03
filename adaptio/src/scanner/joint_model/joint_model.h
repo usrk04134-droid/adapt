@@ -55,6 +55,7 @@ enum class JointModelErrorCode : uint32_t {
   JOINT_WIDTH_OUT_OF_TOLERANCE     = 108,
   TWO_WALLS_NOT_FOUND              = 109,
   FAULTY_APPROXIMATION_DATA        = 110,
+  INVALID_CAMERA_COORDINATES       = 200,
 };
 
 auto JointModelErrorCodeToString(JointModelErrorCode error_code) -> std::string;
