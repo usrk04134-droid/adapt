@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <utility>
 
 #include "scanner/core/scanner_types.h"
@@ -33,7 +34,9 @@ class ImageProvider {
   virtual void ResetFOVAndGain()                                 = 0;
   virtual void SetVerticalFOV(int offset_from_top, int height)   = 0;
   virtual void SetHorizontalFOV(int offset_from_left, int width) = 0;
-  virtual void AdjustGain(double factor)                         = 0;
+  virtual void SetFOV(std::optional<std::tuple<int, int>> vertical,
+                      std::optional<std::tuple<int, int>> horizontal) = 0;
+  virtual void AdjustGain(double factor)                                    = 0;
   virtual auto GetVerticalFOVOffset() -> int                     = 0;
   virtual auto GetVerticalFOVHeight() -> int                     = 0;
   virtual auto GetHorizontalFOVOffset() -> int                   = 0;

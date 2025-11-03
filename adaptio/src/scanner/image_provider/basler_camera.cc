@@ -58,10 +58,11 @@ const char* pfsFileContent = R"(
 
 BaslerCameraUpstreamImageEventHandler::BaslerCameraUpstreamImageEventHandler(ImageProvider::OnImage on_image,
                                                                              Timestamp start_time, int64_t start_tick,
-                                                                             int original_offset)
+                                                                             int original_offset, int original_offset_x)
     : base_timestamp(start_time),
       base_tick(start_tick),
       original_offset_(original_offset),
+      original_offset_x_(original_offset_x),
       on_image_(std::move(on_image)) {}
 
 void BaslerCameraUpstreamImageEventHandler::OnImageGrabbed(CInstantCamera& camera, const CGrabResultPtr& grab_result) {
@@ -73,14 +74,18 @@ void BaslerCameraUpstreamImageEventHandler::OnImageGrabbed(CInstantCamera& camer
   if (grab_result->GrabSucceeded()) {
     auto* buffer = static_cast<uint8_t*>(grab_result->GetBuffer());
 
-    auto height = grab_result->GetHeight();
-    auto width  = grab_result->GetWidth();
-    auto offset = grab_result->GetOffsetY();
+    auto height   = grab_result->GetHeight();
+    auto width    = grab_result->GetWidth();
+    auto offset   = grab_result->GetOffsetY();
+    auto offset_x = grab_result->GetOffsetX();
 
     const auto delay = std::chrono::milliseconds(5 + 75 * height / 2500);
 
     auto image_data = scanner::image::RawImageData(Eigen::Map<scanner::image::RawImageData>(buffer, height, width));
-    auto image      = scanner::image::ImageBuilder::From(image_data, offset - original_offset_).Finalize().value();
+    auto image      = scanner::image::ImageBuilder::From(image_data, offset - original_offset_,
+                                                         offset_x - original_offset_x_)
+                         .Finalize()
+                         .value();
 
     image->SetTimestamp(std::chrono::high_resolution_clock::now() - delay);
 
@@ -157,7 +162,8 @@ auto BaslerCamera::Start(enum scanner::ScannerSensitivity sensitivity) -> boost:
       }
     };
 
-    auto upstream_handler = new BaslerCameraUpstreamImageEventHandler(on_image, tp, i, fov_.offset_y);
+    auto upstream_handler =
+        new BaslerCameraUpstreamImageEventHandler(on_image, tp, i, fov_.offset_y, fov_.offset_x);
     camera_->RegisterImageEventHandler(upstream_handler, ERegistrationMode::RegistrationMode_ReplaceAll,
                                        ECleanup::Cleanup_Delete);
 
@@ -174,25 +180,62 @@ void BaslerCamera::ResetFOVAndGain() {
   }
   camera_->StopGrabbing();
   camera_->OffsetY.SetValue(0);
+  camera_->OffsetX.SetValue(0);
   camera_->Height.SetValue(fov_.height);
+  camera_->Width.SetValue(fov_.width);
+  camera_->OffsetX.SetValue(fov_.offset_x);
   camera_->OffsetY.SetValue(fov_.offset_y);
   camera_->Gain.SetValue(initial_gain_);
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
 }
 
 void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
+  SetFOV(std::make_optional(std::make_tuple(offset_from_top, height)), std::nullopt);
+};
+
+void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
+  SetFOV(std::nullopt, std::make_optional(std::make_tuple(offset_from_left, width)));
+};
+
+void BaslerCamera::SetFOV(std::optional<std::tuple<int, int>> vertical,
+                          std::optional<std::tuple<int, int>> horizontal) {
   if (!camera_) {
     return;
   }
-  camera_->StopGrabbing();
-  camera_->OffsetY.SetValue(0);
-  if (fov_.offset_y + offset_from_top + height > fov_.height) {
-    height = fov_.height - offset_from_top - fov_.offset_y;
+
+  if (!vertical.has_value() && !horizontal.has_value()) {
+    return;
   }
-  camera_->Height.SetValue(height);
-  camera_->OffsetY.SetValue(fov_.offset_y + offset_from_top);
+
+  camera_->StopGrabbing();
+
+  if (vertical.has_value()) {
+    auto [offset_from_top, height] = vertical.value();
+    camera_->OffsetY.SetValue(0);
+    const auto max_height = static_cast<int>(fov_.height - fov_.offset_y - offset_from_top);
+    if (max_height >= 0) {
+      height = std::min(height, max_height);
+    }
+    height = std::max(height, 1);
+    camera_->Height.SetValue(height);
+    camera_->OffsetY.SetValue(fov_.offset_y + offset_from_top);
+    LOG_TRACE("Adjusted vertical FOV to offset {} and height {}.", fov_.offset_y + offset_from_top, height);
+  }
+
+  if (horizontal.has_value()) {
+    auto [offset_from_left, width] = horizontal.value();
+    camera_->OffsetX.SetValue(0);
+    const auto max_width = static_cast<int>(fov_.width - fov_.offset_x - offset_from_left);
+    if (max_width >= 0) {
+      width = std::min(width, max_width);
+    }
+    width = std::max(width, 1);
+    camera_->Width.SetValue(width);
+    camera_->OffsetX.SetValue(fov_.offset_x + offset_from_left);
+    LOG_TRACE("Adjusted horizontal FOV to offset {} and width {}.", fov_.offset_x + offset_from_left, width);
+  }
+
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
-  LOG_TRACE("Continuous grabbing restarted with offset {} and height {}.", fov_.offset_y + offset_from_top, height);
 };
 
 void BaslerCamera::AdjustGain(double factor) {
@@ -230,6 +273,22 @@ void BaslerCamera::AdjustGain(double factor) {
 auto BaslerCamera::GetVerticalFOVOffset() -> int { return camera_->OffsetY.GetValue() - fov_.offset_y; };
 
 auto BaslerCamera::GetVerticalFOVHeight() -> int { return camera_->Height.GetValue(); };
+
+auto BaslerCamera::GetHorizontalFOVOffset() -> int {
+  if (!camera_) {
+    return 0;
+  }
+  return static_cast<int>(camera_->OffsetX.GetValue() - fov_.offset_x);
+};
+
+auto BaslerCamera::GetHorizontalFOVWidth() -> int {
+  if (!camera_) {
+    return static_cast<int>(fov_.width);
+  }
+  return static_cast<int>(camera_->Width.GetValue());
+};
+
+auto BaslerCamera::GetMaxHorizontalWidth() -> int { return static_cast<int>(fov_.width); };
 
 void BaslerCamera::Stop() {
   if (Started()) {
