@@ -41,7 +41,17 @@ class CameraSimulation : public ImageProvider {
   void SetVerticalFOV(int offset_from_top, int height) override;
   void SetHorizontalFOV(int offset_from_left, int width) override;
   void SetFOV(std::optional<std::tuple<int, int>> vertical,
-              std::optional<std::tuple<int, int>> horizontal) override;
+              std::optional<std::tuple<int, int>> horizontal) override {
+    if (vertical.has_value()) {
+      offset_ = std::get<0>(vertical.value());
+      height_ = std::get<1>(vertical.value());
+    }
+
+    if (horizontal.has_value()) {
+      offset_x_ = std::get<0>(horizontal.value());
+      width_    = std::get<1>(horizontal.value());
+    }
+  }
   auto GetVerticalFOVOffset() -> int override;
   auto GetVerticalFOVHeight() -> int override;
   auto GetHorizontalFOVOffset() -> int override;
