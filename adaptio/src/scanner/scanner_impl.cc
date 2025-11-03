@@ -257,6 +257,9 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                 top, bottom, current_offset, current_height, new_offset, new_height);
             dont_allow_fov_change_until_new_dimensions_received = {new_offset, new_height};
             image_provider_->SetVerticalFOV(new_offset, new_height);
+            auto const horizontal_offset = image_provider_->GetHorizontalFOVOffset();
+            auto const horizontal_width  = image_provider_->GetHorizontalFOVWidth();
+            image_provider_->SetHorizontalFOV(horizontal_offset, horizontal_width);
           }
         } else {
           dont_allow_fov_change_until_new_dimensions_received = std::nullopt;

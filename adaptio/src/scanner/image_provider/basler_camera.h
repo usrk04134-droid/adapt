@@ -7,6 +7,7 @@
 
 #include <boost/outcome.hpp>
 #include <map>
+#include <mutex>
 #include <thread>
 
 #include "scanner/image/image.h"
@@ -79,6 +80,17 @@ class BaslerCamera : public ImageProvider {
   void SetupMetrics(prometheus::Registry *registry);
   void UpdateMetrics();
 
+  struct FovState {
+    int vertical_offset   = 0;
+    int vertical_height   = 0;
+    int horizontal_offset = 0;
+    int horizontal_width  = 0;
+  };
+
+  void ApplyDesiredFovStateLocked();
+  void ApplyDesiredFovState();
+  static auto Clamp(int value, int min, int max) -> int;
+
   std::unique_ptr<Pylon::CBaslerUniversalInstantCamera> camera_;
   BufferedChannel<image::ImagePtr>::WriterPtr channel_;
   std::thread grabbing_thread_;
@@ -89,6 +101,10 @@ class BaslerCamera : public ImageProvider {
   OnImage on_image_;
 
   double initial_gain_ = 0.0;
+
+  FovState desired_fov_state_;
+  FovState applied_fov_state_;
+  mutable std::mutex fov_mutex_;
 
   struct {
     std::map<std::string, prometheus::Gauge &> temperature_status_gauges;
