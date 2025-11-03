@@ -194,6 +194,19 @@ void CameraSimulation::SetHorizontalFOV(int offset_from_left, int width) {
   SetFOV(std::nullopt, std::make_optional(std::make_tuple(offset_from_left, width)));
 }
 
+void CameraSimulation::SetFOV(std::optional<std::tuple<int, int>> vertical,
+                              std::optional<std::tuple<int, int>> horizontal) {
+  if (vertical.has_value()) {
+    offset_ = std::get<0>(vertical.value());
+    height_ = std::get<1>(vertical.value());
+  }
+
+  if (horizontal.has_value()) {
+    offset_x_ = std::get<0>(horizontal.value());
+    width_    = std::get<1>(horizontal.value());
+  }
+}
+
 void CameraSimulation::AdjustGain(double factor) {}
 
 auto CameraSimulation::GetVerticalFOVOffset() -> int { return offset_; };
