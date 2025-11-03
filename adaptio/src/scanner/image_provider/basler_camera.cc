@@ -230,23 +230,25 @@ void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
 }
 
 void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
-  std::scoped_lock lock(fov_mutex_);
+  {
+    std::scoped_lock lock(fov_mutex_);
 
-  auto const max_horizontal_offset = static_cast<int>(fov_.width);
-  offset_from_left                 = Clamp(offset_from_left, 0, max_horizontal_offset);
+    auto const max_horizontal_offset = static_cast<int>(fov_.width);
+    offset_from_left                 = Clamp(offset_from_left, 0, max_horizontal_offset);
 
-  auto max_width = static_cast<int>(fov_.width - offset_from_left);
-  if (max_width <= 0) {
-    offset_from_left = static_cast<int>(std::max<int64_t>(fov_.width - 1, 0));
-    max_width        = std::max(1, static_cast<int>(fov_.width - offset_from_left));
+    auto max_width = static_cast<int>(fov_.width - offset_from_left);
+    if (max_width <= 0) {
+      offset_from_left = static_cast<int>(std::max<int64_t>(fov_.width - 1, 0));
+      max_width        = std::max(1, static_cast<int>(fov_.width - offset_from_left));
+    }
+
+    width = Clamp(width, 1, max_width);
+
+    desired_fov_state_.horizontal_offset = offset_from_left;
+    desired_fov_state_.horizontal_width  = width;
   }
 
-  width = Clamp(width, 1, max_width);
-
-  desired_fov_state_.horizontal_offset = offset_from_left;
-  desired_fov_state_.horizontal_width  = width;
-
-  ApplyDesiredFovStateLocked();
+  ApplyDesiredFovState();
 }
 
 void BaslerCamera::AdjustGain(double factor) {
