@@ -33,6 +33,8 @@ class ImageProvider {
   virtual void ResetFOVAndGain()                                 = 0;
   virtual void SetVerticalFOV(int offset_from_top, int height)   = 0;
   virtual void SetHorizontalFOV(int offset_from_left, int width) = 0;
+  virtual void UpdateFOV(std::optional<int> offset_from_left, std::optional<int> width,
+                         std::optional<int> offset_from_top, std::optional<int> height) = 0;
   virtual void AdjustGain(double factor)                         = 0;
   virtual auto GetVerticalFOVOffset() -> int                     = 0;
   virtual auto GetVerticalFOVHeight() -> int                     = 0;

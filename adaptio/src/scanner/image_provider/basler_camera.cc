@@ -58,10 +58,11 @@ const char* pfsFileContent = R"(
 
 BaslerCameraUpstreamImageEventHandler::BaslerCameraUpstreamImageEventHandler(ImageProvider::OnImage on_image,
                                                                              Timestamp start_time, int64_t start_tick,
-                                                                             int original_offset)
+                                                                             int original_offset, int original_offset_x)
     : base_timestamp(start_time),
       base_tick(start_tick),
       original_offset_(original_offset),
+      original_offset_x_(original_offset_x),
       on_image_(std::move(on_image)) {}
 
 void BaslerCameraUpstreamImageEventHandler::OnImageGrabbed(CInstantCamera& camera, const CGrabResultPtr& grab_result) {
@@ -157,7 +158,9 @@ auto BaslerCamera::Start(enum scanner::ScannerSensitivity sensitivity) -> boost:
       }
     };
 
-    auto upstream_handler = new BaslerCameraUpstreamImageEventHandler(on_image, tp, i, fov_.offset_y);
+    auto upstream_handler =
+        new BaslerCameraUpstreamImageEventHandler(on_image, tp, i, static_cast<int>(fov_.offset_y),
+                                                  static_cast<int>(fov_.offset_x));
     camera_->RegisterImageEventHandler(upstream_handler, ERegistrationMode::RegistrationMode_ReplaceAll,
                                        ECleanup::Cleanup_Delete);
 
@@ -172,28 +175,86 @@ void BaslerCamera::ResetFOVAndGain() {
   if (!camera_) {
     return;
   }
-  camera_->StopGrabbing();
-  camera_->OffsetY.SetValue(0);
-  camera_->Height.SetValue(fov_.height);
-  camera_->OffsetY.SetValue(fov_.offset_y);
-  camera_->Gain.SetValue(initial_gain_);
-  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+  PerformWithCameraStopped([this]() {
+    camera_->OffsetX.SetValue(0);
+    camera_->Width.SetValue(fov_.width);
+    camera_->OffsetX.SetValue(fov_.offset_x);
+    camera_->OffsetY.SetValue(0);
+    camera_->Height.SetValue(fov_.height);
+    camera_->OffsetY.SetValue(fov_.offset_y);
+    camera_->Gain.SetValue(initial_gain_);
+  });
 }
 
 void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
+  UpdateFOV(std::nullopt, std::nullopt, offset_from_top, height);
+};
+
+void BaslerCamera::SetHorizontalFOV(int offset_from_left, int width) {
+  UpdateFOV(offset_from_left, width, std::nullopt, std::nullopt);
+};
+
+void BaslerCamera::UpdateFOV(std::optional<int> offset_from_left, std::optional<int> width,
+                             std::optional<int> offset_from_top, std::optional<int> height) {
   if (!camera_) {
     return;
   }
-  camera_->StopGrabbing();
-  camera_->OffsetY.SetValue(0);
-  if (fov_.offset_y + offset_from_top + height > fov_.height) {
-    height = fov_.height - offset_from_top - fov_.offset_y;
+
+  const bool horizontal_requested = offset_from_left.has_value() || width.has_value();
+  const bool vertical_requested   = offset_from_top.has_value() || height.has_value();
+
+  if (!horizontal_requested && !vertical_requested) {
+    return;
   }
-  camera_->Height.SetValue(height);
-  camera_->OffsetY.SetValue(fov_.offset_y + offset_from_top);
-  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
-  LOG_TRACE("Continuous grabbing restarted with offset {} and height {}.", fov_.offset_y + offset_from_top, height);
-};
+
+  auto current_horizontal_offset = GetHorizontalFOVOffset();
+  auto current_horizontal_width  = GetHorizontalFOVWidth();
+  auto current_vertical_offset   = GetVerticalFOVOffset();
+  auto current_vertical_height   = GetVerticalFOVHeight();
+
+  auto [new_horizontal_offset, new_horizontal_width] = std::make_pair(current_horizontal_offset, current_horizontal_width);
+  auto [new_vertical_offset, new_vertical_height]     = std::make_pair(current_vertical_offset, current_vertical_height);
+
+  if (horizontal_requested) {
+    new_horizontal_offset = offset_from_left.value_or(current_horizontal_offset);
+    new_horizontal_width  = width.value_or(current_horizontal_width);
+    std::tie(new_horizontal_offset, new_horizontal_width) =
+        ClampHorizontalCrop(new_horizontal_offset, new_horizontal_width);
+  }
+
+  if (vertical_requested) {
+    new_vertical_offset = offset_from_top.value_or(current_vertical_offset);
+    new_vertical_height = height.value_or(current_vertical_height);
+    std::tie(new_vertical_offset, new_vertical_height) = ClampVerticalCrop(new_vertical_offset, new_vertical_height);
+  }
+
+  const bool horizontal_changed =
+      horizontal_requested && (new_horizontal_offset != current_horizontal_offset ||
+                               new_horizontal_width != current_horizontal_width);
+  const bool vertical_changed =
+      vertical_requested && (new_vertical_offset != current_vertical_offset || new_vertical_height != current_vertical_height);
+
+  if (!horizontal_changed && !vertical_changed) {
+    return;
+  }
+
+  PerformWithCameraStopped([&]() {
+    if (horizontal_changed) {
+      camera_->OffsetX.SetValue(0);
+      camera_->Width.SetValue(new_horizontal_width);
+      camera_->OffsetX.SetValue(fov_.offset_x + new_horizontal_offset);
+    }
+
+    if (vertical_changed) {
+      camera_->OffsetY.SetValue(0);
+      camera_->Height.SetValue(new_vertical_height);
+      camera_->OffsetY.SetValue(fov_.offset_y + new_vertical_offset);
+    }
+  });
+
+  LOG_TRACE("Updated FOV. Horizontal offset {} width {}, vertical offset {} height {}.", new_horizontal_offset,
+            new_horizontal_width, new_vertical_offset, new_vertical_height);
+}
 
 void BaslerCamera::AdjustGain(double factor) {
   if (!camera_) {
@@ -211,8 +272,6 @@ void BaslerCamera::AdjustGain(double factor) {
     return;
   }
 
-  camera_->StopGrabbing();
-
   auto new_gain = gain;
   if (step > 0.) {
     new_gain += GAIN_STEP;
@@ -222,14 +281,112 @@ void BaslerCamera::AdjustGain(double factor) {
 
   new_gain = std::clamp(new_gain, MIN_GAIN, MAX_GAIN);
 
-  camera_->Gain.SetValue(new_gain);
-  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
-  LOG_TRACE("Continuous grabbing restarted with gain {:.3f} dB * {:.3f} = {:.3f} dB", gain, factor, new_gain);
+  PerformWithCameraStopped([&]() { camera_->Gain.SetValue(new_gain); });
+  LOG_TRACE("Continuous grabbing updated with gain {:.3f} dB * {:.3f} = {:.3f} dB", gain, factor, new_gain);
 };
 
-auto BaslerCamera::GetVerticalFOVOffset() -> int { return camera_->OffsetY.GetValue() - fov_.offset_y; };
+auto BaslerCamera::GetVerticalFOVOffset() -> int {
+  if (!camera_) {
+    return 0;
+  }
+  return camera_->OffsetY.GetValue() - fov_.offset_y;
+};
 
-auto BaslerCamera::GetVerticalFOVHeight() -> int { return camera_->Height.GetValue(); };
+auto BaslerCamera::GetVerticalFOVHeight() -> int {
+  if (!camera_) {
+    return static_cast<int>(fov_.height);
+  }
+  return camera_->Height.GetValue();
+};
+
+auto BaslerCamera::GetHorizontalFOVOffset() -> int {
+  if (!camera_) {
+    return 0;
+  }
+  return static_cast<int>(camera_->OffsetX.GetValue() - fov_.offset_x);
+};
+
+auto BaslerCamera::GetHorizontalFOVWidth() -> int {
+  if (!camera_) {
+    return static_cast<int>(fov_.width);
+  }
+  return static_cast<int>(camera_->Width.GetValue());
+};
+
+auto BaslerCamera::GetMaxHorizontalWidth() -> int { return static_cast<int>(fov_.width); };
+
+void BaslerCamera::PerformWithCameraStopped(const std::function<void()> &action) {
+  if (!camera_) {
+    return;
+  }
+
+  std::unique_lock<std::recursive_mutex> lock(reconfigure_mutex_);
+  const bool outer_call = reconfigure_depth_ == 0;
+
+  if (outer_call) {
+    resume_after_reconfigure_ = camera_->IsGrabbing();
+    if (resume_after_reconfigure_) {
+      camera_->StopGrabbing();
+    }
+  }
+
+  ++reconfigure_depth_;
+  try {
+    action();
+  } catch (...) {
+    --reconfigure_depth_;
+    if (outer_call) {
+      if (resume_after_reconfigure_) {
+        RestartGrabbing();
+      }
+      resume_after_reconfigure_ = false;
+    }
+    throw;
+  }
+
+  --reconfigure_depth_;
+
+  if (outer_call) {
+    if (resume_after_reconfigure_) {
+      RestartGrabbing();
+    }
+    resume_after_reconfigure_ = false;
+  }
+}
+
+auto BaslerCamera::ClampVerticalCrop(int offset_from_top, int height) const -> std::pair<int, int> {
+  int64_t clamped_offset = std::max<int64_t>(0, offset_from_top);
+  int64_t clamped_height = std::max<int64_t>(1, height);
+
+  if (fov_.offset_y + clamped_offset + clamped_height > fov_.height) {
+    clamped_height = fov_.height - fov_.offset_y - clamped_offset;
+    if (clamped_height < 1) {
+      clamped_height = 1;
+      clamped_offset = std::max<int64_t>(0, fov_.height - fov_.offset_y - clamped_height);
+    }
+  }
+
+  return {static_cast<int>(clamped_offset), static_cast<int>(clamped_height)};
+}
+
+auto BaslerCamera::ClampHorizontalCrop(int offset_from_left, int width) const -> std::pair<int, int> {
+  int64_t clamped_offset = std::max<int64_t>(0, offset_from_left);
+  int64_t clamped_width  = std::max<int64_t>(1, width);
+
+  if (fov_.offset_x + clamped_offset + clamped_width > fov_.width) {
+    clamped_width = fov_.width - fov_.offset_x - clamped_offset;
+    if (clamped_width < 1) {
+      clamped_width = 1;
+      clamped_offset = std::max<int64_t>(0, fov_.width - fov_.offset_x - clamped_width);
+    }
+  }
+
+  return {static_cast<int>(clamped_offset), static_cast<int>(clamped_width)};
+}
+
+void BaslerCamera::RestartGrabbing() {
+  camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
+}
 
 void BaslerCamera::Stop() {
   if (Started()) {

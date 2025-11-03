@@ -6,7 +6,10 @@
 #include <pylon/PylonIncludes.h>
 
 #include <boost/outcome.hpp>
+#include <functional>
 #include <map>
+#include <mutex>
+#include <optional>
 #include <thread>
 
 #include "scanner/image/image.h"
@@ -31,7 +34,7 @@ class BaslerCameraUpstreamImageEventHandler : public Pylon::CImageEventHandler {
   Timestamp base_timestamp;
   int64_t base_tick;
   int original_offset_;
-  int original_offset_x_;
+  [[maybe_unused]] int original_offset_x_;
   ImageProvider::OnImage on_image_;
 };
 
@@ -64,6 +67,8 @@ class BaslerCamera : public ImageProvider {
   void ResetFOVAndGain() override;
   void SetVerticalFOV(int offset_from_top, int height) override;
   void SetHorizontalFOV(int offset_from_left, int width) override;
+  void UpdateFOV(std::optional<int> offset_from_left, std::optional<int> width,
+                 std::optional<int> offset_from_top, std::optional<int> height) override;
   void AdjustGain(double factor) override;
   auto GetVerticalFOVOffset() -> int override;
   auto GetVerticalFOVHeight() -> int override;
@@ -78,6 +83,10 @@ class BaslerCamera : public ImageProvider {
   auto StartCamera() -> boost::outcome_v2::result<void>;
   void SetupMetrics(prometheus::Registry *registry);
   void UpdateMetrics();
+  void PerformWithCameraStopped(const std::function<void()> &action);
+  auto ClampVerticalCrop(int offset_from_top, int height) const -> std::pair<int, int>;
+  auto ClampHorizontalCrop(int offset_from_left, int width) const -> std::pair<int, int>;
+  void RestartGrabbing();
 
   std::unique_ptr<Pylon::CBaslerUniversalInstantCamera> camera_;
   BufferedChannel<image::ImagePtr>::WriterPtr channel_;
@@ -97,6 +106,9 @@ class BaslerCamera : public ImageProvider {
     prometheus::Gauge *max_temperature{};
   } metrics_;
   std::chrono::steady_clock::time_point last_get_scanner_metrics_;
+  mutable std::recursive_mutex reconfigure_mutex_;
+  size_t reconfigure_depth_              = 0;
+  bool resume_after_reconfigure_         = false;
 };
 
 }  // namespace scanner::image_provider
