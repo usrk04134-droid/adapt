@@ -125,6 +125,8 @@ auto JointModelErrorCodeToString(JointModelErrorCode error_code) -> std::string 
       return "Two walls not found.";
     case JointModelErrorCode::FAULTY_APPROXIMATION_DATA:
       return "Faulty approximation data.";
+    case JointModelErrorCode::INVALID_CAMERA_COORDINATES:
+      return "Invalid camera coordinates.";
   }
 }
 
@@ -154,6 +156,8 @@ auto JointModelErrorCodeToSnakeCaseString(JointModelErrorCode error_code) -> std
       return "two_walls_not_found";
     case JointModelErrorCode::FAULTY_APPROXIMATION_DATA:
       return "faulty_approximation_data";
+    case JointModelErrorCode::INVALID_CAMERA_COORDINATES:
+      return "invalid_camera_coordinates";
   }
 }
 }  // namespace scanner::joint_model

@@ -79,6 +79,13 @@ auto Naive::Parse(image::Image& image, std::optional<JointProfile> median_profil
   auto maybe_wcs_coordinates = camera_model_->ImageToWorkspace(centroids, crop_start);
 
   if (!maybe_wcs_coordinates.has_value()) {
+    const auto transform_error = maybe_wcs_coordinates.error();
+    if (transform_error == scanner::image::make_error_code(scanner::image::CameraModelErrorCode::INVALID_IMAGE_COORDINATE_DIMENSION)) {
+      LOG_WARNING("Skipping image {} due to invalid centroid dimensions ({} columns) when transforming to workspace.",
+                  image.GetImageName(), centroids.cols());
+      return std::unexpected(JointModelErrorCode::INVALID_CAMERA_COORDINATES);
+    }
+
     return std::unexpected(JointModelErrorCode::SURFACE_NOT_FOUND);
   }
 
