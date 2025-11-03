@@ -228,6 +228,8 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
       const int current_height = image->Data().rows();
       const auto [top, bottom] = profile.vertical_limits;
       m_config_mutex.lock();
+      std::optional<std::tuple<int, int>> pending_vertical_fov_change;
+      std::optional<std::tuple<int, int>> pending_horizontal_fov_change;
       const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
       if (dim_check
               .transform([current_offset, current_height](std::tuple<int, int> requested) {
@@ -256,11 +258,15 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                 "{}",
                 top, bottom, current_offset, current_height, new_offset, new_height);
             dont_allow_fov_change_until_new_dimensions_received = {new_offset, new_height};
-            image_provider_->SetVerticalFOV(new_offset, new_height);
+            pending_vertical_fov_change                          = {new_offset, new_height};
           }
         } else {
           dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
         }
+      }
+
+      if (pending_vertical_fov_change || pending_horizontal_fov_change) {
+        image_provider_->SetFov(pending_vertical_fov_change, pending_horizontal_fov_change);
       }
 
       if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
@@ -306,7 +312,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
 
     image_logger::ImageLoggerEntry entry = {
         .image    = image.get(),
-        .x_offset = 0,
+        .x_offset = static_cast<uint32_t>(image->GetHorizontalCropStart()),
         .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
     };
 

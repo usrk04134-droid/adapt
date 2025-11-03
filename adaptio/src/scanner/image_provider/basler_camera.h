@@ -7,7 +7,9 @@
 
 #include <boost/outcome.hpp>
 #include <map>
+#include <optional>
 #include <thread>
+#include <tuple>
 
 #include "scanner/image/image.h"
 #include "scanner/image_provider/image_provider.h"
@@ -64,6 +66,8 @@ class BaslerCamera : public ImageProvider {
   void ResetFOVAndGain() override;
   void SetVerticalFOV(int offset_from_top, int height) override;
   void SetHorizontalFOV(int offset_from_left, int width) override;
+  void SetFov(std::optional<std::tuple<int, int>> vertical,
+              std::optional<std::tuple<int, int>> horizontal) override;
   void AdjustGain(double factor) override;
   auto GetVerticalFOVOffset() -> int override;
   auto GetVerticalFOVHeight() -> int override;
@@ -78,6 +82,8 @@ class BaslerCamera : public ImageProvider {
   auto StartCamera() -> boost::outcome_v2::result<void>;
   void SetupMetrics(prometheus::Registry *registry);
   void UpdateMetrics();
+  auto ApplyVerticalFov(int offset_from_top, int height) -> std::tuple<int, int>;
+  auto ApplyHorizontalFov(int offset_from_left, int width) -> std::tuple<int, int>;
 
   std::unique_ptr<Pylon::CBaslerUniversalInstantCamera> camera_;
   BufferedChannel<image::ImagePtr>::WriterPtr channel_;
