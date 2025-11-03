@@ -198,7 +198,10 @@ const ErrorCategory ERROR_CATEGORY{};
 
 }  // namespace
 
-[[maybe_unused]] auto make_error_code(scanner::image::CameraModelErrorCode error_code)
-    -> std::error_code {  // NOLINT(*-identifier-naming)
+namespace scanner::image {
+
+[[maybe_unused]] auto make_error_code(CameraModelErrorCode error_code) -> std::error_code {  // NOLINT(*-identifier-naming)
   return {static_cast<int>(error_code), ERROR_CATEGORY};
 }
+
+}  // namespace scanner::image
