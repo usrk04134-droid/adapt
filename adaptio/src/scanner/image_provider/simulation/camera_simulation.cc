@@ -38,7 +38,14 @@ using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 
 CameraSimulation::CameraSimulation(const SimConfig& config, bool loop)
-    : started_(false), real_time_mode_(config.realtime), loop_(loop), previous_time_stamp_(0), offset_(0), height_(0) {
+    : started_(false),
+      real_time_mode_(config.realtime),
+      loop_(loop),
+      previous_time_stamp_(0),
+      offset_(0),
+      height_(0),
+      offset_x_(0),
+      width_(0) {
   auto search_path                          = fs::path(config.images_path);
   std::vector<std::string> supported_images = {"bmp", "tiff"};
 
@@ -173,11 +180,30 @@ void CameraSimulation::Run() {
   }
 }
 
-void CameraSimulation::ResetFOVAndGain() { SetVerticalFOV(0, 0); }
+void CameraSimulation::ResetFOVAndGain() { UpdateFOV(std::nullopt, std::nullopt, 0, 0); }
 
 void CameraSimulation::SetVerticalFOV(int offset_from_top, int height) {
-  offset_ = offset_from_top;
-  height_ = height;
+  UpdateFOV(std::nullopt, std::nullopt, offset_from_top, height);
+}
+
+void CameraSimulation::SetHorizontalFOV(int offset_from_left, int width) {
+  UpdateFOV(offset_from_left, width, std::nullopt, std::nullopt);
+}
+
+void CameraSimulation::UpdateFOV(std::optional<int> offset_from_left, std::optional<int> width,
+                                 std::optional<int> offset_from_top, std::optional<int> height) {
+  if (offset_from_left.has_value()) {
+    offset_x_ = offset_from_left.value();
+  }
+  if (width.has_value()) {
+    width_ = width.value();
+  }
+  if (offset_from_top.has_value()) {
+    offset_ = offset_from_top.value();
+  }
+  if (height.has_value()) {
+    height_ = height.value();
+  }
 }
 
 void CameraSimulation::AdjustGain(double factor) {}
@@ -185,6 +211,12 @@ void CameraSimulation::AdjustGain(double factor) {}
 auto CameraSimulation::GetVerticalFOVOffset() -> int { return offset_; };
 
 auto CameraSimulation::GetVerticalFOVHeight() -> int { return height_; };
+
+auto CameraSimulation::GetHorizontalFOVOffset() -> int { return offset_x_; }
+
+auto CameraSimulation::GetHorizontalFOVWidth() -> int { return width_; }
+
+auto CameraSimulation::GetMaxHorizontalWidth() -> int { return width_; }
 
 auto CameraSimulation::GetImage()
     -> std::tuple<std::optional<std::unique_ptr<scanner::image::Image>>, std::optional<uint32_t>> {

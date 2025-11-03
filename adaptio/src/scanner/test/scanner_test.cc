@@ -52,6 +52,7 @@ TEST_SUITE("Scanner") {
     void ResetFOVAndGain() override {};
     void SetVerticalFOV(int offset_from_top, int height) override {};
     void SetHorizontalFOV(int offset_from_left, int width) override {};
+    void UpdateFOV(std::optional<int>, std::optional<int>, std::optional<int>, std::optional<int>) override {};
     void AdjustGain(double factor) override {};
     auto GetVerticalFOVOffset() -> int override { return 0; };
     auto GetVerticalFOVHeight() -> int override { return 0; };
