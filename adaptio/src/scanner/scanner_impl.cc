@@ -206,14 +206,15 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     if (result) {
       auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
       LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
-      joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
-                                        .timestamp           = image->GetTimestamp(),
-                                        .image_name          = image->GetImageName(),
-                                        .profile             = profile,
-                                        .num_walls_found     = num_walls_found,
-                                        .processing_time     = processing_time,
-                                        .vertical_crop_start = image->GetVerticalCropStart(),
-                                        .approximation_used  = profile.approximation_used};
+      joint_buffer::JointSlice slice = {.uuid                 = image->GetUuid(),
+                                        .timestamp            = image->GetTimestamp(),
+                                        .image_name           = image->GetImageName(),
+                                        .profile              = profile,
+                                        .num_walls_found      = num_walls_found,
+                                        .processing_time      = processing_time,
+                                        .vertical_crop_start  = image->GetVerticalCropStart(),
+                                        .horizontal_crop_start = image->GetHorizontalCropStart(),
+                                        .approximation_used   = profile.approximation_used};
       if (store_image_data_) {
         // Store image data only if necessary. Not needed when running Adaptio
         slice.image_data = image->Data();
@@ -297,18 +298,18 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
         LOG_ERROR("missing error counter for: {}", joint_model::JointModelErrorCodeToString(error));
       }
 
-      /* only log the first image consecutive when the image processing fails */
-      log_failed_image    = metrics_.image_consecutive_errors->Value() == 0;
-      reason_failed_image = joint_model::JointModelErrorCodeToSnakeCaseString(error);
+        /* only log the first image consecutive when the image processing fails */
+        log_failed_image    = metrics_.image_consecutive_errors->Value() == 0;
+        reason_failed_image = joint_model::JointModelErrorCodeToSnakeCaseString(error);
 
-      metrics_.image_consecutive_errors->Increment(1);
-    }
+        metrics_.image_consecutive_errors->Increment(1);
+      }
 
-    image_logger::ImageLoggerEntry entry = {
-        .image    = image.get(),
-        .x_offset = 0,
-        .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
-    };
+      image_logger::ImageLoggerEntry entry = {
+          .image    = image.get(),
+          .x_offset = static_cast<uint32_t>(image->GetHorizontalCropStart()),
+          .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
+      };
 
     if (log_failed_image) {
       image_logger_->LogImageError(entry, reason_failed_image);
