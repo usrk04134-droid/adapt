@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <array>
 #include <cstdint>
 
 #include "scanner/image/image_builder.h"
@@ -38,13 +39,26 @@ TEST_SUITE("Image") {
       return 0;
     });
 
-    CHECK_EQ((image->Data())(0, 0), 0);
-    CHECK_EQ((image->Data())(0, 1), 65);
-    CHECK_EQ((image->Data())(1, 0), 0);
-    CHECK_EQ((image->Data())(1, 1), 0);
+      CHECK_EQ((image->Data())(0, 0), 0);
+      CHECK_EQ((image->Data())(0, 1), 65);
+      CHECK_EQ((image->Data())(1, 0), 0);
+      CHECK_EQ((image->Data())(1, 1), 0);
 
-    delete[] data;
-  }
+      delete[] data;
+    }
+
+    TEST_CASE("Image builder stores crop offsets") {
+      std::array<uint8_t, 4> pixels{1, 2, 3, 4};
+      auto matrix = Eigen::Map<RawImageData>(pixels.data(), 2, 2);
+
+      constexpr int vertical_offset   = 5;
+      constexpr int horizontal_offset = 7;
+
+      auto image = ImageBuilder::From(matrix, vertical_offset, horizontal_offset).Finalize().value();
+
+      CHECK_EQ(image->GetVerticalCropStart(), vertical_offset);
+      CHECK_EQ(image->GetHorizontalCropStart(), horizontal_offset);
+    }
 }
 
 }  // namespace scanner::image
