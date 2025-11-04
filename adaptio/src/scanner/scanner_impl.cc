@@ -184,140 +184,160 @@ auto ScannerImpl::NewOffsetAndHeight(int top, int bottom) -> std::tuple<int, int
 void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
   auto sp_image = std::shared_ptr<image::Image>(std::move(image));
   post_([this, image = std::move(sp_image)]() {
-    // When image capture is faster than parsing we need to be able to evaluate concurrently across multiple cores
-    // This means that Parse should be a constant function. Any state should be recoverable from the latest slice.
+    try {
+      // When image capture is faster than parsing we need to be able to evaluate concurrently across multiple cores
+      // This means that Parse should be a constant function. Any state should be recoverable from the latest slice.
 
-    auto const start_timstamp = std::chrono::steady_clock::now();
-    auto log_failed_image     = false;
-    std::string reason_failed_image;
-
-    m_buffer_mutex.lock();
-    auto median_profile             = slice_provider_->GetSlice();
-    auto updated_properties         = updated_properties_;
-    auto maybe_abw0_abw6_horizontal = maybe_abw0_abw6_horizontal_;
-    auto use_approximation          = slice_provider_->SliceDegraded();
-    m_buffer_mutex.unlock();
-
-    auto result = joint_model_->Parse(*image.get(), median_profile, updated_properties, use_approximation,
-                                      maybe_abw0_abw6_horizontal);
-
-    num_received++;
-
-    if (result) {
-      auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
-      LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
-      joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
-                                        .timestamp           = image->GetTimestamp(),
-                                        .image_name          = image->GetImageName(),
-                                        .profile             = profile,
-                                        .num_walls_found     = num_walls_found,
-                                        .processing_time     = processing_time,
-                                        .vertical_crop_start = image->GetVerticalCropStart(),
-                                        .approximation_used  = profile.approximation_used};
-      if (store_image_data_) {
-        // Store image data only if necessary. Not needed when running Adaptio
-        slice.image_data = image->Data();
-        slice.centroids  = centroids_wcs;
-      }
+      auto const start_timstamp = std::chrono::steady_clock::now();
+      auto log_failed_image     = false;
+      std::string reason_failed_image;
 
       m_buffer_mutex.lock();
-      slice_provider_->AddSlice(slice);
+      auto median_profile             = slice_provider_->GetSlice();
+      auto updated_properties         = updated_properties_;
+      auto maybe_abw0_abw6_horizontal = maybe_abw0_abw6_horizontal_;
+      auto use_approximation          = slice_provider_->SliceDegraded();
       m_buffer_mutex.unlock();
 
-      const int current_offset = image->GetVerticalCropStart();
-      const int current_height = image->Data().rows();
-      const auto [top, bottom] = profile.vertical_limits;
-      m_config_mutex.lock();
-      const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
-      if (dim_check
-              .transform([current_offset, current_height](std::tuple<int, int> requested) {
-                auto [requested_offset, requested_height] = requested;
-                return requested_offset == current_offset && requested_height == current_height;
-              })
-              .value_or(true)) {
-        // Check min/max vertical pixels in the image and evaluate whether we want to adjust the FOV
-        // Note: this assumes that the original offset is 0.
-        // We want current_offset + WINDOW_MARGIN = top
-        // and current_offset + height - WINDOW_MARGIN = bottom
-        // If we are more than MOVE_MARGIN away from either of these two we recalculate
+      auto result = joint_model_->Parse(*image.get(), median_profile, updated_properties, use_approximation,
+                                        maybe_abw0_abw6_horizontal);
 
-        const bool fov_is_small_but_covers_joint =
-            current_height == MINIMUM_FOV_HEIGHT && bottom - top + 2 * WINDOW_MARGIN <= MINIMUM_FOV_HEIGHT &&
-            current_offset + WINDOW_MARGIN <= top && bottom + WINDOW_MARGIN <= current_offset + current_height;
+      num_received++;
 
-        if (!fov_is_small_but_covers_joint &&
-            ((abs((top - WINDOW_MARGIN) - current_offset) > MOVE_MARGIN) ||
-             (abs((bottom + WINDOW_MARGIN) - (current_offset + current_height)) > MOVE_MARGIN))) {
-          auto [new_offset, new_height] = ScannerImpl::NewOffsetAndHeight(top, bottom);
-
-          if (new_offset != current_offset || new_height != current_height) {
-            LOG_TRACE(
-                "Change FOV based on top {} bottom {}, current_offset {}, current_height {}, new_offset {} new_height "
-                "{}",
-                top, bottom, current_offset, current_height, new_offset, new_height);
-            dont_allow_fov_change_until_new_dimensions_received = {new_offset, new_height};
-            image_provider_->SetVerticalFOV(new_offset, new_height);
-          }
-        } else {
-          dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+      if (result) {
+        auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
+        LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
+        joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
+                                          .timestamp           = image->GetTimestamp(),
+                                          .image_name          = image->GetImageName(),
+                                          .profile             = profile,
+                                          .num_walls_found     = num_walls_found,
+                                          .processing_time     = processing_time,
+                                          .vertical_crop_start = image->GetVerticalCropStart(),
+                                          .approximation_used  = profile.approximation_used};
+        if (store_image_data_) {
+          // Store image data only if necessary. Not needed when running Adaptio
+          slice.image_data = image->Data();
+          slice.centroids  = centroids_wcs;
         }
-      }
 
-      if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
-        image_provider_->AdjustGain(profile.suggested_gain_change.value());
-        frames_since_gain_change_ = 0;
-      }
-      m_config_mutex.unlock();
+        m_buffer_mutex.lock();
+        slice_provider_->AddSlice(slice);
+        m_buffer_mutex.unlock();
 
-      if (metrics_.image.contains(slice.num_walls_found)) {
-        metrics_.image.at(slice.num_walls_found)->Increment();
-      }
-
-      metrics_.image_consecutive_errors->Set(0);
-    } else {
-      auto const error = result.error();
-      LOG_ERROR("Unable to parse joint in image {}: {}", image->GetImageName(), JointModelErrorCodeToString(error));
-
-      if (!median_profile.has_value()) {
+        const int current_offset = image->GetVerticalCropStart();
+        const int current_height = image->Data().rows();
+        const auto [top, bottom] = profile.vertical_limits;
         m_config_mutex.lock();
         const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
-        if (!dim_check.has_value() && image->GetVerticalCropStart() != 0 && frames_since_gain_change_ > 25) {
-          LOG_TRACE("Resetting FOV and gain due to empty history and unsuccessful joint parsing.");
-          image_provider_->ResetFOVAndGain();
-          dont_allow_fov_change_until_new_dimensions_received = {image_provider_->GetVerticalFOVOffset(),
-                                                                 image_provider_->GetVerticalFOVHeight()};
+        if (dim_check
+                .transform([current_offset, current_height](std::tuple<int, int> requested) {
+                  auto [requested_offset, requested_height] = requested;
+                  return requested_offset == current_offset && requested_height == current_height;
+                })
+                .value_or(true)) {
+          // Check min/max vertical pixels in the image and evaluate whether we want to adjust the FOV
+          // Note: this assumes that the original offset is 0.
+          // We want current_offset + WINDOW_MARGIN = top
+          // and current_offset + height - WINDOW_MARGIN = bottom
+          // If we are more than MOVE_MARGIN away from either of these two we recalculate
+
+          const bool fov_is_small_but_covers_joint =
+              current_height == MINIMUM_FOV_HEIGHT && bottom - top + 2 * WINDOW_MARGIN <= MINIMUM_FOV_HEIGHT &&
+              current_offset + WINDOW_MARGIN <= top && bottom + WINDOW_MARGIN <= current_offset + current_height;
+
+          if (!fov_is_small_but_covers_joint &&
+              ((abs((top - WINDOW_MARGIN) - current_offset) > MOVE_MARGIN) ||
+               (abs((bottom + WINDOW_MARGIN) - (current_offset + current_height)) > MOVE_MARGIN))) {
+            auto [new_offset, new_height] = ScannerImpl::NewOffsetAndHeight(top, bottom);
+
+            if (new_offset != current_offset || new_height != current_height) {
+              LOG_TRACE(
+                  "Change FOV based on top {} bottom {}, current_offset {}, current_height {}, new_offset {} new_height "
+                  "{}",
+                  top, bottom, current_offset, current_height, new_offset, new_height);
+              dont_allow_fov_change_until_new_dimensions_received = {new_offset, new_height};
+              image_provider_->SetVerticalFOV(new_offset, new_height);
+            }
+          } else {
+            dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+          }
         }
 
+        if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
+          image_provider_->AdjustGain(profile.suggested_gain_change.value());
+          frames_since_gain_change_ = 0;
+        }
         m_config_mutex.unlock();
-      }
 
-      if (metrics_.image_errors.contains(error)) {
-        metrics_.image_errors.at(error)->Increment();
+        if (metrics_.image.contains(slice.num_walls_found)) {
+          metrics_.image.at(slice.num_walls_found)->Increment();
+        }
+
+        metrics_.image_consecutive_errors->Set(0);
       } else {
-        LOG_ERROR("missing error counter for: {}", joint_model::JointModelErrorCodeToString(error));
+        auto const error = result.error();
+        LOG_ERROR("Unable to parse joint in image {}: {}", image->GetImageName(), JointModelErrorCodeToString(error));
+
+        if (!median_profile.has_value()) {
+          m_config_mutex.lock();
+          const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
+          if (!dim_check.has_value() && image->GetVerticalCropStart() != 0 && frames_since_gain_change_ > 25) {
+            LOG_TRACE("Resetting FOV and gain due to empty history and unsuccessful joint parsing.");
+            image_provider_->ResetFOVAndGain();
+            dont_allow_fov_change_until_new_dimensions_received = {image_provider_->GetVerticalFOVOffset(),
+                                                                   image_provider_->GetVerticalFOVHeight()};
+          }
+
+          m_config_mutex.unlock();
+        }
+
+        if (metrics_.image_errors.contains(error)) {
+          metrics_.image_errors.at(error)->Increment();
+        } else {
+          LOG_ERROR("missing error counter for: {}", joint_model::JointModelErrorCodeToString(error));
+        }
+
+        /* only log the first image consecutive when the image processing fails */
+        log_failed_image    = metrics_.image_consecutive_errors->Value() == 0;
+        reason_failed_image = joint_model::JointModelErrorCodeToSnakeCaseString(error);
+
+        metrics_.image_consecutive_errors->Increment(1);
       }
 
-      /* only log the first image consecutive when the image processing fails */
-      log_failed_image    = metrics_.image_consecutive_errors->Value() == 0;
-      reason_failed_image = joint_model::JointModelErrorCodeToSnakeCaseString(error);
+      image_logger::ImageLoggerEntry entry = {
+          .image    = image.get(),
+          .x_offset = 0,
+          .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
+      };
 
-      metrics_.image_consecutive_errors->Increment(1);
+      if (log_failed_image) {
+        image_logger_->LogImageError(entry, reason_failed_image);
+      } else {
+        image_logger_->LogImage(entry);
+      }
+
+      std::chrono::duration<double> const duration_seconds = std::chrono::steady_clock::now() - start_timstamp;
+      metrics_.image_processing_time->Observe(duration_seconds.count());
+    } catch (const std::exception& e) {
+      LOG_ERROR("Exception in image processing thread for image {}: {}", 
+                image ? image->GetImageName() : "unknown", e.what());
+      // Increment error counter to track consecutive errors
+      if (metrics_.image_consecutive_errors) {
+        metrics_.image_consecutive_errors->Increment(1);
+      }
+      // Log error for the specific error type if we have an image
+      if (image && metrics_.image_errors.contains(joint_model::JointModelErrorCode::INVALID_SNAKE)) {
+        metrics_.image_errors.at(joint_model::JointModelErrorCode::INVALID_SNAKE)->Increment();
+      }
+    } catch (...) {
+      LOG_ERROR("Unknown exception in image processing thread for image {}", 
+                image ? image->GetImageName() : "unknown");
+      // Increment error counter to track consecutive errors
+      if (metrics_.image_consecutive_errors) {
+        metrics_.image_consecutive_errors->Increment(1);
+      }
     }
-
-    image_logger::ImageLoggerEntry entry = {
-        .image    = image.get(),
-        .x_offset = 0,
-        .y_offset = static_cast<uint32_t>(image->GetVerticalCropStart()),
-    };
-
-    if (log_failed_image) {
-      image_logger_->LogImageError(entry, reason_failed_image);
-    } else {
-      image_logger_->LogImage(entry);
-    }
-
-    std::chrono::duration<double> const duration_seconds = std::chrono::steady_clock::now() - start_timstamp;
-    metrics_.image_processing_time->Observe(duration_seconds.count());
   });
 }
 
