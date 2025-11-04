@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <ctime>
 #include <Eigen/Core>
 #include <expected>
@@ -58,7 +59,17 @@ ScannerImpl::ScannerImpl(image_provider::ImageProvider* image_provider, slice_pr
       store_image_data_(false) {
   SetupMetrics(registry);
 
-  post_ = [this](std::function<void()> fn) { boost::asio::post(m_threadpool, std::move(fn)); };
+  post_ = [this](std::function<void()> fn) {
+    boost::asio::post(m_threadpool, [fn = std::move(fn)]() mutable {
+      try {
+        fn();
+      } catch (const std::exception& ex) {
+        LOG_FATAL("Unhandled exception in scanner worker thread: {}", ex.what());
+      } catch (...) {
+        LOG_FATAL("Unhandled non-standard exception in scanner worker thread");
+      }
+    });
+  };
 }
 
 void ScannerImpl::SetupMetrics(prometheus::Registry* registry) {
@@ -411,5 +422,17 @@ const ErrorCategory ERROR_CATEGORY{};
   return {static_cast<int>(error_code), ERROR_CATEGORY};
 }
 
-void ScannerImpl::SetPostExecutorForTests(std::function<void(std::function<void()>)> exec) { post_ = std::move(exec); }
+void ScannerImpl::SetPostExecutorForTests(std::function<void(std::function<void()>)> exec) {
+  post_ = [exec = std::move(exec)](std::function<void()> fn) mutable {
+    exec([fn = std::move(fn)]() mutable {
+      try {
+        fn();
+      } catch (const std::exception& ex) {
+        LOG_FATAL("Unhandled exception in scanner worker thread: {}", ex.what());
+      } catch (...) {
+        LOG_FATAL("Unhandled non-standard exception in scanner worker thread");
+      }
+    });
+  };
+}
 }  // namespace scanner
