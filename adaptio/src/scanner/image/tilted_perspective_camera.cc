@@ -25,7 +25,7 @@ TiltedPerspectiveCamera::TiltedPerspectiveCamera(const TiltedPerspectiveCameraPr
 }
 
 auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coordinates,
-                                               int vertical_crop_offset) const
+                                               int vertical_crop_offset, int horizontal_crop_offset) const
     -> boost::outcome_v2::result<WorkspaceCoordinates> {
   using Eigen::all;
 
@@ -40,7 +40,7 @@ auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coo
   pixel_pitch << intrinsic.pixel_pitch.x, intrinsic.pixel_pitch.y;
 
   Vector2d offset;
-  offset << static_cast<double>(fov.offset_x), static_cast<double>(fov.offset_y + vertical_crop_offset);
+  offset << static_cast<double>(fov.offset_x + horizontal_crop_offset), static_cast<double>(fov.offset_y + vertical_crop_offset);
 
   PlaneCoordinates coordinates = image_coordinates;
 
@@ -86,7 +86,7 @@ auto TiltedPerspectiveCamera::ImageToWorkspace(const PlaneCoordinates& image_coo
 }
 
 auto TiltedPerspectiveCamera::WorkspaceToImage(const WorkspaceCoordinates& workspace_coordinates,
-                                               int vertical_crop_offset) const
+                                               int vertical_crop_offset, int horizontal_crop_offset) const
     -> boost::outcome_v2::result<PlaneCoordinates> {
   using Eigen::all;
   using Eigen::Index;
@@ -104,7 +104,7 @@ auto TiltedPerspectiveCamera::WorkspaceToImage(const WorkspaceCoordinates& works
   pixel_pitch << intrinsic.pixel_pitch.x, intrinsic.pixel_pitch.y;
 
   Vector2d offset;
-  offset << static_cast<double>(fov.offset_x), static_cast<double>(fov.offset_y + vertical_crop_offset);
+  offset << static_cast<double>(fov.offset_x + horizontal_crop_offset), static_cast<double>(fov.offset_y + vertical_crop_offset);
 
   // Flip the Y coordinates
   WorkspaceCoordinates wcs_coordinates = workspace_coordinates;

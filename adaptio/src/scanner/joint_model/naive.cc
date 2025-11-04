@@ -75,8 +75,9 @@ auto Naive::Parse(image::Image& image, std::optional<JointProfile> median_profil
   }
 
   auto centroids             = maybe_centroids.value();
-  auto crop_start            = image.GetVerticalCropStart();
-  auto maybe_wcs_coordinates = camera_model_->ImageToWorkspace(centroids, crop_start);
+  auto crop_start_y          = image.GetVerticalCropStart();
+  auto crop_start_x          = image.GetHorizontalCropStart();
+  auto maybe_wcs_coordinates = camera_model_->ImageToWorkspace(centroids, crop_start_y, crop_start_x);
 
   if (!maybe_wcs_coordinates.has_value()) {
     return std::unexpected(JointModelErrorCode::SURFACE_NOT_FOUND);
@@ -123,23 +124,23 @@ auto Naive::Parse(image::Image& image, std::optional<JointProfile> median_profil
 
   auto wall_coords_laser = GetWallCoordsLaserPlane(left_surface, right_surface, left_surface_edges, right_surface_edges,
                                                    left_groove_depth, right_groove_depth);
-  auto wall_coords_image = TransformCoordsImagePlane(wall_coords_laser, crop_start);
+  auto wall_coords_image = TransformCoordsImagePlane(wall_coords_laser, crop_start_y, crop_start_x);
 
   auto maybe_left_groove_wall =
       GetWallImage(wall_coords_image, image.Data(), false)
           .and_then([this, left_surface, left_surface_edges,
-                     crop_start](std::tuple<const image::RawImageData, std::tuple<int, int>> i) {
+                     crop_start_y, crop_start_x](std::tuple<const image::RawImageData, std::tuple<int, int>> i) {
             auto [image, offset] = i;
-            return GetWallCentroids(left_surface, left_surface_edges, image, offset, crop_start, false);
+            return GetWallCentroids(left_surface, left_surface_edges, image, offset, crop_start_y, crop_start_x, false);
           })
           .and_then([this](image::WorkspaceCoordinates centroids) { return GrooveLine(centroids); });
 
   auto maybe_right_groove_wall =
       GetWallImage(wall_coords_image, image.Data(), true)
           .and_then([this, right_surface, right_surface_edges,
-                     crop_start](std::tuple<const image::RawImageData, std::tuple<int, int>> i) {
+                     crop_start_y, crop_start_x](std::tuple<const image::RawImageData, std::tuple<int, int>> i) {
             auto [image, offset] = i;
-            return GetWallCentroids(right_surface, right_surface_edges, image, offset, crop_start, true);
+            return GetWallCentroids(right_surface, right_surface_edges, image, offset, crop_start_y, crop_start_x, true);
           })
           .and_then([this](image::WorkspaceCoordinates centroids) { return GrooveLine(centroids); });
 
@@ -216,7 +217,7 @@ auto Naive::Parse(image::Image& image, std::optional<JointProfile> median_profil
   profile.points = abw_points;
 
   auto maybe_abw_points_in_image_coordinates =
-      camera_model_->WorkspaceToImage(ABWPointsToMatrix(abw_points), crop_start);
+      camera_model_->WorkspaceToImage(ABWPointsToMatrix(abw_points), crop_start_y, crop_start_x);
 
   if (maybe_abw_points_in_image_coordinates.has_value()) {
     auto abw_points_in_image_coordinates = maybe_abw_points_in_image_coordinates.value();
@@ -241,7 +242,7 @@ auto Naive::GetBottomCentroids(const image::Image& image, const LineSegment& lef
   mask_points_wcs << pwl_wedge.x_left, pwl_wedge.x_right, y_top, y_bottom, 0., 0.;
 
   // Transform coordinates to image plane
-  auto maybe_img = camera_model_->WorkspaceToImage(mask_points_wcs, image.GetVerticalCropStart());
+  auto maybe_img = camera_model_->WorkspaceToImage(mask_points_wcs, image.GetVerticalCropStart(), image.GetHorizontalCropStart());
 
   if (!maybe_img.has_value()) {
     LOG_ERROR("Not able to transform workspace to image");
@@ -282,7 +283,7 @@ auto Naive::GetBottomCentroids(const image::Image& image, const LineSegment& lef
   centroids.row(0).array() += (double)c_left;
   centroids.row(1).array() += (double)r_left;
 
-  auto maybe_bottom_joint = camera_model_->ImageToWorkspace(centroids, image.GetVerticalCropStart());
+  auto maybe_bottom_joint = camera_model_->ImageToWorkspace(centroids, image.GetVerticalCropStart(), image.GetHorizontalCropStart());
 
   if (!maybe_bottom_joint.has_value()) {
     LOG_ERROR("Not able to transform image to workspace");
@@ -315,17 +316,17 @@ auto Naive::GetJointArea(image::WorkspaceCoordinates centroids, const PwlWedge& 
 
 auto Naive::GetWallCentroids(const LineSegment& surface, const std::tuple<double, double, double>& surface_edges,
                              const image::RawImageData& image, std::tuple<int, int> offset, int extra_vertical_offset,
-                             bool right_wall) -> std::optional<image::WorkspaceCoordinates> {
+                             int extra_horizontal_offset, bool right_wall) -> std::optional<image::WorkspaceCoordinates> {
   auto direction =
       right_wall ? common::math::CentroidSearchDirection::Reversed : common::math::CentroidSearchDirection::Normal;
   auto [x_offset, y_offset] = offset;
   return common::math::GetCentroidsByRow(image, direction, gray_minimum_wall)
-      .and_then([this, right_wall, x_offset, y_offset, extra_vertical_offset](
+      .and_then([this, right_wall, x_offset, y_offset, extra_vertical_offset, extra_horizontal_offset](
                     image::PlaneCoordinates centroids) -> std::optional<image::WorkspaceCoordinates> {
         LOG_TRACE("{} wall centroids", centroids.cols());
         centroids.row(0).array() += x_offset;
         centroids.row(1).array() += y_offset;
-        auto c                    = camera_model_->ImageToWorkspace(centroids, extra_vertical_offset);
+        auto c                    = camera_model_->ImageToWorkspace(centroids, extra_vertical_offset, extra_horizontal_offset);
         if (c.has_value()) {
           auto centroids = c.value();
           if (right_wall) {
@@ -395,8 +396,8 @@ auto Naive::GetWallCoordsLaserPlane(const LineSegment& left_surface, const LineS
   return wall_coords;
 }
 
-auto Naive::TransformCoordsImagePlane(std::vector<std::tuple<double, double>>& wall_coords_laser, int vertical_offset)
-    -> std::vector<std::tuple<int, int>> {
+auto Naive::TransformCoordsImagePlane(std::vector<std::tuple<double, double>>& wall_coords_laser, int vertical_offset,
+                                      int horizontal_offset) -> std::vector<std::tuple<int, int>> {
   auto [x1, y1]   = wall_coords_laser[0];
   auto [x2, y2]   = wall_coords_laser[1];
   auto [x3, y3]   = wall_coords_laser[2];
@@ -409,7 +410,7 @@ auto Naive::TransformCoordsImagePlane(std::vector<std::tuple<double, double>>& w
   image::WorkspaceCoordinates mask_points_wcs(3, 5);
   mask_points_wcs << x1, x2, x3, x4, xim, y1 - 2.e-3, y2 + 3.e-3, y3 + 3.e-3, y4 - 2.e-3, yim, 0., 0., 0., 0., 0.;
 
-  auto maybe_img = camera_model_->WorkspaceToImage(mask_points_wcs, vertical_offset);
+  auto maybe_img = camera_model_->WorkspaceToImage(mask_points_wcs, vertical_offset, horizontal_offset);
 
   if (!maybe_img.has_value()) {
     LOG_ERROR("Not able to transform image to workspace");

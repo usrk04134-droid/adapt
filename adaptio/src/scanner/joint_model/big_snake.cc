@@ -53,7 +53,7 @@ auto BigSnake::Parse(image::Image& image, std::optional<JointProfile> median_pro
   const auto& snake = maybe_snake.value();
 
   // Snake from image to LPCS
-  auto maybe_snake_lpcs = snake.ToLPCS(camera_model_.get(), image.GetVerticalCropStart());
+  auto maybe_snake_lpcs = snake.ToLPCS(camera_model_.get(), image.GetVerticalCropStart(), image.GetHorizontalCropStart());
   if (!maybe_snake_lpcs) {
     return std::unexpected(JointModelErrorCode::SURFACE_NOT_FOUND);
   }
@@ -72,15 +72,16 @@ auto BigSnake::Parse(image::Image& image, std::optional<JointProfile> median_pro
   JointProfile profile = {.points = points, .approximation_used = approximation_used};
 
   // Vertical limits
-  const auto crop_start = image.GetVerticalCropStart();
+  const auto crop_start_y = image.GetVerticalCropStart();
+  const auto crop_start_x = image.GetHorizontalCropStart();
   auto maybe_abw_points_in_image_coordinates =
-      camera_model_->WorkspaceToImage(ABWPointsToMatrix(profile.points), crop_start);
+      camera_model_->WorkspaceToImage(ABWPointsToMatrix(profile.points), crop_start_y, crop_start_x);
 
   if (maybe_abw_points_in_image_coordinates) {
     auto abw_points_in_image_coordinates = maybe_abw_points_in_image_coordinates.value();
     auto bottom_pixel                    = static_cast<int>(abw_points_in_image_coordinates.row(1).maxCoeff());
     auto top_pixel                       = static_cast<int>(abw_points_in_image_coordinates.row(1).minCoeff());
-    profile.vertical_limits              = {top_pixel + crop_start, bottom_pixel + crop_start};
+    profile.vertical_limits              = {top_pixel + crop_start_y, bottom_pixel + crop_start_y};
   }
 
   const auto min_value = static_cast<double>(snake.min_pixel_value);
@@ -127,7 +128,7 @@ auto BigSnake::GenerateMask(image::Image& image, std::optional<JointProfile> med
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         // clang-format on
 
-        auto maybe_img = camera_model_->WorkspaceToImage(mask_points_wcs, image.GetVerticalCropStart());
+        auto maybe_img = camera_model_->WorkspaceToImage(mask_points_wcs, image.GetVerticalCropStart(), image.GetHorizontalCropStart());
 
         if (maybe_img.has_value()) {
           const auto img   = maybe_img.value();
@@ -169,7 +170,7 @@ auto BigSnake::GenerateMask(image::Image& image, std::optional<JointProfile> med
 void BigSnake::CropImageHorizontal(image::Image& image, std::optional<JointProfile> median_profile) {
   if (median_profile.has_value()) {
     auto points =
-        camera_model_->WorkspaceToImage(ABWPointsToMatrix(median_profile.value().points), image.GetVerticalCropStart())
+        camera_model_->WorkspaceToImage(ABWPointsToMatrix(median_profile.value().points), image.GetVerticalCropStart(), image.GetHorizontalCropStart())
             .value();
     auto start = static_cast<int>(points.row(0)[0] - START_SNAKE_OFFSET);
     auto stop  = static_cast<int>(points.row(0)[6] + START_SNAKE_OFFSET);

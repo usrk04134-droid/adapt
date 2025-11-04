@@ -215,7 +215,7 @@ auto CameraSimulation::GetImage()
     return {std::nullopt, time_stamp};
   }
 
-  auto maybe_image = image::ImageBuilder::From(grayscale_image, image_file.filename(), fov_y).Finalize();
+  auto maybe_image = image::ImageBuilder::From(grayscale_image, image_file.filename(), fov_y, fov_x).Finalize();
 
   if (!maybe_image.has_value()) {
     LOG_ERROR("Error while building image: {}", maybe_image.error().to_string());
