@@ -38,11 +38,12 @@ struct Snake {
   /**
    * Convert to Eigen matrix in LPCS coordinates
    *
-   * @param camera          The camera model
-   * @param vertical_offset The crop start used for this image.
+   * @param camera            The camera model
+   * @param vertical_offset   The vertical crop start used for this image.
+   * @param horizontal_offset The horizontal crop start used for this image.
    * @return 3xN Eigen matrix with LPCS coordinates, or nullopt on failure.
    */
-  auto ToLPCS(image::CameraModel* camera, int vertical_offset) const
+  auto ToLPCS(image::CameraModel* camera, int vertical_offset, int horizontal_offset) const
       -> std::optional<std::tuple<image::WorkspaceCoordinates, uint8_t, uint8_t>>;
 
  protected:
