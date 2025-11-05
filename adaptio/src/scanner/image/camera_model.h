@@ -51,6 +51,10 @@ class CameraModel {
   virtual auto WorkspaceToImage(const WorkspaceCoordinates&, int, int) const
       -> boost::outcome_v2::result<PlaneCoordinates> = 0;
 
+  // Update camera model horizontal FOV offset (absolute sensor OffsetX in pixels)
+  // to match runtime ROI changes applied at the camera.
+  virtual void SetHorizontalFOVAbsoluteOffsetX(int /*offset_pixels*/) = 0;
+
  protected:
   /**
    * Uses the pixel pitch and principal point to scale the pixel coordinates into length units.

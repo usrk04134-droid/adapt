@@ -60,6 +60,10 @@ TEST_SUITE("Scanner") {
     auto GetMaxHorizontalWidth() -> int override { return 0; };
     auto GetSerialNumber() -> std::string override { return ""; };
     void SetOnImage(OnImage on_image) override { on_image_ = on_image; }
+    void SetHorizontalFOV(int, int) override {};
+    auto GetHorizontalFOVOffset() -> int override { return 0; }
+    auto GetHorizontalFOVWidth() -> int override { return 3500; }
+    auto GetHorizontalFOVAbsoluteOffsetX() -> int override { return 0; }
 
     void SendImage() {
       // Construct an image and immediately it to the image event handler
@@ -100,6 +104,7 @@ TEST_SUITE("Scanner") {
 
       return image;
     }
+    void SetHorizontalFOVAbsoluteOffsetX(int) override {}
   };
   class JointModelMock : public scanner::joint_model::JointModel {
    public:
