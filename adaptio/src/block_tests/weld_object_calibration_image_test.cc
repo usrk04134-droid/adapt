@@ -72,17 +72,19 @@ struct TestImageConfig {
 };
 
 // Collection of test images to run calibration on
+// NOTE: Paths are relative to the build directory where tests are executed
+// E.g., from build/debug/ the path ../tests/configs/... accesses the test files
 const std::vector<TestImageConfig> TEST_IMAGES = {
     TestImageConfig(
-        "./tests/configs/sil/calibration/1738232679592.tiff",
+        "../tests/configs/sil/calibration/1738232679592.tiff",
         "Standard calibration image - 3500x500"
     ),
     TestImageConfig(
-        "./tests/configs/sil/1738243625597.tiff",
+        "../tests/configs/sil/1738243625597.tiff",
         "Alternative calibration image - 3500x520"
     ),
     // Add more test images here as needed
-    // TestImageConfig("./path/to/image.tiff", "Description", diameter, stickout, wire_dia, mount_angle),
+    // TestImageConfig("../path/to/image.tiff", "Description", diameter, stickout, wire_dia, mount_angle),
 };
 
 /**
@@ -93,9 +95,12 @@ auto ExtractGrooveFromImage(const std::string& image_path, uint64_t timestamp)
     -> std::optional<common::msg::scanner::SliceData> {
   
   // Load the image
+  TESTLOG("Attempting to load image from: {}", image_path);
   auto grayscale_image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
   if (grayscale_image.empty()) {
     TESTLOG("Failed to load image: {}", image_path);
+    TESTLOG("Note: Image paths are relative to build directory (e.g., build/debug/)");
+    TESTLOG("Current working directory should contain '../tests/configs/...'");
     return std::nullopt;
   }
   

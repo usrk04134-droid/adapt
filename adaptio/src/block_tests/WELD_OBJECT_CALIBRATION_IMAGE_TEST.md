@@ -108,14 +108,16 @@ The test uses multiple real scanner calibration images. Each image is configured
 
 **Currently Configured Images:**
 
-| Image | Path | Size | Description |
-|-------|------|------|-------------|
-| 1 | `tests/configs/sil/calibration/1738232679592.tiff` | 3500x500 | Standard calibration image |
-| 2 | `tests/configs/sil/1738243625597.tiff` | 3500x520 | Alternative calibration image |
+| Image | Path (relative to build dir) | Size | Description |
+|-------|------------------------------|------|-------------|
+| 1 | `../tests/configs/sil/calibration/1738232679592.tiff` | 3500x500 | Standard calibration image |
+| 2 | `../tests/configs/sil/1738243625597.tiff` | 3500x520 | Alternative calibration image |
 
 **Image Format:**
 - Format: TIFF, 8-bit grayscale, LZW compression
 - Content: Scanner profile of welding grooves
+
+**Note**: Image paths are relative to the build directory (`build/debug/`) where tests execute.
 
 ## Adding New Test Images
 
@@ -126,14 +128,15 @@ const std::vector<TestImageConfig> TEST_IMAGES = {
     // Existing images...
     
     // Add new image with default parameters
+    // NOTE: Path is relative to build directory (build/debug/)
     TestImageConfig(
-        "./path/to/your/image.tiff",
+        "../tests/configs/sil/your_image.tiff",
         "Description of your test image"
     ),
     
     // Or add with custom parameters
     TestImageConfig(
-        "./path/to/special/image.tiff",
+        "../tests/configs/sil/special_image.tiff",
         "Special test case",
         5.0,    // weld_object_diameter_m
         30e-3,  // stickout_m
@@ -156,7 +159,16 @@ cd /workspace/adaptio
 
 ### Run all calibration image tests
 
+**IMPORTANT**: Tests must be run from the **build directory** for image paths to resolve correctly.
+
 ```bash
+cd /workspace/adaptio/build/debug
+./src/adaptio-block-tests --doctest-test-suite=WeldObjectCalibrationImage
+```
+
+Or from the repository root:
+```bash
+cd /workspace/adaptio
 ./build/debug/src/adaptio-block-tests --doctest-test-suite=WeldObjectCalibrationImage
 ```
 
@@ -236,9 +248,21 @@ Parameters: diameter=4.0m, stickout=25.0mm, wire=1.2mm, mount_angle=0.260rad
 
 ## Troubleshooting
 
-### Image not found
-- Ensure the test image exists at `tests/configs/sil/calibration/1738232679592.tiff`
-- Check the working directory when running tests
+### Image not found / can't open/read file
+**Error**: `Failed to load image: ../tests/configs/sil/calibration/1738232679592.tiff`
+
+**Causes and Solutions**:
+1. **Wrong working directory**
+   - Tests must run from `build/debug/` directory
+   - Solution: `cd build/debug` before running tests
+   
+2. **Image file missing**
+   - Verify file exists: `ls ../tests/configs/sil/calibration/*.tiff` (from build/debug/)
+   - Copy image files to correct location if missing
+
+3. **Incorrect paths in TEST_IMAGES**
+   - Paths must be relative to build directory
+   - Use `../tests/...` format, not `./tests/...`
 
 ### Snake extraction fails
 - Verify image contains visible groove profile
