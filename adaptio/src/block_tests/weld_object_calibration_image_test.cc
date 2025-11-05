@@ -226,7 +226,21 @@ auto CalibrateWithImage(TestFixture& fixture, const TestImageConfig& config) -> 
   
   CHECK(WeldObjectCalStartRsp(fixture));
   
-  // Calculate approximate touch positions based on groove points
+  // STEP 1: Top touch - required for calibration
+  // Calculate top center position (midpoint between left and right at top)
+  double top_touch_horizontal = (slice_data.groove[0].x + slice_data.groove[6].x) / 2.0;
+  double top_touch_vertical = std::min(slice_data.groove[0].y, slice_data.groove[6].y) - 5.0;  // Slightly above
+  
+  TESTLOG("Simulating top touch at horizontal: {:.2f}, vertical: {:.2f}", 
+          top_touch_horizontal, top_touch_vertical);
+  
+  // Operator presses the top position button
+  WeldObjectCalTopPos(fixture);
+  ProvideImageBasedScannerData(fixture, slice_data, top_touch_horizontal, top_touch_vertical);
+  
+  CHECK(WeldObjectCalTopPosRsp(fixture));
+  
+  // STEP 2: Left touch - touch the left wall
   // For left touch: use leftmost point minus some offset for the wire
   double left_touch_horizontal = slice_data.groove[0].x - config.wire_diameter_mm / 2.0;
   double left_touch_vertical = slice_data.groove[0].y;
@@ -240,6 +254,7 @@ auto CalibrateWithImage(TestFixture& fixture, const TestImageConfig& config) -> 
   
   CHECK(WeldObjectCalLeftPosRsp(fixture));
   
+  // STEP 3: Right touch - touch the right wall
   // For right touch: use rightmost point plus some offset for the wire
   double right_touch_horizontal = slice_data.groove[6].x + config.wire_diameter_mm / 2.0;
   double right_touch_vertical = slice_data.groove[6].y;
