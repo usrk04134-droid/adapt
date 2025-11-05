@@ -44,6 +44,21 @@ std::string const TEMPERATURE_STATUS_CRITICAL = "critical";
 std::string const TEMPERATURE_STATUS_ERROR    = "error";
 auto const TEMPERATURE_STATUSES = {TEMPERATURE_STATUS_OK, TEMPERATURE_STATUS_CRITICAL, TEMPERATURE_STATUS_ERROR};
 auto const GET_SCANNER_METRICS_INTERVAL = std::chrono::seconds(15);
+
+template <typename IntegerParam>
+int64_t AlignToIncrement(const IntegerParam& param, int64_t desired) {
+  const auto min = param.GetMin();
+  const auto max = param.GetMax();
+  auto clamped   = std::clamp(desired, min, max);
+
+  const auto increment = param.GetInc();
+  if (increment > 0) {
+    const auto remainder = (clamped - min) % increment;
+    clamped -= remainder;
+  }
+
+  return clamped;
+}
 }  // namespace
 
 namespace scanner::image_provider {
@@ -185,14 +200,43 @@ void BaslerCamera::SetVerticalFOV(int offset_from_top, int height) {
     return;
   }
   camera_->StopGrabbing();
-  camera_->OffsetY.SetValue(0);
-  if (fov_.offset_y + offset_from_top + height > fov_.height) {
-    height = fov_.height - offset_from_top - fov_.offset_y;
+
+  const auto requested_offset  = static_cast<int64_t>(fov_.offset_y) + offset_from_top;
+  const auto requested_height  = height;
+  auto       adjusted_height   = height;
+
+  if (fov_.offset_y + offset_from_top + adjusted_height > fov_.height) {
+    adjusted_height = fov_.height - offset_from_top - fov_.offset_y;
   }
-  camera_->Height.SetValue(height);
-  camera_->OffsetY.SetValue(fov_.offset_y + offset_from_top);
+
+  GenApi::CIntegerParameter offset_param(camera_->GetNodeMap(), "OffsetY");
+  GenApi::CIntegerParameter height_param(camera_->GetNodeMap(), "Height");
+
+  const auto offset_min = offset_param.GetMin();
+  const auto height_min = height_param.GetMin();
+
+  camera_->OffsetY.SetValue(offset_min);
+
+  const auto sensor_height = height_param.GetMax();
+  const auto offset_cap     = std::min(offset_param.GetMax(), offset_min + (sensor_height - height_min));
+
+  auto desired_offset = std::clamp<int64_t>(requested_offset, offset_min, offset_cap);
+  auto aligned_offset  = AlignToIncrement(offset_param, desired_offset);
+
+  auto desired_height = std::max<int64_t>(height_min, static_cast<int64_t>(adjusted_height));
+  desired_height       = std::min(desired_height, sensor_height - (aligned_offset - offset_min));
+  auto aligned_height  = AlignToIncrement(height_param, desired_height);
+
+  if (aligned_height + (aligned_offset - offset_min) > sensor_height) {
+    const auto available_height = sensor_height - (aligned_offset - offset_min);
+    aligned_height              = AlignToIncrement(height_param, std::max<int64_t>(height_min, available_height));
+  }
+
+  camera_->Height.SetValue(aligned_height);
+  camera_->OffsetY.SetValue(aligned_offset);
   camera_->StartGrabbing(EGrabStrategy::GrabStrategy_LatestImageOnly, EGrabLoop::GrabLoop_ProvidedByInstantCamera);
-  LOG_TRACE("Continuous grabbing restarted with offset {} and height {}.", fov_.offset_y + offset_from_top, height);
+  LOG_TRACE("Continuous grabbing restarted with offset {} (requested {}), height {} (requested {}).",
+            camera_->OffsetY.GetValue(), requested_offset, camera_->Height.GetValue(), requested_height);
 };
 
 void BaslerCamera::AdjustGain(double factor) {
