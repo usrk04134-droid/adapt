@@ -302,9 +302,13 @@ auto CalibrateWithImage(TestFixture& fixture, const TestImageConfig& config) -> 
     
     // Receive progress update
     auto const payload = ReceiveJsonByName(fixture, "WeldObjectCalProgress");
-    if (payload != nullptr) {
-      auto progress = payload["progress"].get<double>();
-      TESTLOG("Grid measurement #{}, progress: {:.1f}%", grid_point_count, progress);
+    if (payload != nullptr && !payload.empty()) {
+      if (payload.contains("progress")) {
+        auto progress = payload["progress"].get<double>();
+        TESTLOG("Grid measurement #{}, progress: {:.1f}%", grid_point_count, progress * 100.0);
+      } else {
+        TESTLOG("Grid measurement #{} (no progress info)", grid_point_count);
+      }
     }
   }
   
@@ -314,23 +318,32 @@ auto CalibrateWithImage(TestFixture& fixture, const TestImageConfig& config) -> 
   auto calibration_result_payload = ReceiveJsonByName(fixture, "WeldObjectCalResult");
   CHECK(calibration_result_payload != nullptr);
   
-  if (calibration_result_payload["result"] == "ok") {
-    TESTLOG("Calibration successful!");
-    TESTLOG("Result: {}", calibration_result_payload.dump(2));
-    
-    // Check Ready state
-    ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-    CHECK(ready_msg);
-    CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::NOT_READY);
-    
-    // Apply the calibration result
-    WeldObjectCalSet(fixture, calibration_result_payload);
-    auto set_rsp = WeldObjectCalSetRsp(fixture);
-    CHECK_EQ(set_rsp, nlohmann::json{{"result", "ok"}});
-    
-    return true;
+  if (!calibration_result_payload.empty() && calibration_result_payload.contains("result")) {
+    if (calibration_result_payload["result"] == "ok") {
+      TESTLOG("Calibration successful!");
+      TESTLOG("Result: {}", calibration_result_payload.dump(2));
+      
+      // Check Ready state
+      ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
+      CHECK(ready_msg);
+      CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::NOT_READY);
+      
+      // Apply the calibration result
+      WeldObjectCalSet(fixture, calibration_result_payload);
+      auto set_rsp = WeldObjectCalSetRsp(fixture);
+      CHECK_EQ(set_rsp, nlohmann::json{{"result", "ok"}});
+      
+      return true;
+    } else {
+      auto result_str = calibration_result_payload["result"].get<std::string>();
+      TESTLOG("Calibration failed: {}", result_str);
+      return false;
+    }
   } else {
-    TESTLOG("Calibration failed: {}", calibration_result_payload["result"].get<std::string>());
+    TESTLOG("Calibration result is empty or malformed");
+    if (!calibration_result_payload.empty()) {
+      TESTLOG("Result payload: {}", calibration_result_payload.dump(2));
+    }
     return false;
   }
 }

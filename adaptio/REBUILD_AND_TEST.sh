@@ -4,7 +4,9 @@
 set -e
 
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║          REBUILD AND TEST - Calibration Top Touch Fix            ║"
+echo "║         REBUILD AND TEST - Latest Calibration Fixes              ║"
+echo "║  1. Added top touch step (was missing, causing calibration fail) ║"
+echo "║  2. Fixed JSON safety (prevents crashes on malformed messages)   ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 echo ""
 
