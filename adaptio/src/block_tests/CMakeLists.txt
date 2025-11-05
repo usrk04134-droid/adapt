@@ -34,4 +34,5 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     scanner_basic_test.cc
     scanner/on_demand_file_image_provider.cc
     calibration_test.cc
+    weld_object_calibration_image_test.cc
 )
