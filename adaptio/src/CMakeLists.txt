@@ -116,6 +116,9 @@ target_link_libraries(${ADAPTIO_APPLICATION} PRIVATE prometheus-cpp::pull)
 target_link_libraries(${UNIT_TESTS_APPLICATION} PRIVATE prometheus-cpp::pull)
 target_link_libraries(${BLOCK_TESTS_APPLICATION} PRIVATE prometheus-cpp::pull)
 target_link_libraries(${TEST_IMAGES_APPLICATION} PRIVATE prometheus-cpp::pull)
+# Enable pushgateway support for test binaries so they can push metrics
+target_link_libraries(${UNIT_TESTS_APPLICATION} PRIVATE prometheus-cpp::push)
+target_link_libraries(${BLOCK_TESTS_APPLICATION} PRIVATE prometheus-cpp::push)
 
 find_package(yaml-cpp 0.7.0 REQUIRED)
 target_link_libraries(${ADAPTIO_APPLICATION} PRIVATE yaml-cpp)
