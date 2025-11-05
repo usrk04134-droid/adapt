@@ -2,7 +2,7 @@
 
 ## Overview
 
-This block test performs weld object calibration using real scanner images instead of simulated data. It validates the calibration workflow using actual TIFF images captured from the scanner system.
+This block test performs weld object calibration using **multiple** real scanner images instead of simulated data. It validates the calibration workflow using actual TIFF images captured from the scanner system. The test is **data-driven** and automatically runs against all configured test images.
 
 ## Test File
 
@@ -11,32 +11,46 @@ This block test performs weld object calibration using real scanner images inste
 
 ## Test Cases
 
-### 1. `calibrate_from_real_image`
+### 1. `calibrate_from_multiple_images`
 
-The main test case that performs a complete weld object calibration using a real scanner image.
+The main test case that performs complete weld object calibration using all configured scanner images.
 
 **Key Features:**
-- Loads a TIFF image from `tests/configs/sil/calibration/1738232679592.tiff`
+- **Data-driven approach**: Automatically tests all images in the `TEST_IMAGES` configuration
+- Uses doctest SUBCASE feature to create separate subtests for each image
+- Each image can have custom calibration parameters (diameter, stickout, wire diameter, mount angle)
 - Extracts groove coordinates using the scanner's Snake algorithm
-- Simulates the calibration workflow including:
+- Simulates the complete calibration workflow:
   - Laser-to-torch calibration (LTC) setup
   - Weld object calibration start
   - Left and right wall touch point simulation
   - Automatic grid measurement sequence
   - Calibration result validation
 
-**Parameters:**
+**Default Parameters:**
 - Weld object diameter: 4.0m (typical pipe)
 - Stickout: 25mm
 - Wire diameter: 1.2mm
 - Scanner mount angle: 0.26 radians (~15 degrees)
 
-### 2. `image_loading_test`
+**Current Test Images:**
+1. `tests/configs/sil/calibration/1738232679592.tiff` - Standard calibration image (3500x500)
+2. `tests/configs/sil/1738243625597.tiff` - Alternative calibration image (3500x520)
 
-A simple verification test that checks:
-- Image file can be loaded successfully
-- ImageBuilder can process the image
+### 2. `image_loading_test_all`
+
+Verification test that checks all configured images:
+- Each image file can be loaded successfully
+- ImageBuilder can process each image
 - Snake extraction works correctly
+- Sufficient groove points are extracted (≥7 points)
+
+### 3. `count_test_images`
+
+Simple utility test that:
+- Verifies test images are configured
+- Lists all configured test images with descriptions
+- Useful for debugging test configuration
 
 ## How It Works
 
@@ -85,12 +99,51 @@ Calibration Algorithm
 Calibration Result
 ```
 
-## Test Image
+## Test Images
 
-The test uses a real scanner calibration image:
-- **Path**: `tests/configs/sil/calibration/1738232679592.tiff`
-- **Format**: TIFF, 3500x500 pixels, 8-bit grayscale, LZW compression
-- **Content**: Scanner profile of a welding groove
+The test uses multiple real scanner calibration images. Each image is configured via the `TEST_IMAGES` vector with:
+- Image path
+- Description
+- Optional custom calibration parameters
+
+**Currently Configured Images:**
+
+| Image | Path | Size | Description |
+|-------|------|------|-------------|
+| 1 | `tests/configs/sil/calibration/1738232679592.tiff` | 3500x500 | Standard calibration image |
+| 2 | `tests/configs/sil/1738243625597.tiff` | 3500x520 | Alternative calibration image |
+
+**Image Format:**
+- Format: TIFF, 8-bit grayscale, LZW compression
+- Content: Scanner profile of welding grooves
+
+## Adding New Test Images
+
+To add a new test image, update the `TEST_IMAGES` vector in `weld_object_calibration_image_test.cc`:
+
+```cpp
+const std::vector<TestImageConfig> TEST_IMAGES = {
+    // Existing images...
+    
+    // Add new image with default parameters
+    TestImageConfig(
+        "./path/to/your/image.tiff",
+        "Description of your test image"
+    ),
+    
+    // Or add with custom parameters
+    TestImageConfig(
+        "./path/to/special/image.tiff",
+        "Special test case",
+        5.0,    // weld_object_diameter_m
+        30e-3,  // stickout_m
+        1.6,    // wire_diameter_mm
+        0.3     // scanner_mount_angle_rad
+    ),
+};
+```
+
+The test will automatically pick up and run against all configured images.
 
 ## Usage
 
@@ -107,10 +160,27 @@ cd /workspace/adaptio
 ./build/debug/src/adaptio-block-tests --doctest-test-suite=WeldObjectCalibrationImage
 ```
 
+This will run all test cases including all configured images (currently 2 images × multiple test cases).
+
 ### Run specific test case
 
 ```bash
-./build/debug/src/adaptio-block-tests --doctest-test-case=calibrate_from_real_image
+# Run the main calibration test with all images
+./build/debug/src/adaptio-block-tests --doctest-test-case=calibrate_from_multiple_images
+
+# Run just the image loading tests
+./build/debug/src/adaptio-block-tests --doctest-test-case=image_loading_test_all
+
+# Check configured images
+./build/debug/src/adaptio-block-tests --doctest-test-case=count_test_images
+```
+
+### Run specific image subtest
+
+```bash
+# Run calibration for a specific image by its description
+./build/debug/src/adaptio-block-tests --doctest-test-case=calibrate_from_multiple_images \
+    --doctest-subcase="Standard calibration image*"
 ```
 
 ### Run with trace output
@@ -145,10 +215,24 @@ cd /workspace/adaptio
 ## Expected Behavior
 
 When the test runs successfully:
-1. Image loads and snake extraction succeeds
-2. Calibration workflow completes without errors
-3. Calibration result contains valid transformation data
-4. Result can be applied to the system
+1. All configured images load successfully
+2. Snake extraction succeeds for each image (≥7 groove points)
+3. Calibration workflow completes without errors for each image
+4. Each calibration result contains valid transformation data
+5. Results can be applied to the system
+
+**Console Output Example:**
+```
+Running calibration test for: Standard calibration image - 3500x500
+Image path: ./tests/configs/sil/calibration/1738232679592.tiff
+Loaded image: ... (3500x500)
+Extracted groove with 7 points from snake of size 1847
+Testing image: Standard calibration image - 3500x500
+Parameters: diameter=4.0m, stickout=25.0mm, wire=1.2mm, mount_angle=0.260rad
+...
+[doctest] test cases:  3 |  3 passed | 0 failed | 0 skipped
+[doctest] assertions: 14 | 14 passed | 0 failed |
+```
 
 ## Troubleshooting
 
@@ -166,14 +250,24 @@ When the test runs successfully:
 - Verify kinematics and scanner mocks are properly set up
 - Enable TESTLOG by uncommenting `#define TESTLOG_DISABLED` at the top of the file
 
-## Future Enhancements
+## Features
+
+**Current Features:**
+- ✅ Multiple test images support
+- ✅ Data-driven test configuration
+- ✅ Custom parameters per image
+- ✅ Automatic iteration through all images
+- ✅ Individual subtest reporting per image
+
+**Future Enhancements:**
 
 Potential improvements for this test:
-1. Support multiple test images for different groove types
-2. Add parametric testing with different calibration parameters
-3. Compare results with simulator-based calibration
-4. Add validation of calibration accuracy metrics
-5. Test error handling for corrupted/invalid images
+1. Add more test images for different groove types (V-groove, U-bevel, etc.)
+2. Compare results with simulator-based calibration
+3. Add validation of calibration accuracy metrics
+4. Test error handling for corrupted/invalid images
+5. Performance benchmarking across different images
+6. Add test images with known expected calibration results for validation
 
 ## Related Files
 

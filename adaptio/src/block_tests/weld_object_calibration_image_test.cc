@@ -35,13 +35,55 @@ namespace help_sim = helpers_simulator;
 namespace {
 
 // Calibration constants for image-based test
-const double WELD_OBJECT_DIAMETER_M        = 4.0;  // 4 meter diameter based on typical pipe
-const double STICKOUT_M                    = 25e-3;
-const double WIRE_DIAMETER_MM              = 1.2;
-const double SCANNER_MOUNT_ANGLE           = 0.26;  // radians (~15 degrees)
+const double DEFAULT_WELD_OBJECT_DIAMETER_M = 4.0;  // 4 meter diameter based on typical pipe
+const double DEFAULT_STICKOUT_M             = 25e-3;
+const double DEFAULT_WIRE_DIAMETER_MM       = 1.2;
+const double DEFAULT_SCANNER_MOUNT_ANGLE    = 0.26;  // radians (~15 degrees)
 
-// Image test data path
-const std::string TEST_IMAGE_PATH = "./tests/configs/sil/calibration/1738232679592.tiff";
+/**
+ * Configuration for a test image
+ */
+struct TestImageConfig {
+  std::string image_path;
+  std::string description;
+  double weld_object_diameter_m;
+  double stickout_m;
+  double wire_diameter_mm;
+  double scanner_mount_angle_rad;
+  
+  // Constructor with defaults
+  TestImageConfig(std::string path, std::string desc)
+      : image_path(std::move(path)),
+        description(std::move(desc)),
+        weld_object_diameter_m(DEFAULT_WELD_OBJECT_DIAMETER_M),
+        stickout_m(DEFAULT_STICKOUT_M),
+        wire_diameter_mm(DEFAULT_WIRE_DIAMETER_MM),
+        scanner_mount_angle_rad(DEFAULT_SCANNER_MOUNT_ANGLE) {}
+  
+  // Constructor with custom parameters
+  TestImageConfig(std::string path, std::string desc, 
+                  double diameter, double stickout, double wire_dia, double mount_angle)
+      : image_path(std::move(path)),
+        description(std::move(desc)),
+        weld_object_diameter_m(diameter),
+        stickout_m(stickout),
+        wire_diameter_mm(wire_dia),
+        scanner_mount_angle_rad(mount_angle) {}
+};
+
+// Collection of test images to run calibration on
+const std::vector<TestImageConfig> TEST_IMAGES = {
+    TestImageConfig(
+        "./tests/configs/sil/calibration/1738232679592.tiff",
+        "Standard calibration image - 3500x500"
+    ),
+    TestImageConfig(
+        "./tests/configs/sil/1738243625597.tiff",
+        "Alternative calibration image - 3500x520"
+    ),
+    // Add more test images here as needed
+    // TestImageConfig("./path/to/image.tiff", "Description", diameter, stickout, wire_dia, mount_angle),
+};
 
 /**
  * Extract groove coordinates from a scanner image
@@ -133,7 +175,8 @@ void ProvideImageBasedScannerData(TestFixture& fixture,
 /**
  * Perform calibration using real scanner image data
  */
-auto CalibrateWithImage(TestFixture& fixture, const std::string& image_path) -> bool {
+auto CalibrateWithImage(TestFixture& fixture, const TestImageConfig& config) -> bool {
+  const auto& image_path = config.image_path;
   uint64_t timestamp = fixture.GetClockNowFuncWrapper()->GetSystemClock().time_since_epoch().count();
   
   // Extract groove data from the image
@@ -145,9 +188,13 @@ auto CalibrateWithImage(TestFixture& fixture, const std::string& image_path) -> 
   
   auto slice_data = slice_data_opt.value();
   
-  // Calculate LTC parameters
-  double ltc_stickout = help_sim::ConvertM2Mm(STICKOUT_M);
+  // Calculate LTC parameters using config values
+  double ltc_stickout = help_sim::ConvertM2Mm(config.stickout_m);
   double ltc_torch_to_laser_plane_dist = 150.0;  // mm, typical value
+  
+  TESTLOG("Testing image: {}", config.description);
+  TESTLOG("Parameters: diameter={:.1f}m, stickout={:.1f}mm, wire={:.1f}mm, mount_angle={:.3f}rad",
+          config.weld_object_diameter_m, ltc_stickout, config.wire_diameter_mm, config.scanner_mount_angle_rad);
   
   // Subscribe to Ready State
   fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
@@ -159,14 +206,14 @@ auto CalibrateWithImage(TestFixture& fixture, const std::string& image_path) -> 
   LaserTorchCalSet(fixture, {
       {"distanceLaserTorch", ltc_torch_to_laser_plane_dist},
       {"stickout",           ltc_stickout                 },
-      {"scannerMountAngle",  SCANNER_MOUNT_ANGLE          }
+      {"scannerMountAngle",  config.scanner_mount_angle_rad}
   });
   
   CHECK_EQ(LaserTorchCalSetRsp(fixture), nlohmann::json{{"result", "ok"}});
   
   // Start weld object calibration
-  WeldObjectCalStart(fixture, WIRE_DIAMETER_MM, ltc_stickout,
-                     help_sim::ConvertM2Mm(WELD_OBJECT_DIAMETER_M) / 2.0);
+  WeldObjectCalStart(fixture, config.wire_diameter_mm, ltc_stickout,
+                     help_sim::ConvertM2Mm(config.weld_object_diameter_m) / 2.0);
   
   // Receive and respond to StartScanner
   REQUIRE_MESSAGE(fixture.Scanner()->Receive<common::msg::scanner::Start>(), "No Start msg received");
@@ -176,7 +223,7 @@ auto CalibrateWithImage(TestFixture& fixture, const std::string& image_path) -> 
   
   // Calculate approximate touch positions based on groove points
   // For left touch: use leftmost point minus some offset for the wire
-  double left_touch_horizontal = slice_data.groove[0].x - WIRE_DIAMETER_MM / 2.0;
+  double left_touch_horizontal = slice_data.groove[0].x - config.wire_diameter_mm / 2.0;
   double left_touch_vertical = slice_data.groove[0].y;
   
   TESTLOG("Simulating left touch at horizontal: {:.2f}, vertical: {:.2f}", 
@@ -189,7 +236,7 @@ auto CalibrateWithImage(TestFixture& fixture, const std::string& image_path) -> 
   CHECK(WeldObjectCalLeftPosRsp(fixture));
   
   // For right touch: use rightmost point plus some offset for the wire
-  double right_touch_horizontal = slice_data.groove[6].x + WIRE_DIAMETER_MM / 2.0;
+  double right_touch_horizontal = slice_data.groove[6].x + config.wire_diameter_mm / 2.0;
   double right_touch_vertical = slice_data.groove[6].y;
   
   TESTLOG("Simulating right touch at horizontal: {:.2f}, vertical: {:.2f}", 
@@ -271,53 +318,81 @@ auto CalibrateWithImage(TestFixture& fixture, const std::string& image_path) -> 
 }  // namespace
 
 TEST_SUITE("WeldObjectCalibrationImage") {
-  TEST_CASE("calibrate_from_real_image") {
-    TestFixture fixture;
-    
-    // Start the application without default calibration
-    fixture.Sut()->Start();
-    fixture.SetupMockets();
-    fixture.SetupTimerWrapper();
-    
-    // Set up joint geometry - use a standard configuration
-    auto const payload = nlohmann::json({
-        {"upper_joint_width_mm",        help_sim::TEST_JOINT_GEOMETRY_WIDE.upper_joint_width_mm       },
-        {"groove_depth_mm",             help_sim::TEST_JOINT_GEOMETRY_WIDE.groove_depth_mm            },
-        {"left_joint_angle_rad",        help_sim::TEST_JOINT_GEOMETRY_WIDE.left_joint_angle_rad       },
-        {"right_joint_angle_rad",       help_sim::TEST_JOINT_GEOMETRY_WIDE.right_joint_angle_rad      },
-        {"left_max_surface_angle_rad",  help_sim::TEST_JOINT_GEOMETRY_WIDE.left_max_surface_angle_rad },
-        {"right_max_surface_angle_rad", help_sim::TEST_JOINT_GEOMETRY_WIDE.right_max_surface_angle_rad}
-    });
-    StoreJointGeometryParams(fixture, payload, true);
-    
-    // Set up kinematics state
-    DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
-    DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
-    
-    // Perform calibration using the real image
-    CHECK(CalibrateWithImage(fixture, TEST_IMAGE_PATH));
+  TEST_CASE("calibrate_from_multiple_images") {
+    // Iterate through all test images
+    for (const auto& image_config : TEST_IMAGES) {
+      // Use SUBCASE to create a separate test for each image
+      SUBCASE(image_config.description.c_str()) {
+        TESTLOG("========================================");
+        TESTLOG("Running calibration test for: {}", image_config.description);
+        TESTLOG("Image path: {}", image_config.image_path);
+        TESTLOG("========================================");
+        
+        TestFixture fixture;
+        
+        // Start the application without default calibration
+        fixture.Sut()->Start();
+        fixture.SetupMockets();
+        fixture.SetupTimerWrapper();
+        
+        // Set up joint geometry - use a standard configuration
+        auto const payload = nlohmann::json({
+            {"upper_joint_width_mm",        help_sim::TEST_JOINT_GEOMETRY_WIDE.upper_joint_width_mm       },
+            {"groove_depth_mm",             help_sim::TEST_JOINT_GEOMETRY_WIDE.groove_depth_mm            },
+            {"left_joint_angle_rad",        help_sim::TEST_JOINT_GEOMETRY_WIDE.left_joint_angle_rad       },
+            {"right_joint_angle_rad",       help_sim::TEST_JOINT_GEOMETRY_WIDE.right_joint_angle_rad      },
+            {"left_max_surface_angle_rad",  help_sim::TEST_JOINT_GEOMETRY_WIDE.left_max_surface_angle_rad },
+            {"right_max_surface_angle_rad", help_sim::TEST_JOINT_GEOMETRY_WIDE.right_max_surface_angle_rad}
+        });
+        StoreJointGeometryParams(fixture, payload, true);
+        
+        // Set up kinematics state
+        DispatchKinematicsStateChange(fixture, common::msg::kinematics::StateChange::State::HOMED);
+        DispatchKinematicsEdgeStateChange(fixture, common::msg::kinematics::EdgeStateChange::State::AVAILABLE);
+        
+        // Perform calibration using the real image
+        CHECK(CalibrateWithImage(fixture, image_config));
+      }
+    }
   }
   
-  TEST_CASE("image_loading_test") {
-    // Simple test to verify image can be loaded and processed
-    auto grayscale_image = cv::imread(TEST_IMAGE_PATH, cv::IMREAD_GRAYSCALE);
-    CHECK_FALSE(grayscale_image.empty());
-    
-    if (!grayscale_image.empty()) {
-      TESTLOG("Image loaded successfully: {}x{}", grayscale_image.cols, grayscale_image.rows);
-      
-      auto maybe_image = scanner::image::ImageBuilder::From(grayscale_image, TEST_IMAGE_PATH, 0, 0).Finalize();
-      CHECK(maybe_image.has_value());
-      
-      if (maybe_image.has_value()) {
-        auto* image = maybe_image.value().get();
-        auto snake_result = scanner::joint_model::Snake::FromImage(*image, {}, 16);
-        CHECK(snake_result.has_value());
+  TEST_CASE("image_loading_test_all") {
+    // Test that all configured images can be loaded and processed
+    for (const auto& image_config : TEST_IMAGES) {
+      SUBCASE(image_config.description.c_str()) {
+        TESTLOG("Testing image loading: {}", image_config.description);
         
-        if (snake_result.has_value()) {
-          TESTLOG("Snake extracted with {} points", snake_result.value().x.size());
+        // Simple test to verify image can be loaded and processed
+        auto grayscale_image = cv::imread(image_config.image_path, cv::IMREAD_GRAYSCALE);
+        REQUIRE_MESSAGE(!grayscale_image.empty(), 
+                       fmt::format("Failed to load image: {}", image_config.image_path));
+        
+        TESTLOG("Image loaded successfully: {}x{}", grayscale_image.cols, grayscale_image.rows);
+        
+        auto maybe_image = scanner::image::ImageBuilder::From(grayscale_image, image_config.image_path, 0, 0).Finalize();
+        CHECK(maybe_image.has_value());
+        
+        if (maybe_image.has_value()) {
+          auto* image = maybe_image.value().get();
+          auto snake_result = scanner::joint_model::Snake::FromImage(*image, {}, 16);
+          CHECK(snake_result.has_value());
+          
+          if (snake_result.has_value()) {
+            TESTLOG("Snake extracted with {} points", snake_result.value().x.size());
+            CHECK(snake_result.value().x.size() >= common::msg::scanner::GROOVE_ARRAY_SIZE);
+          }
         }
       }
+    }
+  }
+  
+  TEST_CASE("count_test_images") {
+    // Simple test to verify we have test images configured
+    TESTLOG("Number of test images configured: {}", TEST_IMAGES.size());
+    CHECK(TEST_IMAGES.size() > 0);
+    
+    for (size_t i = 0; i < TEST_IMAGES.size(); ++i) {
+      TESTLOG("  [{}] {} -> {}", i, TEST_IMAGES[i].description, TEST_IMAGES[i].image_path);
     }
   }
 }
