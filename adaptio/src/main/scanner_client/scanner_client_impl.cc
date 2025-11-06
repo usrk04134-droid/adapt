@@ -138,6 +138,7 @@ void ScannerClientImpl::OnSliceData(common::msg::scanner::SliceData slice_data) 
 
   if (started_) {
     scanner_data_in_process_.groove = std::vector<lpcs::Point>{};
+    scanner_data_in_process_.line.clear();
     for (auto& abws : slice_data.groove) {
       scanner_data_in_process_.groove->push_back({abws.x, abws.y});
     }

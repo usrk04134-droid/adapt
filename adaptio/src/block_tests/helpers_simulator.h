@@ -4,6 +4,7 @@
 #include <fmt/format.h>
 
 #include <Eigen/Eigen>
+#include <algorithm>
 #include <nlohmann/json_fwd.hpp>
 #include <numbers>
 #include <optional>
@@ -440,24 +441,29 @@ inline auto ConvertFromOptionalAbwVector(const std::vector<std::optional<deposit
 
 inline auto GetSliceData(std::vector<deposition_simulator::Point3d>& abws_lpcs, const std::uint64_t time_stamp)
     -> common::msg::scanner::SliceData {
-  common::msg::scanner::SliceData slice_data{
-      .groove{{.x = ConvertM2Mm(abws_lpcs[0].GetX()), .y = ConvertM2Mm(abws_lpcs[0].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[1].GetX()), .y = ConvertM2Mm(abws_lpcs[1].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[2].GetX()), .y = ConvertM2Mm(abws_lpcs[2].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[3].GetX()), .y = ConvertM2Mm(abws_lpcs[3].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[4].GetX()), .y = ConvertM2Mm(abws_lpcs[4].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[5].GetX()), .y = ConvertM2Mm(abws_lpcs[5].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[6].GetX()), .y = ConvertM2Mm(abws_lpcs[6].GetY())}},
-      .line{{.x = ConvertM2Mm(abws_lpcs[0].GetX()), .y = ConvertM2Mm(abws_lpcs[0].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[1].GetX()), .y = ConvertM2Mm(abws_lpcs[1].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[2].GetX()), .y = ConvertM2Mm(abws_lpcs[2].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[3].GetX()), .y = ConvertM2Mm(abws_lpcs[3].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[4].GetX()), .y = ConvertM2Mm(abws_lpcs[4].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[5].GetX()), .y = ConvertM2Mm(abws_lpcs[5].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[6].GetX()), .y = ConvertM2Mm(abws_lpcs[6].GetY())}},
-      .confidence = common::msg::scanner::SliceConfidence::HIGH,
-      .time_stamp = time_stamp,
-  };
+  common::msg::scanner::SliceData slice_data{};
+
+  for (std::size_t i = 0; i < common::msg::scanner::GROOVE_ARRAY_SIZE && i < abws_lpcs.size(); ++i) {
+    slice_data.groove[i] = {.x = ConvertM2Mm(abws_lpcs[i].GetX()), .y = ConvertM2Mm(abws_lpcs[i].GetY())};
+  }
+
+  const auto& left  = abws_lpcs.front();
+  const auto& right = abws_lpcs.back();
+  const double delta_x = right.GetX() - left.GetX();
+  const double delta_y = right.GetY() - left.GetY();
+  const double sample_denominator =
+      static_cast<double>(std::max<std::size_t>(common::msg::scanner::LINE_ARRAY_SIZE - 1, 1));
+
+  for (std::size_t i = 0; i < common::msg::scanner::LINE_ARRAY_SIZE; ++i) {
+    const double t = static_cast<double>(i) / sample_denominator;
+    const double x = left.GetX() + t * delta_x;
+    const double y = left.GetY() + t * delta_y;
+    slice_data.line[i] = {.x = ConvertM2Mm(x), .y = ConvertM2Mm(y)};
+  }
+
+  slice_data.confidence = common::msg::scanner::SliceConfidence::HIGH;
+  slice_data.time_stamp = time_stamp;
+
   return slice_data;
 }
 

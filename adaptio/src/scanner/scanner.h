@@ -3,6 +3,7 @@
 #include <boost/outcome.hpp>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "common/groove/groove.h"
 #include "scanner/image/image.h"
@@ -21,8 +22,8 @@ enum class ScannerErrorCode : uint32_t {
 
 class ScannerOutputCB {
  public:
-  virtual void ScannerOutput(const common::Groove& groove, uint64_t time_stamp,
-                             slice_provider::SliceConfidence confidence) = 0;
+  virtual void ScannerOutput(const common::Groove& groove, const std::vector<common::Point>& line,
+                             uint64_t time_stamp, slice_provider::SliceConfidence confidence) = 0;
 };
 
 class Scanner {

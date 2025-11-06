@@ -8,7 +8,7 @@ namespace common::msg::scanner {
 const uint32_t SCANNER_BASE_ID = 0x04000000;
 
 const uint32_t GROOVE_ARRAY_SIZE = 7;
-const uint32_t LINE_ARRAY_SIZE   = 15;
+const uint32_t LINE_ARRAY_SIZE   = 100;
 
 // Values in millimeter
 struct Coordinate {
@@ -75,6 +75,7 @@ struct Stop {
 struct SliceData {
   enum class Metadata : uint32_t { MESSAGE_ID = SCANNER_BASE_ID + 6 };
   Coordinate groove[GROOVE_ARRAY_SIZE];
+  Coordinate line[LINE_ARRAY_SIZE];
   enum SliceConfidence confidence;
   std::uint64_t time_stamp;  // Milliseconds since Epoch
   double groove_area{0.};

@@ -19,6 +19,7 @@ struct JointSlice {
   std::string image_name;
   scanner::joint_model::JointProfile profile;
   image::WorkspaceCoordinates centroids;
+  image::WorkspaceCoordinates snake;
 
   uint64_t num_walls_found = 0;
   uint64_t processing_time;
