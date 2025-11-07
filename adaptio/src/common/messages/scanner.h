@@ -7,7 +7,7 @@ namespace common::msg::scanner {
 
 const uint32_t SCANNER_BASE_ID = 0x04000000;
 
-const uint32_t GROOVE_ARRAY_SIZE = 7;
+const uint32_t GROOVE_ARRAY_SIZE = 100;  // Increased from 7 to 100 for better visualization
 const uint32_t LINE_ARRAY_SIZE   = 15;
 
 // Values in millimeter
