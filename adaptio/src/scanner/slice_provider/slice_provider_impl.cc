@@ -14,10 +14,15 @@
 
 #include "common/clock_functions.h"
 #include "common/groove/groove.h"
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
+#include "common/math/lin_interp.h"
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/slice_provider.h"
+#include "common/messages/scanner.h"
+
+#include <limits>
 
 namespace scanner::slice_provider {
 
@@ -27,6 +32,60 @@ using std::chrono::high_resolution_clock;
 
 const std::chrono::milliseconds NO_SLICE_DATA_TMO_MS(3000);
 const uint32_t MIN_SLICES_FOR_MEDIAN = 3;
+
+namespace {
+
+constexpr double SNAKE_MARGIN_METERS = 20.0e-3;
+constexpr double DUPLICATE_EPSILON   = 1e-9;
+
+auto InterpolateSnake(const joint_buffer::JointSlice& latest_slice, const common::Groove& groove)
+    -> std::vector<common::Point> {
+  const auto& snake = latest_slice.centroids;
+  if (snake.cols() < 2) {
+    return {};
+  }
+
+  std::vector<std::tuple<double, double>> segments;
+  segments.reserve(static_cast<std::size_t>(snake.cols()));
+  std::optional<double> previous_x;
+  for (Eigen::Index idx = 0; idx < snake.cols(); ++idx) {
+    const double x = snake(0, idx);
+    const double y = snake(1, idx);
+    if (!std::isfinite(x) || !std::isfinite(y)) {
+      continue;
+    }
+    if (previous_x.has_value() && std::abs(x - previous_x.value()) < DUPLICATE_EPSILON) {
+      continue;
+    }
+    segments.emplace_back(x, y);
+    previous_x = x;
+  }
+
+  if (segments.size() < 2) {
+    return {};
+  }
+
+  const double start = groove[0].horizontal - SNAKE_MARGIN_METERS;
+  const double stop  = groove[6].horizontal + SNAKE_MARGIN_METERS;
+
+  if (!std::isfinite(start) || !std::isfinite(stop) || stop <= start) {
+    return {};
+  }
+
+  auto x_samples = common::math::lin_interp::linspace(start, stop, common::msg::scanner::LINE_ARRAY_SIZE);
+  auto y_samples = common::math::lin_interp::lin_interp_2d(x_samples, segments);
+
+  std::vector<common::Point> line_points;
+  const auto count = std::min(x_samples.size(), y_samples.size());
+  line_points.reserve(count);
+  for (std::size_t i = 0; i < count; ++i) {
+    line_points.push_back({.horizontal = x_samples[i], .vertical = y_samples[i]});
+  }
+
+  return line_points;
+}
+
+}  // namespace
 
 SliceProviderImpl::SliceProviderImpl(joint_buffer::JointBufferPtr joint_buffer,
                                      clock_functions::SteadyClockNowFunc steady_clock_now_func)
@@ -51,9 +110,10 @@ auto SliceProviderImpl::GetSlice() -> std::optional<joint_model::JointProfile> {
   return std::nullopt;
 }
 
-auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> {
-  std::tuple<common::Groove, SliceConfidence, uint64_t> result = {};
-  auto maybe_slice                                             = MedianOfRecentSlices();
+auto SliceProviderImpl::GetTrackingSlice()
+    -> std::optional<std::tuple<common::Groove, std::vector<common::Point>, SliceConfidence, uint64_t>> {
+  std::tuple<common::Groove, std::vector<common::Point>, SliceConfidence, uint64_t> result = {};
+  auto maybe_slice                                                                          = MedianOfRecentSlices();
   if (maybe_slice.has_value()) {
     auto slice = maybe_slice.value();
 
@@ -68,15 +128,21 @@ auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::G
       groove[index++] = {.horizontal = point.x, .vertical = point.y};
     }
 
+    std::vector<common::Point> line;
+    if (auto latest = joint_buffer_->GetSlice(); latest.has_value()) {
+      line = InterpolateSnake(latest.value(), groove);
+    }
+
     auto confidence = GetConfidence(slice);
-    latest_slice_   = {groove, SliceConfidence::NO};
-    result          = std::make_tuple(groove, confidence, slice.timestamp.time_since_epoch().count());
+    latest_slice_   = {groove, line, SliceConfidence::NO};
+    result          = std::make_tuple(groove, line, confidence, slice.timestamp.time_since_epoch().count());
   } else {
     auto time_stamp = high_resolution_clock::now().time_since_epoch().count();
-    result          = std::make_tuple(std::get<0>(latest_slice_), std::get<1>(latest_slice_), time_stamp);
+    result          = std::make_tuple(std::get<0>(latest_slice_), std::get<1>(latest_slice_),
+                                      std::get<2>(latest_slice_), time_stamp);
   }
 
-  auto confidence = get<1>(result);
+  auto confidence = std::get<2>(result);
   switch (confidence) {
     case SliceConfidence::NO:
     case SliceConfidence::LOW:

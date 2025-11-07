@@ -21,13 +21,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include <limits>
-#include <algorithm>
 
-#include "common/groove/point.h"
 #include "common/logging/application_log.h"
-#include "common/math/lin_interp.h"
-#include "common/messages/scanner.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
 #include "scanner/image/image_types.h"  // IWYU pragma: keep
@@ -215,15 +210,14 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                                           .timestamp           = image->GetTimestamp(),
                                           .image_name          = image->GetImageName(),
                                           .profile             = profile,
+                                          .centroids           = centroids_wcs,
                                           .num_walls_found     = num_walls_found,
                                           .processing_time     = processing_time,
                                           .vertical_crop_start = image->GetVerticalCropStart(),
                                           .approximation_used  = profile.approximation_used};
-        slice.snake                     = snake_lpcs;
         if (store_image_data_) {
           // Store image data only if necessary. Not needed when running Adaptio
           slice.image_data = image->Data();
-          slice.centroids  = centroids_wcs;
         }
 
         m_buffer_mutex.lock();
@@ -333,76 +327,15 @@ auto CheckIfValueInRange(double value, double target, double range) -> bool {
 
 auto ScannerImpl::CountOfReceivedImages() -> size_t { return num_received; }
 
-namespace {
-
-constexpr double kSnakeMarginMeters = 20.0e-3;
-constexpr double kDuplicateEpsilon  = 1e-9;
-
-auto BuildInterpolatedSnake(const joint_buffer::JointSlice& slice, const common::Groove& groove)
-    -> std::vector<common::Point> {
-  const auto& snake = slice.snake;
-  if (snake.cols() < 2) {
-    return {};
-  }
-
-  std::vector<std::tuple<double, double>> segments;
-  segments.reserve(static_cast<std::size_t>(snake.cols()));
-  std::optional<double> previous_x;
-  for (Eigen::Index idx = 0; idx < snake.cols(); ++idx) {
-    const double x = snake(0, idx);
-    const double y = snake(1, idx);
-    if (!std::isfinite(x) || !std::isfinite(y)) {
-      continue;
-    }
-    if (previous_x.has_value() && std::abs(x - previous_x.value()) < kDuplicateEpsilon) {
-      continue;
-    }
-    segments.emplace_back(x, y);
-    previous_x = x;
-  }
-
-  if (segments.size() < 2) {
-    return {};
-  }
-
-  const double start = groove[common::ABW_UPPER_LEFT].horizontal - kSnakeMarginMeters;
-  const double stop  = groove[common::ABW_UPPER_RIGHT].horizontal + kSnakeMarginMeters;
-
-  if (!std::isfinite(start) || !std::isfinite(stop) || stop <= start) {
-    return {};
-  }
-
-  constexpr std::size_t kSampleCount = common::msg::scanner::LINE_ARRAY_SIZE;
-  auto x_samples                     = common::math::lin_interp::linspace(start, stop, kSampleCount);
-  auto y_samples                     = common::math::lin_interp::lin_interp_2d(x_samples, segments);
-
-  std::vector<common::Point> line_points;
-  line_points.reserve(kSampleCount);
-  const auto count = std::min(x_samples.size(), y_samples.size());
-  for (std::size_t i = 0; i < count; ++i) {
-    line_points.push_back({.horizontal = x_samples[i], .vertical = y_samples[i]});
-  }
-
-  return line_points;
-}
-
-}  // namespace
-
 void ScannerImpl::Update() {
   m_buffer_mutex.lock();
   auto tracking_data = slice_provider_->GetTrackingSlice();
-  auto latest_slice  = slice_provider_->GetLatestSlice();
   m_buffer_mutex.unlock();
 
   if (tracking_data.has_value()) {
-    auto [groove, confidence, time_stamp] = tracking_data.value();
+    auto [groove, line, confidence, time_stamp] = tracking_data.value();
 
-    std::vector<common::Point> interpolated_line;
-    if (latest_slice.has_value()) {
-      interpolated_line = BuildInterpolatedSnake(latest_slice.value(), groove);
-    }
-
-    scanner_output_->ScannerOutput(groove, interpolated_line, time_stamp, confidence);
+    scanner_output_->ScannerOutput(groove, line, time_stamp, confidence);
   } else {
     // This should not happen
     LOG_ERROR("No slice sent due to missing ABW points.");
