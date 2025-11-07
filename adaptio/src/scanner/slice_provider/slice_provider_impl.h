@@ -21,7 +21,8 @@ class SliceProviderImpl : public SliceProvider {
 
   void AddSlice(const scanner::joint_buffer::JointSlice& slice) override;
   auto GetSlice() -> std::optional<joint_model::JointProfile> override;
-  auto GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> override;
+  auto GetTrackingSlice()
+      -> std::optional<std::tuple<common::Groove, InterpolatedLine, SliceConfidence, uint64_t>> override;
   auto SliceDegraded() -> bool override { return slice_degraded_; };
   void Reset() override;
   auto GetLatestSlice() -> std::optional<scanner::joint_buffer::JointSlice> { return joint_buffer_->GetSlice(); };
@@ -32,7 +33,7 @@ class SliceProviderImpl : public SliceProvider {
   auto GetConfidence(joint_buffer::JointSlice slice) -> SliceConfidence;
 
   joint_buffer::JointBufferPtr joint_buffer_;
-  std::tuple<common::Groove, SliceConfidence> latest_slice_;
+  std::tuple<common::Groove, InterpolatedLine, SliceConfidence> latest_slice_;
   std::optional<std::chrono::time_point<std::chrono::steady_clock>> last_sent_ts_;
   bool slice_degraded_{false};
   clock_functions::SteadyClockNowFunc steady_clock_now_func_;

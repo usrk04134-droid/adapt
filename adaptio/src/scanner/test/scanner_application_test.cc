@@ -5,6 +5,7 @@
 #include <prometheus/registry.h>
 
 #include <array>
+#include <vector>
 #include <boost/outcome.hpp>
 #include <memory>
 #include <optional>
@@ -77,8 +78,9 @@ TEST_SUITE("Test Scanner Adapter Scanner") {
     scanner_mocket->Dispatch(common::msg::scanner::FlushImageBuffer{});
 
     common::Groove groove;
+    ScannerOutputCB::InterpolatedLine line{};
 
-    factory.GetScannerOutput()->ScannerOutput(groove, 1, slice_provider::SliceConfidence::HIGH);
+    factory.GetScannerOutput()->ScannerOutput(groove, line, 1, slice_provider::SliceConfidence::HIGH);
 
     auto output_msg = scanner_mocket->Receive<common::msg::scanner::SliceData>();
 

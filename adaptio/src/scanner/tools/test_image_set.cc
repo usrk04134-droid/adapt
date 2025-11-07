@@ -83,7 +83,8 @@ void Exit(int signum) {
 
 class ScannerOutputCBImpl : public scanner::ScannerOutputCB {
  public:
-  void ScannerOutput(const common::Groove& groove, uint64_t time_stamp, SliceConfidence confidence) override {};
+  void ScannerOutput(const common::Groove& groove, const InterpolatedLine& line, uint64_t time_stamp,
+                     SliceConfidence confidence) override {};
 };
 
 auto getNumberOfImages(std::filesystem::path search_path) -> int {

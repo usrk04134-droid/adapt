@@ -1,4 +1,6 @@
 #pragma once
+#include <vector>
+
 #include "common/groove/groove.h"
 #include "common/zevs/zevs_socket.h"
 #include "scanner/scanner.h"
@@ -16,7 +18,7 @@ class ScannerServer : public ScannerOutputCB {
 
   virtual ~ScannerServer() = default;
 
-  void ScannerOutput(const common::Groove& groove, uint64_t time_stamp,
+  void ScannerOutput(const common::Groove& groove, const InterpolatedLine& line, uint64_t time_stamp,
                      slice_provider::SliceConfidence confidence) override;
 
  private:

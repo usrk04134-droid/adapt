@@ -6,12 +6,14 @@
 #include <boost/math/statistics/linear_regression.hpp>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <ctime>
 #include <Eigen/Eigen>
 #include <expected>
 #include <optional>
 #include <tuple>
 
+#include "common/math/lin_interp.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
 #include "scanner/image/image_types.h"
@@ -21,6 +23,77 @@
 
 namespace scanner::joint_model {
 // #define VISUAL_DEBUG_OUTPUT 1
+
+namespace {
+
+constexpr double INTERPOLATION_MARGIN_METERS = 20.0e-3;
+constexpr double DUPLICATE_EPSILON           = 1e-9;
+
+auto BuildInterpolatedSnake(const image::WorkspaceCoordinates& snake_lpcs, const JointProfile& profile)
+    -> std::array<Point, INTERPOLATED_SNAKE_SIZE> {
+  std::array<Point, INTERPOLATED_SNAKE_SIZE> line{};
+
+  std::vector<std::tuple<double, double>> segments;
+  segments.reserve(static_cast<std::size_t>(snake_lpcs.cols()));
+
+  std::optional<double> previous_x;
+  for (Eigen::Index idx = 0; idx < snake_lpcs.cols(); ++idx) {
+    const double x = snake_lpcs(0, idx);
+    const double y = snake_lpcs(1, idx);
+
+    if (!std::isfinite(x) || !std::isfinite(y)) {
+      continue;
+    }
+
+    if (previous_x.has_value() && std::abs(x - previous_x.value()) < DUPLICATE_EPSILON) {
+      continue;
+    }
+
+    segments.emplace_back(x, y);
+    previous_x = x;
+  }
+
+  const auto fallback = [&line, &profile]() {
+    const double start_x = profile.points[0].x;
+    const double end_x   = profile.points[6].x;
+    const double start_y = profile.points[0].y;
+    const double end_y   = profile.points[6].y;
+
+    for (std::size_t i = 0; i < line.size(); ++i) {
+      const double t = (line.size() > 1) ? static_cast<double>(i) / static_cast<double>(line.size() - 1) : 0.0;
+      line[i]        = Point{start_x + t * (end_x - start_x), start_y + t * (end_y - start_y)};
+    }
+  };
+
+  if (segments.size() < 2) {
+    fallback();
+    return line;
+  }
+
+  const double start = profile.points[0].x - INTERPOLATION_MARGIN_METERS;
+  const double stop  = profile.points[6].x + INTERPOLATION_MARGIN_METERS;
+
+  if (!std::isfinite(start) || !std::isfinite(stop) || stop <= start) {
+    fallback();
+    return line;
+  }
+
+  auto x_samples = common::math::lin_interp::linspace(start, stop, INTERPOLATED_SNAKE_SIZE);
+  auto y_samples = common::math::lin_interp::lin_interp_2d(x_samples, segments);
+
+  if (y_samples.size() != x_samples.size()) {
+    fallback();
+    return line;
+  }
+
+  for (std::size_t i = 0; i < x_samples.size(); ++i) {
+    line[i] = Point{x_samples[i], y_samples[i]};
+  }
+
+  return line;
+}
+
+}  // namespace
 
 const double MASK_OFFSET        = 0.002;
 const int NUM_TRIANGLES_TO_MASK = 4;
@@ -70,6 +143,7 @@ auto BigSnake::Parse(image::Image& image, std::optional<JointProfile> median_pro
   auto [points, num_walls, approximation_used] = maybe_slice.value();
 
   JointProfile profile = {.points = points, .approximation_used = approximation_used};
+  profile.interpolated_snake = BuildInterpolatedSnake(snake_lpcs, profile);
 
   // Vertical limits
   const auto crop_start = image.GetVerticalCropStart();

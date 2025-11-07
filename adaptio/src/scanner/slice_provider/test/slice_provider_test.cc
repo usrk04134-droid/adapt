@@ -38,15 +38,15 @@ TEST_SUITE("Slice provider") {
     // Only two walls in buffer and joint is deep
     slice_provider.AddSlice(slice);
     CHECK(!slice_provider.GetSlice());
-    slice_provider.AddSlice(slice);
-    slice_provider.AddSlice(slice);
-    auto maybe_slice = slice_provider.GetSlice();
-    CHECK(maybe_slice);
+      slice_provider.AddSlice(slice);
+      slice_provider.AddSlice(slice);
+      auto maybe_slice = slice_provider.GetSlice();
+      CHECK(maybe_slice);
 
-    auto tracking = slice_provider.GetTrackingSlice();
-    CHECK(tracking);
-    auto confidence = get<1>(tracking.value());
-    CHECK(confidence == slice_provider::SliceConfidence::HIGH);
+      auto tracking   = slice_provider.GetTrackingSlice();
+      CHECK(tracking);
+      auto confidence = std::get<2>(tracking.value());
+      CHECK(confidence == slice_provider::SliceConfidence::HIGH);
 
     slice_provider.Reset();
     CHECK(!slice_provider.GetSlice());
@@ -56,15 +56,15 @@ TEST_SUITE("Slice provider") {
     slice_provider.AddSlice(slice_mod);
     slice_mod.num_walls_found = 1;
     slice_provider.AddSlice(slice_mod);
-    slice_mod.num_walls_found = 0;
-    slice_provider.AddSlice(slice_mod);
+      slice_mod.num_walls_found = 0;
+      slice_provider.AddSlice(slice_mod);
 
-    maybe_slice = slice_provider.GetSlice();
-    CHECK(maybe_slice);
-    tracking = slice_provider.GetTrackingSlice();
-    CHECK(tracking);
-    confidence = get<1>(tracking.value());
-    CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
+      maybe_slice = slice_provider.GetSlice();
+      CHECK(maybe_slice);
+      tracking    = slice_provider.GetTrackingSlice();
+      CHECK(tracking);
+      confidence  = std::get<2>(tracking.value());
+      CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
     CHECK(!slice_provider.GetSlice());
@@ -76,14 +76,14 @@ TEST_SUITE("Slice provider") {
     slice_mod1.num_walls_found = 1;
     slice_provider.AddSlice(slice_mod1);
     slice_mod1.num_walls_found = 1;
-    slice_provider.AddSlice(slice_mod1);
+      slice_provider.AddSlice(slice_mod1);
 
-    maybe_slice = slice_provider.GetSlice();
-    CHECK(maybe_slice);
-    tracking = slice_provider.GetTrackingSlice();
-    CHECK(tracking);
-    confidence = get<1>(tracking.value());
-    CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
+      maybe_slice = slice_provider.GetSlice();
+      CHECK(maybe_slice);
+      tracking    = slice_provider.GetTrackingSlice();
+      CHECK(tracking);
+      confidence  = std::get<2>(tracking.value());
+      CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
     CHECK(!slice_provider.GetSlice());
@@ -97,14 +97,14 @@ TEST_SUITE("Slice provider") {
     slice_mod2.num_walls_found = 1;
     slice_provider.AddSlice(slice_mod2);
     slice_mod2.num_walls_found = 1;
-    slice_provider.AddSlice(slice_mod2);
+      slice_provider.AddSlice(slice_mod2);
 
-    maybe_slice = slice_provider.GetSlice();
-    CHECK(maybe_slice);
-    tracking = slice_provider.GetTrackingSlice();
-    CHECK(tracking);
-    confidence = get<1>(tracking.value());
-    CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
+      maybe_slice = slice_provider.GetSlice();
+      CHECK(maybe_slice);
+      tracking    = slice_provider.GetTrackingSlice();
+      CHECK(tracking);
+      confidence  = std::get<2>(tracking.value());
+      CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
     CHECK(!slice_provider.GetSlice());
@@ -116,14 +116,14 @@ TEST_SUITE("Slice provider") {
     slice_mod2.num_walls_found = 0;
     slice_provider.AddSlice(slice_mod2);
     slice_mod2.num_walls_found = 0;
-    slice_provider.AddSlice(slice_mod2);
+      slice_provider.AddSlice(slice_mod2);
 
-    maybe_slice = slice_provider.GetSlice();
-    CHECK(maybe_slice);
-    tracking = slice_provider.GetTrackingSlice();
-    CHECK(tracking);
-    confidence = get<1>(tracking.value());
-    CHECK(confidence == slice_provider::SliceConfidence::LOW);
+      maybe_slice = slice_provider.GetSlice();
+      CHECK(maybe_slice);
+      tracking    = slice_provider.GetTrackingSlice();
+      CHECK(tracking);
+      confidence  = std::get<2>(tracking.value());
+      CHECK(confidence == slice_provider::SliceConfidence::LOW);
   }
 }
 }  // namespace scanner::slice_provider

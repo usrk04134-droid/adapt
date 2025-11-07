@@ -11,9 +11,11 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "common/clock_functions.h"
 #include "common/groove/groove.h"
+#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
@@ -51,9 +53,10 @@ auto SliceProviderImpl::GetSlice() -> std::optional<joint_model::JointProfile> {
   return std::nullopt;
 }
 
-auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> {
-  std::tuple<common::Groove, SliceConfidence, uint64_t> result = {};
-  auto maybe_slice                                             = MedianOfRecentSlices();
+auto SliceProviderImpl::GetTrackingSlice()
+    -> std::optional<std::tuple<common::Groove, InterpolatedLine, SliceConfidence, uint64_t>> {
+  std::tuple<common::Groove, InterpolatedLine, SliceConfidence, uint64_t> result = {};
+  auto maybe_slice                                                               = MedianOfRecentSlices();
   if (maybe_slice.has_value()) {
     auto slice = maybe_slice.value();
 
@@ -68,15 +71,42 @@ auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::G
       groove[index++] = {.horizontal = point.x, .vertical = point.y};
     }
 
+    const auto build_line = [&groove](const joint_model::JointProfile& profile) {
+      InterpolatedLine line{};
+      const bool has_values =
+          std::any_of(profile.interpolated_snake.begin(), profile.interpolated_snake.end(),
+                      [](const joint_model::Point& point) { return point.x != 0.0 || point.y != 0.0; });
+
+      if (!has_values) {
+        for (std::size_t i = 0; i < line.size(); ++i) {
+          const double t = (line.size() > 1) ? static_cast<double>(i) / static_cast<double>(line.size() - 1) : 0.0;
+          const double x = groove[0].horizontal + t * (groove[6].horizontal - groove[0].horizontal);
+          const double y = groove[0].vertical + t * (groove[6].vertical - groove[0].vertical);
+          line[i]        = {.horizontal = x, .vertical = y};
+        }
+        return line;
+      }
+
+      for (std::size_t i = 0; i < line.size(); ++i) {
+        const auto& src = profile.interpolated_snake[i];
+        line[i]         = {.horizontal = src.x, .vertical = src.y};
+      }
+
+      return line;
+    };
+
+    InterpolatedLine line = build_line(slice.profile);
+
     auto confidence = GetConfidence(slice);
-    latest_slice_   = {groove, SliceConfidence::NO};
-    result          = std::make_tuple(groove, confidence, slice.timestamp.time_since_epoch().count());
+    latest_slice_   = {groove, line, confidence};
+    result          = std::make_tuple(groove, line, confidence, slice.timestamp.time_since_epoch().count());
   } else {
     auto time_stamp = high_resolution_clock::now().time_since_epoch().count();
-    result          = std::make_tuple(std::get<0>(latest_slice_), std::get<1>(latest_slice_), time_stamp);
+    result          = std::make_tuple(std::get<0>(latest_slice_), std::get<1>(latest_slice_),
+                                      std::get<2>(latest_slice_), time_stamp);
   }
 
-  auto confidence = get<1>(result);
+  auto confidence = std::get<2>(result);
   switch (confidence) {
     case SliceConfidence::NO:
     case SliceConfidence::LOW:

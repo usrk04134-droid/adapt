@@ -5,12 +5,14 @@
 #include <SQLiteCpp/Database.h>
 
 #include <array>
+#include <algorithm>
 #include <boost/outcome.hpp>
 #include <boost/outcome/result.hpp>
 #include <boost/outcome/success_failure.hpp>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <cmath>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -336,13 +338,31 @@ ScannerDataWrapper::ScannerDataWrapper() {
 
   data_.confidence = common::msg::scanner::SliceConfidence::HIGH;
 
-  data_.line[0] = {-22, TOP_LEVEL};
-  data_.line[1] = {-15, BOTTOM_LEVEL};
-  data_.line[2] = {-10, BOTTOM_LEVEL};
-  data_.line[3] = {0, BOTTOM_LEVEL};
-  data_.line[4] = {10, BOTTOM_LEVEL};
-  data_.line[5] = {15, BOTTOM_LEVEL};
-  data_.line[6] = {22, TOP_LEVEL};
+  constexpr std::array<common::msg::scanner::Coordinate, 7> anchor_line = {
+      common::msg::scanner::Coordinate{-22.0, TOP_LEVEL},      common::msg::scanner::Coordinate{-15.0, BOTTOM_LEVEL},
+      common::msg::scanner::Coordinate{-10.0, BOTTOM_LEVEL},   common::msg::scanner::Coordinate{0.0, BOTTOM_LEVEL},
+      common::msg::scanner::Coordinate{10.0, BOTTOM_LEVEL},    common::msg::scanner::Coordinate{15.0, BOTTOM_LEVEL},
+      common::msg::scanner::Coordinate{22.0, TOP_LEVEL}};
+
+  const double segment_count = static_cast<double>(anchor_line.size() - 1);
+
+  for (std::size_t i = 0; i < common::msg::scanner::LINE_ARRAY_SIZE; ++i) {
+    if (common::msg::scanner::LINE_ARRAY_SIZE == 1) {
+      data_.line[i] = anchor_line.front();
+      continue;
+    }
+
+    const double t          = static_cast<double>(i) / (common::msg::scanner::LINE_ARRAY_SIZE - 1);
+    const double scaled_pos = t * segment_count;
+    const std::size_t idx   = std::min<std::size_t>(static_cast<std::size_t>(scaled_pos), anchor_line.size() - 2);
+    const double local_t    = scaled_pos - static_cast<double>(idx);
+
+    const auto& start = anchor_line[idx];
+    const auto& end   = anchor_line[idx + 1];
+
+    data_.line[i].x = std::lerp(start.x, end.x, local_t);
+    data_.line[i].y = std::lerp(start.y, end.y, local_t);
+  }
 }
 
 auto ScannerDataWrapper::Get() const -> common::msg::scanner::SliceData { return data_; }

@@ -198,83 +198,83 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     auto use_approximation          = slice_provider_->SliceDegraded();
     m_buffer_mutex.unlock();
 
-    auto result = joint_model_->Parse(*image.get(), median_profile, updated_properties, use_approximation,
-                                      maybe_abw0_abw6_horizontal);
+      auto result = joint_model_->Parse(*image.get(), median_profile, updated_properties, use_approximation,
+                                        maybe_abw0_abw6_horizontal);
 
-    num_received++;
+      num_received++;
 
-    if (result) {
-      auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
-      LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
-      joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
-                                        .timestamp           = image->GetTimestamp(),
-                                        .image_name          = image->GetImageName(),
-                                        .profile             = profile,
-                                        .num_walls_found     = num_walls_found,
-                                        .processing_time     = processing_time,
-                                        .vertical_crop_start = image->GetVerticalCropStart(),
-                                        .approximation_used  = profile.approximation_used};
-      if (store_image_data_) {
-        // Store image data only if necessary. Not needed when running Adaptio
-        slice.image_data = image->Data();
-        slice.centroids  = centroids_wcs;
-      }
-
-      m_buffer_mutex.lock();
-      slice_provider_->AddSlice(slice);
-      m_buffer_mutex.unlock();
-
-      const int current_offset = image->GetVerticalCropStart();
-      const int current_height = image->Data().rows();
-      const auto [top, bottom] = profile.vertical_limits;
-      m_config_mutex.lock();
-      const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
-      if (dim_check
-              .transform([current_offset, current_height](std::tuple<int, int> requested) {
-                auto [requested_offset, requested_height] = requested;
-                return requested_offset == current_offset && requested_height == current_height;
-              })
-              .value_or(true)) {
-        // Check min/max vertical pixels in the image and evaluate whether we want to adjust the FOV
-        // Note: this assumes that the original offset is 0.
-        // We want current_offset + WINDOW_MARGIN = top
-        // and current_offset + height - WINDOW_MARGIN = bottom
-        // If we are more than MOVE_MARGIN away from either of these two we recalculate
-
-        const bool fov_is_small_but_covers_joint =
-            current_height == MINIMUM_FOV_HEIGHT && bottom - top + 2 * WINDOW_MARGIN <= MINIMUM_FOV_HEIGHT &&
-            current_offset + WINDOW_MARGIN <= top && bottom + WINDOW_MARGIN <= current_offset + current_height;
-
-        if (!fov_is_small_but_covers_joint &&
-            ((abs((top - WINDOW_MARGIN) - current_offset) > MOVE_MARGIN) ||
-             (abs((bottom + WINDOW_MARGIN) - (current_offset + current_height)) > MOVE_MARGIN))) {
-          auto [new_offset, new_height] = ScannerImpl::NewOffsetAndHeight(top, bottom);
-
-          if (new_offset != current_offset || new_height != current_height) {
-            LOG_TRACE(
-                "Change FOV based on top {} bottom {}, current_offset {}, current_height {}, new_offset {} new_height "
-                "{}",
-                top, bottom, current_offset, current_height, new_offset, new_height);
-            dont_allow_fov_change_until_new_dimensions_received = {new_offset, new_height};
-            image_provider_->SetVerticalFOV(new_offset, new_height);
-          }
-        } else {
-          dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+      if (result) {
+        auto [profile, centroids_wcs, processing_time, num_walls_found] = *result;
+        LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
+        joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
+                                          .timestamp           = image->GetTimestamp(),
+                                          .image_name          = image->GetImageName(),
+                                          .profile             = profile,
+                                          .centroids           = centroids_wcs,
+                                          .num_walls_found     = num_walls_found,
+                                          .processing_time     = processing_time,
+                                          .vertical_crop_start = image->GetVerticalCropStart(),
+                                          .approximation_used  = profile.approximation_used};
+        if (store_image_data_) {
+          // Store image data only if necessary. Not needed when running Adaptio
+          slice.image_data = image->Data();
         }
-      }
 
-      if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
-        image_provider_->AdjustGain(profile.suggested_gain_change.value());
-        frames_since_gain_change_ = 0;
-      }
-      m_config_mutex.unlock();
+        m_buffer_mutex.lock();
+        slice_provider_->AddSlice(slice);
+        m_buffer_mutex.unlock();
 
-      if (metrics_.image.contains(slice.num_walls_found)) {
-        metrics_.image.at(slice.num_walls_found)->Increment();
-      }
+        const int current_offset = image->GetVerticalCropStart();
+        const int current_height = image->Data().rows();
+        const auto [top, bottom] = profile.vertical_limits;
+        m_config_mutex.lock();
+        const auto dim_check = dont_allow_fov_change_until_new_dimensions_received;
+        if (dim_check
+                .transform([current_offset, current_height](std::tuple<int, int> requested) {
+                  auto [requested_offset, requested_height] = requested;
+                  return requested_offset == current_offset && requested_height == current_height;
+                })
+                .value_or(true)) {
+          // Check min/max vertical pixels in the image and evaluate whether we want to adjust the FOV
+          // Note: this assumes that the original offset is 0.
+          // We want current_offset + WINDOW_MARGIN = top
+          // and current_offset + height - WINDOW_MARGIN = bottom
+          // If we are more than MOVE_MARGIN away from either of these two we recalculate
 
-      metrics_.image_consecutive_errors->Set(0);
-    } else {
+          const bool fov_is_small_but_covers_joint =
+              current_height == MINIMUM_FOV_HEIGHT && bottom - top + 2 * WINDOW_MARGIN <= MINIMUM_FOV_HEIGHT &&
+              current_offset + WINDOW_MARGIN <= top && bottom + WINDOW_MARGIN <= current_offset + current_height;
+
+          if (!fov_is_small_but_covers_joint &&
+              ((abs((top - WINDOW_MARGIN) - current_offset) > MOVE_MARGIN) ||
+               (abs((bottom + WINDOW_MARGIN) - (current_offset + current_height)) > MOVE_MARGIN))) {
+            auto [new_offset, new_height] = ScannerImpl::NewOffsetAndHeight(top, bottom);
+
+            if (new_offset != current_offset || new_height != current_height) {
+              LOG_TRACE(
+                  "Change FOV based on top {} bottom {}, current_offset {}, current_height {}, new_offset {} new_height "
+                  "{}",
+                  top, bottom, current_offset, current_height, new_offset, new_height);
+              dont_allow_fov_change_until_new_dimensions_received = {new_offset, new_height};
+              image_provider_->SetVerticalFOV(new_offset, new_height);
+            }
+          } else {
+            dont_allow_fov_change_until_new_dimensions_received = std::nullopt;
+          }
+        }
+
+        if (++frames_since_gain_change_ > 100 && profile.suggested_gain_change.has_value()) {
+          image_provider_->AdjustGain(profile.suggested_gain_change.value());
+          frames_since_gain_change_ = 0;
+        }
+        m_config_mutex.unlock();
+
+        if (metrics_.image.contains(slice.num_walls_found)) {
+          metrics_.image.at(slice.num_walls_found)->Increment();
+        }
+
+        metrics_.image_consecutive_errors->Set(0);
+      } else {
       auto const error = result.error();
       LOG_ERROR("Unable to parse joint in image {}: {}", image->GetImageName(), JointModelErrorCodeToString(error));
 
@@ -333,9 +333,9 @@ void ScannerImpl::Update() {
   m_buffer_mutex.unlock();
 
   if (tracking_data.has_value()) {
-    auto [groove, confidence, time_stamp] = tracking_data.value();
+    auto [groove, line, confidence, time_stamp] = tracking_data.value();
 
-    scanner_output_->ScannerOutput(groove, time_stamp, confidence);
+    scanner_output_->ScannerOutput(groove, line, time_stamp, confidence);
   } else {
     // This should not happen
     LOG_ERROR("No slice sent due to missing ABW points.");
