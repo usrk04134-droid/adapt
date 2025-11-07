@@ -78,7 +78,7 @@ TEST_SUITE("Test Scanner Adapter Scanner") {
     scanner_mocket->Dispatch(common::msg::scanner::FlushImageBuffer{});
 
     common::Groove groove;
-    std::vector<common::Point> line;
+    ScannerOutputCB::InterpolatedLine line{};
 
     factory.GetScannerOutput()->ScannerOutput(groove, line, 1, slice_provider::SliceConfidence::HIGH);
 

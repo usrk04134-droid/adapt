@@ -1,11 +1,12 @@
 #pragma once
 
+#include <array>
 #include <boost/outcome.hpp>
 #include <memory>
 #include <optional>
-#include <vector>
 
 #include "common/groove/groove.h"
+#include "common/messages/scanner.h"
 #include "scanner/image/image.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/scanner_types.h"
@@ -22,8 +23,10 @@ enum class ScannerErrorCode : uint32_t {
 
 class ScannerOutputCB {
  public:
-  virtual void ScannerOutput(const common::Groove& groove, const std::vector<common::Point>& line,
-                             uint64_t time_stamp, slice_provider::SliceConfidence confidence) = 0;
+  using InterpolatedLine = std::array<common::Point, common::msg::scanner::LINE_ARRAY_SIZE>;
+
+  virtual void ScannerOutput(const common::Groove& groove, const InterpolatedLine& line, uint64_t time_stamp,
+                             slice_provider::SliceConfidence confidence) = 0;
 };
 
 class Scanner {
@@ -62,6 +65,9 @@ class Scanner {
    */
   virtual auto CountOfReceivedImages() -> size_t = 0;
 };
+
+static_assert(ScannerOutputCB::InterpolatedLine{}.size() == common::msg::scanner::LINE_ARRAY_SIZE,
+              "Interpolated snake buffer size mismatch");
 
 using ScannerPtr = std::unique_ptr<Scanner>;
 }  // namespace scanner

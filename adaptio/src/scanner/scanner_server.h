@@ -18,7 +18,7 @@ class ScannerServer : public ScannerOutputCB {
 
   virtual ~ScannerServer() = default;
 
-  void ScannerOutput(const common::Groove& groove, const std::vector<common::Point>& line, uint64_t time_stamp,
+  void ScannerOutput(const common::Groove& groove, const InterpolatedLine& line, uint64_t time_stamp,
                      slice_provider::SliceConfidence confidence) override;
 
  private:

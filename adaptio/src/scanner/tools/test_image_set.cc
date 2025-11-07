@@ -83,7 +83,7 @@ void Exit(int signum) {
 
 class ScannerOutputCBImpl : public scanner::ScannerOutputCB {
  public:
-  void ScannerOutput(const common::Groove& groove, const std::vector<common::Point>& line, uint64_t time_stamp,
+  void ScannerOutput(const common::Groove& groove, const InterpolatedLine& line, uint64_t time_stamp,
                      SliceConfidence confidence) override {};
 };
 

@@ -2,6 +2,7 @@
 
 #include <fmt/format.h>
 
+#include <array>
 #include <boost/outcome.hpp>
 #include <Eigen/Eigen>
 #include <expected>
@@ -31,6 +32,8 @@ struct Point {
 };
 
 using ABWPoints = std::array<Point, 7>;
+
+inline constexpr std::size_t INTERPOLATED_SNAKE_SIZE = 100;
 
 inline auto ABWPointsToMatrix(ABWPoints a) -> image::WorkspaceCoordinates {
   auto out = image::WorkspaceCoordinates(3, 7);
@@ -166,6 +169,7 @@ struct JointProfile {
   std::tuple<int, int> horizontal_limits      = {0, 0};
   std::optional<double> suggested_gain_change = std::nullopt;
   bool approximation_used                     = false;
+  std::array<Point, INTERPOLATED_SNAKE_SIZE> interpolated_snake{};
   auto LeftDepth() const -> double { return points[0].y - points[1].y; };
   auto RightDepth() const -> double { return points[6].y - points[5].y; };
 };
