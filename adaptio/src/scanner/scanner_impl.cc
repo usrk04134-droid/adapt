@@ -210,6 +210,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                                         .timestamp           = image->GetTimestamp(),
                                         .image_name          = image->GetImageName(),
                                         .profile             = profile,
+                                        .snake_lpcs          = centroids_wcs,  // Store snake data for interpolation
                                         .num_walls_found     = num_walls_found,
                                         .processing_time     = processing_time,
                                         .vertical_crop_start = image->GetVerticalCropStart(),

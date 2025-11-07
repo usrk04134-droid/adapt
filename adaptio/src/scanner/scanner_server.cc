@@ -22,11 +22,17 @@ void ScannerServer::ScannerOutput(const common::Groove& groove, uint64_t time_st
       .groove_area = groove.Area(),
   };
 
-  // Redo this when JointSlice is updated
-  for (int i = 0; i < common::msg::scanner::GROOVE_ARRAY_SIZE; i++) {
+  // Copy groove points to the message, up to GROOVE_ARRAY_SIZE
+  size_t num_points = std::min(groove.size(), static_cast<size_t>(common::msg::scanner::GROOVE_ARRAY_SIZE));
+  for (size_t i = 0; i < num_points; i++) {
     auto x_mm       = MM_PER_METER * groove[i].horizontal;
     auto z_mm       = MM_PER_METER * groove[i].vertical;
     input.groove[i] = {.x = x_mm, .y = z_mm};
+  }
+  
+  // Fill remaining slots with zeros if groove has fewer points than GROOVE_ARRAY_SIZE
+  for (size_t i = num_points; i < common::msg::scanner::GROOVE_ARRAY_SIZE; i++) {
+    input.groove[i] = {.x = 0.0, .y = 0.0};
   }
 
   switch (confidence) {

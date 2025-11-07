@@ -15,6 +15,7 @@
 #include "common/clock_functions.h"
 #include "common/groove/groove.h"
 #include "common/logging/application_log.h"
+#include "common/math/lin_interp.h"
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/slice_provider.h"
@@ -27,6 +28,62 @@ using std::chrono::high_resolution_clock;
 
 const std::chrono::milliseconds NO_SLICE_DATA_TMO_MS(3000);
 const uint32_t MIN_SLICES_FOR_MEDIAN = 3;
+const double MM_PER_METER = 1000.0;
+const double INTERPOLATION_MARGIN_MM = 20.0;  // 20mm margin on each side
+
+// Helper function to interpolate snake data from abw0_x-20mm to abw6_x+20mm with 100 samples
+auto InterpolateSnake(const image::WorkspaceCoordinates& snake_lpcs,
+                      const std::array<joint_model::Point, 7>& abw_points,
+                      size_t num_samples) -> std::vector<common::groove::Point> {
+  std::vector<common::groove::Point> interpolated_points;
+  
+  if (snake_lpcs.cols() < 2) {
+    LOG_WARNING("Snake has fewer than 2 points, cannot interpolate");
+    return interpolated_points;
+  }
+  
+  // Convert margin from mm to meters
+  const double margin = INTERPOLATION_MARGIN_MM / MM_PER_METER;
+  
+  // Get the horizontal range: abw0_x - 20mm to abw6_x + 20mm
+  const double start_x = abw_points[0].x - margin;
+  const double end_x = abw_points[6].x + margin;
+  
+  // Create segments from snake data (x, y pairs)
+  std::vector<std::tuple<double, double>> segments;
+  for (int i = 0; i < snake_lpcs.cols(); i++) {
+    double x = snake_lpcs(0, i);
+    double y = snake_lpcs(1, i);
+    
+    // Only include points within the range
+    if (x >= start_x && x <= end_x) {
+      segments.push_back({x, y});
+    }
+  }
+  
+  if (segments.size() < 2) {
+    LOG_WARNING("Not enough snake points in the range [{:.5f}, {:.5f}], found {} points", 
+                start_x, end_x, segments.size());
+    return interpolated_points;
+  }
+  
+  // Sort segments by x coordinate to ensure they're in order
+  std::sort(segments.begin(), segments.end(), 
+            [](const auto& a, const auto& b) { return std::get<0>(a) < std::get<0>(b); });
+  
+  // Create linearly spaced x values
+  auto x_values = common::math::lin_interp::linspace(start_x, end_x, num_samples);
+  
+  // Interpolate y values
+  auto y_values = common::math::lin_interp::lin_interp_2d(x_values, segments);
+  
+  // Create the interpolated points
+  for (size_t i = 0; i < num_samples; i++) {
+    interpolated_points.push_back({.horizontal = x_values[i], .vertical = y_values[i]});
+  }
+  
+  return interpolated_points;
+}
 
 SliceProviderImpl::SliceProviderImpl(joint_buffer::JointBufferPtr joint_buffer,
                                      clock_functions::SteadyClockNowFunc steady_clock_now_func)
@@ -62,10 +119,35 @@ auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::G
     }
 
     common::Groove groove;
-
-    uint32_t index = 0;
-    for (const auto& point : slice.profile.points) {
-      groove[index++] = {.horizontal = point.x, .vertical = point.y};
+    
+    // Try to interpolate the snake if available
+    if (slice.snake_lpcs.has_value() && slice.snake_lpcs.value().cols() >= 2) {
+      auto interpolated_points = InterpolateSnake(
+          slice.snake_lpcs.value(),
+          slice.profile.points,
+          common::groove::INTERPOLATED_POINTS);
+      
+      if (interpolated_points.size() == common::groove::INTERPOLATED_POINTS) {
+        // Successfully interpolated, use the 100-point groove
+        groove = common::Groove(interpolated_points);
+        LOG_TRACE("Successfully interpolated snake to {} points", interpolated_points.size());
+      } else {
+        // Interpolation failed, fall back to 7 ABW points
+        LOG_WARNING("Snake interpolation failed, falling back to 7 ABW points");
+        std::vector<common::groove::Point> points;
+        for (const auto& point : slice.profile.points) {
+          points.push_back({.horizontal = point.x, .vertical = point.y});
+        }
+        groove = common::Groove(points);
+      }
+    } else {
+      // No snake data available, use 7 ABW points
+      LOG_TRACE("No snake data available, using 7 ABW points");
+      std::vector<common::groove::Point> points;
+      for (const auto& point : slice.profile.points) {
+        points.push_back({.horizontal = point.x, .vertical = point.y});
+      }
+      groove = common::Groove(points);
     }
 
     auto confidence = GetConfidence(slice);
@@ -129,6 +211,8 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
 
   int included = 0;
   std::vector<Timestamp> times;
+  std::optional<image::WorkspaceCoordinates> latest_snake;
+  
   for (auto& old : recent) {
     if (fabs(old->profile.points[0].x - median_abw0_x) < 0.001) {
       included++;
@@ -140,6 +224,10 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
       times.push_back(old->timestamp);
       if (old->approximation_used) {
         slice.approximation_used = true;
+      }
+      // Use the most recent snake data (don't average snake points)
+      if (old->snake_lpcs.has_value() && (!latest_snake.has_value() || old->timestamp > times.back())) {
+        latest_snake = old->snake_lpcs;
       }
     }
   }
@@ -154,6 +242,7 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
   slice.num_walls_found /= included;
   std::nth_element(times.begin(), times.begin() + included / 2, times.end());
   slice.timestamp = times[included / 2];
+  slice.snake_lpcs = latest_snake;
 
   return slice;
 }
