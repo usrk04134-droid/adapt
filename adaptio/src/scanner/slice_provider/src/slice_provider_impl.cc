@@ -89,6 +89,15 @@ auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::G
   return result;
 }
 
+auto SliceProviderImpl::GetLatestSnake()
+    -> std::optional<std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>> {
+  auto maybe_latest_slice = joint_buffer_->GetSlice();
+  if (maybe_latest_slice.has_value()) {
+    return maybe_latest_slice->snake_points;
+  }
+  return std::nullopt;
+}
+
 void SliceProviderImpl::Reset() {
   joint_buffer_->Reset();
   latest_slice_   = {};

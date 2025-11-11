@@ -127,6 +127,29 @@ TEST_SUITE("Slice provider") {
     confidence = get<1>(tracking.value());
     CHECK(confidence == slice_provider::SliceConfidence::LOW);
   }
+
+  TEST_CASE("Latest snake retrieval") {
+    auto joint_buffer          = std::make_unique<joint_buffer::CircularJointBuffer>();
+    auto steady_clock_now_func = []() { return std::chrono::steady_clock::now(); };
+    auto slice_provider = scanner::slice_provider::SliceProviderImpl(std::move(joint_buffer), steady_clock_now_func);
+
+    scanner::joint_buffer::JointSlice slice = {
+        .timestamp          = std::chrono::high_resolution_clock::now(),
+        .profile            = {.groove = deep_joint},
+        .num_walls_found    = 2,
+        .approximation_used = false,
+    };
+
+    slice.snake_points[0] = {.horizontal = 0.01, .vertical = -0.001};
+    slice.snake_points[1] = {.horizontal = 0.02, .vertical = -0.0015};
+
+    slice_provider.AddSlice(slice);
+
+    auto latest_snake = slice_provider.GetLatestSnake();
+    CHECK(latest_snake.has_value());
+    CHECK_EQ(latest_snake->at(0).horizontal, doctest::Approx(0.01));
+    CHECK_EQ(latest_snake->at(1).vertical, doctest::Approx(-0.0015));
+  }
 }
 }  // namespace scanner::slice_provider
 // NOLINTEND(*-magic-numbers)

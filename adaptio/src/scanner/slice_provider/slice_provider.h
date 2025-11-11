@@ -22,6 +22,8 @@ class SliceProvider {
   virtual void AddSlice(const scanner::joint_buffer::JointSlice& slice)                                   = 0;
   virtual auto GetSlice() -> std::optional<joint_model::JointProfile>                                     = 0;
   virtual auto GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> = 0;
+  virtual auto GetLatestSnake()
+      -> std::optional<std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>>                   = 0;
   virtual auto SliceDegraded() -> bool                                                                    = 0;
   virtual void Reset()                                                                                    = 0;
 };
