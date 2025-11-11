@@ -47,7 +47,7 @@ TEST_SUITE("Slice provider") {
 
     auto tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    auto confidence = get<1>(tracking.value());
+    auto confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::HIGH);
 
     slice_provider.Reset();
@@ -65,7 +65,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -84,7 +84,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -105,7 +105,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -124,7 +124,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::LOW);
   }
 
@@ -144,11 +144,13 @@ TEST_SUITE("Slice provider") {
     slice.snake_points[1] = {.horizontal = 0.02, .vertical = -0.0015};
 
     slice_provider.AddSlice(slice);
+    slice_provider.AddSlice(slice);
+    slice_provider.AddSlice(slice);
 
-    auto latest_snake = slice_provider.GetLatestSnake();
-    CHECK(latest_snake.has_value());
-    CHECK_EQ(latest_snake->at(0).horizontal, doctest::Approx(0.01));
-    CHECK_EQ(latest_snake->at(1).vertical, doctest::Approx(-0.0015));
+    auto latest_tracking = slice_provider.GetTrackingSlice();
+    CHECK(latest_tracking.has_value());
+    CHECK_EQ(latest_tracking->snake.at(0).horizontal, doctest::Approx(0.01));
+    CHECK_EQ(latest_tracking->snake.at(1).vertical, doctest::Approx(-0.0015));
   }
 }
 }  // namespace scanner::slice_provider

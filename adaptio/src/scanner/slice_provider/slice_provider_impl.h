@@ -19,14 +19,12 @@ class SliceProviderImpl : public SliceProvider {
   explicit SliceProviderImpl(joint_buffer::JointBufferPtr joint_buffer,
                              clock_functions::SteadyClockNowFunc steady_clock_now_func);
 
-    void AddSlice(const scanner::joint_buffer::JointSlice& slice) override;
-    auto GetSlice() -> std::optional<joint_model::JointProfile> override;
-    auto GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> override;
-    auto GetLatestSnake()
-        -> std::optional<std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>> override;
-    auto SliceDegraded() -> bool override { return slice_degraded_; };
-    void Reset() override;
-    auto GetLatestSlice() -> std::optional<scanner::joint_buffer::JointSlice> { return joint_buffer_->GetSlice(); };
+  void AddSlice(const scanner::joint_buffer::JointSlice& slice) override;
+  auto GetSlice() -> std::optional<joint_model::JointProfile> override;
+  auto GetTrackingSlice() -> std::optional<TrackingSlice> override;
+  auto SliceDegraded() -> bool override { return slice_degraded_; };
+  void Reset() override;
+  auto GetLatestSlice() -> std::optional<scanner::joint_buffer::JointSlice> { return joint_buffer_->GetSlice(); };
 
  private:
   auto GetLatestTimestamp() const -> std::optional<Timestamp> { return joint_buffer_->GetLatestTimestamp(); };
@@ -34,7 +32,7 @@ class SliceProviderImpl : public SliceProvider {
   auto GetConfidence(joint_buffer::JointSlice slice) -> SliceConfidence;
 
   joint_buffer::JointBufferPtr joint_buffer_;
-  std::tuple<common::Groove, SliceConfidence> latest_slice_;
+  TrackingSlice latest_slice_;
   std::optional<std::chrono::time_point<std::chrono::steady_clock>> last_sent_ts_;
   bool slice_degraded_{false};
   clock_functions::SteadyClockNowFunc steady_clock_now_func_;
