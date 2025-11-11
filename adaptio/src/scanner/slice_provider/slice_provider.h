@@ -19,9 +19,9 @@ using Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct TrackingSlice {
   common::Groove groove;
-  std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE> snake;
-  uint64_t timestamp;
-  SliceConfidence confidence;
+  std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE> snake{};
+  uint64_t timestamp{0};
+  SliceConfidence confidence{SliceConfidence::NO};
 };
 
 class SliceProvider {
