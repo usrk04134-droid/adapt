@@ -6,7 +6,6 @@
 #include <prometheus/registry.h>
 
 #include <array>
-#include <algorithm>
 #include <boost/asio/post.hpp>
 #include <chrono>
 #include <cmath>
@@ -25,7 +24,6 @@
 #include <vector>
 
 #include "common/logging/application_log.h"
-#include "common/math/lin_interp.h"
 #include "scanner/core/scanner.h"
 #include "scanner/core/scanner_types.h"
 #include "scanner/image/camera_model.h"
@@ -36,66 +34,6 @@
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/slice_provider.h"
-
-namespace {
-constexpr double kSnakeInterpolationMarginMeters = 20.0e-3;
-constexpr double kDuplicateEpsilon               = 1e-9;
-
-auto InterpolateSnakeForOutput(
-    const common::Groove& groove,
-    const std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>& source_snake)
-    -> std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE> {
-  auto interpolated_snake = source_snake;
-
-  if (!groove.IsValid()) {
-    return interpolated_snake;
-  }
-
-  const double start = groove[common::ABW_UPPER_LEFT].horizontal - kSnakeInterpolationMarginMeters;
-  const double stop  = groove[common::ABW_UPPER_RIGHT].horizontal + kSnakeInterpolationMarginMeters;
-
-  if (!std::isfinite(start) || !std::isfinite(stop) || start >= stop) {
-    return interpolated_snake;
-  }
-
-  std::vector<std::tuple<double, double>> segments;
-  segments.reserve(source_snake.size());
-
-  for (const auto& point : source_snake) {
-    if (!std::isfinite(point.horizontal) || !std::isfinite(point.vertical)) {
-      continue;
-    }
-    segments.emplace_back(point.horizontal, point.vertical);
-  }
-
-  if (segments.size() < 2) {
-    return interpolated_snake;
-  }
-
-  std::sort(segments.begin(), segments.end(),
-            [](const auto& lhs, const auto& rhs) { return std::get<0>(lhs) < std::get<0>(rhs); });
-
-  const auto unique_end = std::unique(segments.begin(), segments.end(), [](const auto& lhs, const auto& rhs) {
-    return std::abs(std::get<0>(lhs) - std::get<0>(rhs)) < kDuplicateEpsilon;
-  });
-  segments.erase(unique_end, segments.end());
-
-  if (segments.size() < 2) {
-    return interpolated_snake;
-  }
-
-  const auto x_samples =
-      common::math::lin_interp::linspace(start, stop, joint_model::INTERPOLATED_SNAKE_SIZE);
-  const auto y_samples = common::math::lin_interp::lin_interp_2d(x_samples, segments);
-
-  const auto sample_count = std::min(x_samples.size(), y_samples.size());
-  for (std::size_t idx = 0; idx < sample_count; ++idx) {
-    interpolated_snake[idx] = {.horizontal = x_samples[idx], .vertical = y_samples[idx]};
-  }
-
-  return interpolated_snake;
-}
-}  // namespace
 
 namespace scanner {
 // #define DEBUG_RESULT_OUTPUT 1
@@ -399,11 +337,10 @@ void ScannerImpl::Update() {
   if (tracking_data.has_value()) {
     auto [groove, confidence, time_stamp] = tracking_data.value();
 
-    auto interpolated_snake =
-        latest_snake_samples.transform([&groove](const auto& snake) { return InterpolateSnakeForOutput(groove, snake); })
-            .value_or(std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>{});
+    auto latest_snake = latest_snake_samples.value_or(
+        std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>{});
 
-    scanner_output_->ScannerOutput(groove, interpolated_snake, time_stamp, confidence);
+    scanner_output_->ScannerOutput(groove, latest_snake, time_stamp, confidence);
   } else {
     // This should not happen
     LOG_ERROR("No slice sent due to missing ABW points.");
