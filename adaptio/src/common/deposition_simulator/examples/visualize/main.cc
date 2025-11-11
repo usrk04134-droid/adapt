@@ -189,15 +189,15 @@ auto main() -> int {  // NOLINT(readability*)
 
   // Get the equivalent of ABW points in slice at torch plane. Can be useful in order to understand
   // where torch is located in relation to the joint.
-  std::vector<Point3d> slice_at_torch = simulator->GetSliceInTorchPlane(MACS);
+  std::vector<std::optional<Point3d>> slice_at_torch = simulator->GetSliceInTorchPlane(MACS);
   for (const auto &point : slice_at_torch) {
-    std::cout << point.GetX() << ", " << point.GetY() << ", " << point.GetZ() << "\n";
+    std::cout << point->GetX() << ", " << point->GetY() << ", " << point->GetZ() << "\n";
   }
 
   // This is how to get simulated touch sense points with torch.
   // First position torch at top center point
   const double stickout_at_touch = 15e-3;  // mm
-  Eigen::Vector3d center_top     = (slice_at_torch.at(0).ToVec() + slice_at_torch.at(6).ToVec()) / 2;
+  Eigen::Vector3d center_top     = (slice_at_torch.at(0)->ToVec() + slice_at_torch.at(6)->ToVec()) / 2;
   Point3d new_torch_pos          = {center_top(0), center_top(1), center_top(2), MACS};
   simulator->UpdateTorchPosition(new_torch_pos);
 
@@ -205,7 +205,7 @@ auto main() -> int {  // NOLINT(readability*)
   std::optional<Point3d> touch_point_left = simulator->TouchLeftWall(stickout_at_touch);
 
   // Check that torch was moved to the wall (minus wire radius)
-  Point3d curr_torch_pos = simulator->GetTorchPosition();
+  Point3d curr_torch_pos = simulator->GetTorchPosition(deposition_simulator::MACS);
   std::cout << "Torch pos left: " << curr_torch_pos.GetX() << ", " << curr_torch_pos.GetY() << ", "
             << curr_torch_pos.GetZ() << "\n";
 
@@ -213,7 +213,7 @@ auto main() -> int {  // NOLINT(readability*)
   std::optional<Point3d> touch_point_right = simulator->TouchRightWall(stickout_at_touch);
 
   // Check that torch was moved to the wall (minus wire radius)
-  curr_torch_pos = simulator->GetTorchPosition();
+  curr_torch_pos = simulator->GetTorchPosition(deposition_simulator::MACS);
   std::cout << "Torch pos right: " << curr_torch_pos.GetX() << ", " << curr_torch_pos.GetY() << ", "
             << curr_torch_pos.GetZ() << "\n";
 

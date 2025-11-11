@@ -10,7 +10,7 @@
 
 #include "bead_control/src/bead_control_impl.h"
 #include "calibration/calibration_configuration.h"
-#include "calibration/src/calibration_manager_v2_impl.h"
+#include "calibration/src/calibration_manager_impl.h"
 #include "calibration/src/calibration_metrics.h"
 #include "calibration/src/calibration_solver_impl.h"
 #include "cli_handler/src/log_level_cli.h"
@@ -29,7 +29,6 @@
 #include "slice_translator/src/coordinates_translator.h"
 #include "slice_translator/src/model_impl.h"
 #include "tracking/src/tracking_manager_impl.h"
-#include "web_hmi/src/service_mode_manager_impl.h"
 #include "web_hmi/src/web_hmi_server.h"
 #include "weld_control/src/delay_buffer.h"
 #include "weld_control/src/settings_provider.h"
@@ -126,10 +125,10 @@ auto Application::Run(const std::string& event_loop_name, const std::string& end
   image_logging_manager_ = std::make_unique<image_logging::ImageLoggingManagerImpl>(
       image_logger_config, web_hmi_server_.get(), scanner_client_.get());
 
-  // Calibration V2
+  // Calibration
   calibration_solver_ = std::make_unique<calibration::CalibrationSolverImpl>(model_impl_.get());
 
-  calibration_manager_v2_ = std::make_unique<calibration::CalibrationManagerV2Impl>(
+  calibration_manager_ = std::make_unique<calibration::CalibrationManagerImpl>(
       database_, timer_.get(), scanner_client_.get(), calibration_solver_.get(), model_impl_.get(),
       activity_status_.get(), web_hmi_server_.get(), joint_geometry_provider_.get(), system_clock_now_func_,
       kinematics_client_.get(), registry_, path_logs_, configuration_->GetCalibrationConfiguration().grid_config,
@@ -155,16 +154,13 @@ auto Application::Run(const std::string& event_loop_name, const std::string& end
       scanner_client_.get(), timer_.get(), event_handler_.get(), bead_control_.get(), delay_buffer_.get(),
       system_clock_now_func_, steady_clock_now_func_, registry_, image_logging_manager_.get(), model_impl_.get(),
       database_);
-  service_mode_manager_ = std::make_unique<web_hmi::ServiceModeManagerImpl>(
-      web_hmi_out_socket_.get(), kinematics_client_.get(), joint_geometry_provider_.get(), weld_control_.get(),
-      activity_status_.get(), web_hmi_server_.get());
 
   auto shutdown_handler = [this]() {
     in_shutdown_ = true;
     this->Exit();
   };
   management_server_ = std::make_unique<management::ManagementServer>(
-      management_socket_.get(), joint_geometry_provider_.get(), activity_status_.get(), calibration_manager_v2_.get(),
+      management_socket_.get(), joint_geometry_provider_.get(), activity_status_.get(), calibration_manager_.get(),
       weld_control_.get(), shutdown_handler);
 
   coordinates_translator_->AddObserver(weld_control_.get());

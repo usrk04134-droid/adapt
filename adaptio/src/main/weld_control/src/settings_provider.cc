@@ -24,7 +24,8 @@ SettingsProvider::SettingsProvider(SQLite::Database* db, web_hmi::WebHmi* web_hm
   web_hmi_->Subscribe("SetSettings", [this](std::string const&, const nlohmann::json& payload) {
     auto settings = Settings::FromJson(payload);
     bool ok       = settings.has_value() && settings_storage_.Store(settings.value());
-    web_hmi_->Send("SetSettingsRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD);
+    web_hmi_->Send("SetSettingsRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD,
+                   ok ? std::optional<std::string>{} : std::make_optional("Unable to set the settings"), std::nullopt);
 
     if (ok && on_update_) {
       on_update_();
@@ -33,7 +34,7 @@ SettingsProvider::SettingsProvider(SQLite::Database* db, web_hmi::WebHmi* web_hm
 
   web_hmi_->Subscribe("GetSettings", [this](std::string const&, const nlohmann::json&) {
     auto settings = settings_storage_.Get().value_or(Settings{});
-    web_hmi_->Send("GetSettingsRsp", settings.ToJson());
+    web_hmi_->Send("GetSettingsRsp", SUCCESS_PAYLOAD, settings.ToJson());
   });
 }
 

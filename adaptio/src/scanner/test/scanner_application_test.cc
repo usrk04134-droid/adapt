@@ -4,7 +4,6 @@
 #include <doctest/doctest.h>
 #include <prometheus/registry.h>
 
-#include <array>
 #include <boost/outcome.hpp>
 #include <memory>
 #include <optional>
@@ -13,6 +12,7 @@
 #include <utility>
 
 #include "common/groove/groove.h"
+#include "common/groove/point.h"
 #include "common/messages/scanner.h"
 #include "common/zevs/zevs_core.h"
 #include "common/zevs/zevs_socket.h"
@@ -78,7 +78,8 @@ TEST_SUITE("Test Scanner Adapter Scanner") {
 
     common::Groove groove;
 
-    factory.GetScannerOutput()->ScannerOutput(groove, 1, slice_provider::SliceConfidence::HIGH);
+    factory.GetScannerOutput()->ScannerOutput(groove, std::array<common::Point, 100>(), 1,
+                                              slice_provider::SliceConfidence::HIGH);
 
     auto output_msg = scanner_mocket->Receive<common::msg::scanner::SliceData>();
 

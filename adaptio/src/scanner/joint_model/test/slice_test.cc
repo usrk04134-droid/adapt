@@ -12,11 +12,11 @@
 #include "scanner/joint_model/src/slice.h"
 #include "slice_test_data.h"
 
+using common::Point;
 using Eigen::Index;
 using Eigen::RowVectorXd;
 using scanner::image::WorkspaceCoordinates;
 using scanner::joint_model::JointProperties;
-using scanner::joint_model::Point;
 using scanner::joint_model::Slice;
 
 TEST_SUITE("Test Slice") {
@@ -75,10 +75,10 @@ TEST_SUITE("Test Slice") {
     auto [points, num_wall, approximation_used] = result.value();
 
     CHECK(num_wall == 0);
-    CHECK(points[0].x == abw0_approximation);
-    CHECK(std::fabs(points[0].y) < 0.0001);
-    CHECK(std::fabs(points[6].x - abw6_approximation) < 0.000001);
-    CHECK(std::fabs(points[6].y) < 0.0001);
+    CHECK(points[0].horizontal == abw0_approximation);
+    CHECK(std::fabs(points[0].vertical) < 0.0001);
+    CHECK(std::fabs(points[6].horizontal - abw6_approximation) < 0.000001);
+    CHECK(std::fabs(points[6].vertical) < 0.0001);
   }
   TEST_CASE("FromSnake - faulty approximation data") {
     // Snake is a straight line
@@ -121,21 +121,21 @@ TEST_SUITE("Test Slice") {
 
     CHECK(num_walls == 2);
     CHECK(!approximation_used);
-    CHECK(fabs(abw_points[0].x - 0.0610796) < 0.00001);
-    CHECK(fabs(abw_points[0].y - -0.280483) < 0.00001);
-    CHECK(fabs(abw_points[6].x - 0.0892176) < 0.00001);
-    CHECK(fabs(abw_points[6].y - -0.28038) < 0.00001);
+    CHECK(fabs(abw_points[0].horizontal - 0.0610796) < 0.00001);
+    CHECK(fabs(abw_points[0].vertical - -0.280483) < 0.00001);
+    CHECK(fabs(abw_points[6].horizontal - 0.0892176) < 0.00001);
+    CHECK(fabs(abw_points[6].vertical - -0.28038) < 0.00001);
 
-    CHECK(abw_points[0].x < abw_points[1].x);
-    CHECK(abw_points[1].x < abw_points[2].x);
-    CHECK(abw_points[2].x < abw_points[3].x);
-    CHECK(abw_points[3].x < abw_points[4].x);
-    CHECK(abw_points[4].x < abw_points[5].x);
-    CHECK(abw_points[5].x < abw_points[6].x);
+    CHECK(abw_points[0].horizontal < abw_points[1].horizontal);
+    CHECK(abw_points[1].horizontal < abw_points[2].horizontal);
+    CHECK(abw_points[2].horizontal < abw_points[3].horizontal);
+    CHECK(abw_points[3].horizontal < abw_points[4].horizontal);
+    CHECK(abw_points[4].horizontal < abw_points[5].horizontal);
+    CHECK(abw_points[5].horizontal < abw_points[6].horizontal);
 
     // Use same abw0 aw6 as approximation points but move them 2mm horizontal
-    auto abw0 = abw_points[0].x + 0.002;
-    auto abw6 = abw_points[6].x + 0.002;
+    auto abw0 = abw_points[0].horizontal + 0.002;
+    auto abw6 = abw_points[6].horizontal + 0.002;
 
     std::tuple<double, double> abw0_abw6 = {abw0, abw6};
     result = Slice::FromSnake(snake, properties1, std::nullopt, found_out_of_spec_joint_width, false, true, abw0_abw6);
@@ -146,15 +146,15 @@ TEST_SUITE("Test Slice") {
 
     CHECK(approximation_used);
     CHECK(num_walls == 0);
-    CHECK(fabs(abw_points[0].x - (0.0610796 + 0.002)) < 0.00001);
-    CHECK(fabs(abw_points[6].x - (0.0892176 + 0.002)) < 0.00001);
+    CHECK(fabs(abw_points[0].horizontal - (0.0610796 + 0.002)) < 0.00001);
+    CHECK(fabs(abw_points[6].horizontal - (0.0892176 + 0.002)) < 0.00001);
 
-    CHECK(abw_points[0].x < abw_points[1].x);
-    CHECK(abw_points[1].x < abw_points[2].x);
-    CHECK(abw_points[2].x < abw_points[3].x);
-    CHECK(abw_points[3].x < abw_points[4].x);
-    CHECK(abw_points[4].x < abw_points[5].x);
-    CHECK(abw_points[5].x < abw_points[6].x);
+    CHECK(abw_points[0].horizontal < abw_points[1].horizontal);
+    CHECK(abw_points[1].horizontal < abw_points[2].horizontal);
+    CHECK(abw_points[2].horizontal < abw_points[3].horizontal);
+    CHECK(abw_points[3].horizontal < abw_points[4].horizontal);
+    CHECK(abw_points[4].horizontal < abw_points[5].horizontal);
+    CHECK(abw_points[5].horizontal < abw_points[6].horizontal);
   }
 
   TEST_CASE("FromSnake - real snake no wall ") {
@@ -185,16 +185,16 @@ TEST_SUITE("Test Slice") {
     auto [profile, num_walls, approximation_used] = result.value();
     CHECK(!approximation_used);
     CHECK(num_walls == 0);
-    CHECK(profile[0].x - 0.0454 < 0.0001);
-    CHECK(profile[0].y - -0.292 < 0.);
-    CHECK(profile[6].x - 0.0764 < 0.0001);
-    CHECK(profile[6].y - -0.292 < 0.);
-    CHECK(profile[0].x < profile[1].x);
-    CHECK(profile[1].x < profile[2].x);
-    CHECK(profile[2].x < profile[3].x);
-    CHECK(profile[3].x < profile[4].x);
-    CHECK(profile[4].x < profile[5].x);
-    CHECK(profile[5].x < profile[6].x);
+    CHECK(profile[0].horizontal - 0.0454 < 0.0001);
+    CHECK(profile[0].vertical - -0.292 < 0.);
+    CHECK(profile[6].horizontal - 0.0764 < 0.0001);
+    CHECK(profile[6].vertical - -0.292 < 0.);
+    CHECK(profile[0].horizontal < profile[1].horizontal);
+    CHECK(profile[1].horizontal < profile[2].horizontal);
+    CHECK(profile[2].horizontal < profile[3].horizontal);
+    CHECK(profile[3].horizontal < profile[4].horizontal);
+    CHECK(profile[4].horizontal < profile[5].horizontal);
+    CHECK(profile[5].horizontal < profile[6].horizontal);
 
     // Use approximation
     std::tuple<double, double> approx = {0.03, 0.06};
@@ -206,14 +206,14 @@ TEST_SUITE("Test Slice") {
     auto [p, nw, a] = result.value();
     CHECK(a);
     CHECK(nw == 0);
-    CHECK(p[0].x == 0.03);
-    CHECK(p[6].x == 0.06);
-    CHECK(profile[0].x < profile[1].x);
-    CHECK(profile[1].x < profile[2].x);
-    CHECK(profile[2].x < profile[3].x);
-    CHECK(profile[3].x < profile[4].x);
-    CHECK(profile[4].x < profile[5].x);
-    CHECK(profile[5].x < profile[6].x);
+    CHECK(p[0].horizontal == 0.03);
+    CHECK(p[6].horizontal == 0.06);
+    CHECK(profile[0].horizontal < profile[1].horizontal);
+    CHECK(profile[1].horizontal < profile[2].horizontal);
+    CHECK(profile[2].horizontal < profile[3].horizontal);
+    CHECK(profile[3].horizontal < profile[4].horizontal);
+    CHECK(profile[4].horizontal < profile[5].horizontal);
+    CHECK(profile[5].horizontal < profile[6].horizontal);
   }
   TEST_CASE("FromSnake - real snake cap ") {
     // Better way to initialize a snake from vector?
@@ -244,17 +244,17 @@ TEST_SUITE("Test Slice") {
     auto [profile, num_walls, approximation_used] = result.value();
     CHECK(approximation_used);
     CHECK(num_walls == 0);
-    CHECK(profile[0].x - approx_abw0_x < 0.0001);
-    CHECK(profile[0].y - -0.280 < 0.);
-    CHECK(profile[6].x - approx_abw6_x < 0.0001);
-    CHECK(profile[6].y - -0.280 < 0.);
+    CHECK(profile[0].horizontal - approx_abw0_x < 0.0001);
+    CHECK(profile[0].vertical - -0.280 < 0.);
+    CHECK(profile[6].horizontal - approx_abw6_x < 0.0001);
+    CHECK(profile[6].vertical - -0.280 < 0.);
 
-    CHECK(profile[0].x == profile[1].x);
-    CHECK(profile[1].x < profile[2].x);
-    CHECK(profile[2].x < profile[3].x);
-    CHECK(profile[3].x < profile[4].x);
-    CHECK(profile[4].x < profile[5].x);
-    CHECK(profile[5].x == profile[6].x);
+    CHECK(profile[0].horizontal == profile[1].horizontal);
+    CHECK(profile[1].horizontal < profile[2].horizontal);
+    CHECK(profile[2].horizontal < profile[3].horizontal);
+    CHECK(profile[3].horizontal < profile[4].horizontal);
+    CHECK(profile[4].horizontal < profile[5].horizontal);
+    CHECK(profile[5].horizontal == profile[6].horizontal);
   }
   TEST_CASE("FromSnake - approx data") {
     bool found_out_of_spec_joint_width = false;
@@ -304,28 +304,28 @@ TEST_SUITE("Test Slice") {
       index++;
     }
 
-    auto approximation = std::make_tuple(abw0.x, abw6.x);
+    auto approximation = std::make_tuple(abw0.horizontal, abw6.horizontal);
     auto result =
         Slice::FromSnake(snake, properties1, std::nullopt, found_out_of_spec_joint_width, false, true, approximation);
     CHECK(result);
     auto [profile, a, b] = result.value();
-    CHECK_EQ(profile[0].x, abw0.x);
-    CHECK_EQ(profile[0].y, abw0.y);
-    CHECK_EQ(profile[6].x, abw6.x);
-    CHECK_EQ(profile[6].y, abw6.y);
+    CHECK_EQ(profile[0].horizontal, abw0.horizontal);
+    CHECK_EQ(profile[0].vertical, abw0.vertical);
+    CHECK_EQ(profile[6].horizontal, abw6.horizontal);
+    CHECK_EQ(profile[6].vertical, abw6.vertical);
 
     // Move approximation into groove i.e. burnt walls
-    approximation = std::make_tuple(abw0.x + 0.003, abw6.x - 0.003);
+    approximation = std::make_tuple(abw0.horizontal + 0.003, abw6.horizontal - 0.003);
     result =
         Slice::FromSnake(snake, properties1, std::nullopt, found_out_of_spec_joint_width, false, true, approximation);
     CHECK(result);
     auto [profile1, c, d] = result.value();
     // Expect abw0/6 to be on same horizontal position as approximation
     // Expect abw0/6 to be on same vertical position as surface line
-    CHECK_EQ(profile1[0].x, abw0.x + 0.003);
-    CHECK_EQ(profile1[0].y, abw0.y);
-    CHECK_EQ(profile1[6].x, abw6.x - 0.003);
-    CHECK_EQ(profile1[6].y, abw6.y);
+    CHECK_EQ(profile1[0].horizontal, abw0.horizontal + 0.003);
+    CHECK_EQ(profile1[0].vertical, abw0.vertical);
+    CHECK_EQ(profile1[6].horizontal, abw6.horizontal - 0.003);
+    CHECK_EQ(profile1[6].vertical, abw6.vertical);
   }
 }
 #endif

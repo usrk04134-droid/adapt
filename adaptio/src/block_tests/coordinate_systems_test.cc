@@ -1,4 +1,5 @@
 #include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -65,11 +66,11 @@ TEST_SUITE("Coordinate_systems") {
     // Get Groove data (MACS)
     double groove_point_0_horizontal{};
     {
-      auto get_groove = web_hmi::CreateMessage("GetGroove", {});
+      auto get_groove = web_hmi::CreateMessage("GetGroove", std::nullopt, {});
       fixture.WebHmiIn()->DispatchMessage(std::move(get_groove));
 
       auto groove_payload = ReceiveJsonByName(fixture, "GetGrooveRsp");
-      auto groove         = GrooveFromPayload(groove_payload);
+      auto groove         = GrooveFromPayload(groove_payload.at("payload"));
       CHECK(groove.size() > 0);
       groove_point_0_horizontal = groove[0].horizontal;
     }
@@ -91,11 +92,11 @@ TEST_SUITE("Coordinate_systems") {
     // Get Groove data (MACS)
     double groove_point_0_horizontal_shifted{};
     {
-      auto get_groove = web_hmi::CreateMessage("GetGroove", {});
+      auto get_groove = web_hmi::CreateMessage("GetGroove", std::nullopt, {});
       fixture.WebHmiIn()->DispatchMessage(std::move(get_groove));
 
       auto groove_payload = ReceiveJsonByName(fixture, "GetGrooveRsp");
-      auto groove         = GrooveFromPayload(groove_payload);
+      auto groove         = GrooveFromPayload(groove_payload.at("payload"));
       CHECK(groove.size() > 0);
       groove_point_0_horizontal_shifted = groove[0].horizontal;
     }

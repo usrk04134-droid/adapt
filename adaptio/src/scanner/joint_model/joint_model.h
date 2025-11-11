@@ -2,42 +2,29 @@
 
 #include <fmt/format.h>
 
+#include <array>
 #include <boost/outcome.hpp>
 #include <Eigen/Eigen>
 #include <expected>
 #include <string>
 #include <vector>
 
+#include "common/groove/groove.h"
 #include "scanner/core/scanner_configuration.h"
 #include "scanner/image/camera_model.h"
 
 namespace scanner::joint_model {
 
-const double HIGH_CONFIDENCE_WALL_HEIGHT   = 0.007;
-const double MEDIUM_CONFIDENCE_WALL_HEIGHT = 0.006;
+const double HIGH_CONFIDENCE_WALL_HEIGHT             = 0.007;
+const double MEDIUM_CONFIDENCE_WALL_HEIGHT           = 0.006;
+inline constexpr std::size_t INTERPOLATED_SNAKE_SIZE = 100;
 
-struct Point {
-  double x = 0;
-  double y = 0;
-  friend auto operator<<(std::ostream& output_stream, const Point& p) -> std::ostream& {
-    output_stream << "(" << p.x << "," << p.y << ")";
-    return output_stream;
-  }
-  auto operator+(const Point& o) -> Point { return Point{x + o.x, y + o.y}; }
-  auto operator-(const Point& o) -> Point { return Point{x - o.x, y - o.y}; }
-  auto operator*(double f) -> Point { return Point{x * f, y * f}; }
-
-  auto TranslatedHorizontally(double offset) -> Point { return Point{x + offset, y}; }
-};
-
-using ABWPoints = std::array<Point, 7>;
-
-inline auto ABWPointsToMatrix(ABWPoints a) -> image::WorkspaceCoordinates {
+inline auto ABWPointsToMatrix(common::Groove a) -> image::WorkspaceCoordinates {
   auto out = image::WorkspaceCoordinates(3, 7);
   out.setZero();
   for (int i = 0; i < 7; i++) {
-    out(0, i) = a[i].x;
-    out(1, i) = a[i].y;
+    out(0, i) = a[i].horizontal;
+    out(1, i) = a[i].vertical;
   }
   return out;
 }
@@ -106,7 +93,7 @@ struct LineSegment {
 
   explicit LineSegment(double k, double m) : k(k), m(m) {}
 
-  explicit LineSegment(Point p, double angle) : k(tan(angle)), m(p.y - tan(angle) * p.x) {}
+  explicit LineSegment(common::Point p, double angle) : k(tan(angle)), m(p.vertical - tan(angle) * p.horizontal) {}
 
   explicit LineSegment(Eigen::Index number_of_inliers) : k(0.0), m(0.0), x_limits({0.0, 0.0}), theta(0.0) {
     inliers_indices = std::vector<int>(number_of_inliers);
@@ -153,21 +140,10 @@ struct LineSegment {
 };
 
 struct JointProfile {
-  ABWPoints points = {
-      Point{0, 0},
-      Point{0, 0},
-      Point{0, 0},
-      Point{0, 0},
-      Point{0, 0},
-      Point{0, 0},
-      Point{0, 0}
-  };
+  common::Groove groove;
   std::tuple<int, int> vertical_limits        = {0, 0};
-  std::tuple<int, int> horizontal_limits      = {0, 0};
   std::optional<double> suggested_gain_change = std::nullopt;
   bool approximation_used                     = false;
-  auto LeftDepth() const -> double { return points[0].y - points[1].y; };
-  auto RightDepth() const -> double { return points[6].y - points[5].y; };
 };
 
 class JointModel {
@@ -195,12 +171,12 @@ class JointModel {
   virtual auto Parse(image::Image& image, std::optional<JointProfile> median_profile,
                      std::optional<JointProperties> updated_properties, bool use_approximation,
                      std::optional<std::tuple<double, double>> abw0_abw6_horizontal)
-      -> std::expected<std::tuple<JointProfile, image::WorkspaceCoordinates, uint64_t, uint64_t>,
+      -> std::expected<std::tuple<JointProfile, std::array<common::Point, INTERPOLATED_SNAKE_SIZE>, uint64_t, uint64_t>,
                        JointModelErrorCode> = 0;
 
-  auto WorkspaceToImage(const image::WorkspaceCoordinates& workspace_coordinates, int vertical_crop_offset, int horizontal_crop_offset) const
+  auto WorkspaceToImage(const image::WorkspaceCoordinates& workspace_coordinates, int vertical_crop_offset) const
       -> boost::outcome_v2::result<image::PlaneCoordinates> {
-    return camera_model_->WorkspaceToImage(workspace_coordinates, vertical_crop_offset, horizontal_crop_offset);
+    return camera_model_->WorkspaceToImage(workspace_coordinates, vertical_crop_offset);
   };
 
   static auto FitPoints(const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>& x_and_y,

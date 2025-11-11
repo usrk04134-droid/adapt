@@ -21,6 +21,7 @@
 #include "bead_control/bead_control.h"
 #include "bead_control/bead_control_types.h"
 #include "bead_control/src/bead_calculations.h"
+#include "bead_control/src/weld_position_data_buffer.h"
 #include "common/clock_functions.h"
 #include "common/groove/groove.h"
 #include "common/groove/point.h"

@@ -30,16 +30,12 @@ class ImageProvider {
   virtual void Stop()                                                                                 = 0;
   virtual auto Started() const -> bool                                                                = 0;
 
-  virtual void ResetFOVAndGain()                                 = 0;
-  virtual void SetVerticalFOV(int offset_from_top, int height)   = 0;
-  virtual void SetHorizontalFOV(int offset_from_left, int width) = 0;
-  virtual void AdjustGain(double factor)                         = 0;
-  virtual auto GetVerticalFOVOffset() -> int                     = 0;
-  virtual auto GetVerticalFOVHeight() -> int                     = 0;
-  virtual auto GetHorizontalFOVOffset() -> int                   = 0;
-  virtual auto GetHorizontalFOVWidth() -> int                    = 0;
-  virtual auto GetMaxHorizontalWidth() -> int                    = 0;
-  virtual auto GetSerialNumber() -> std::string                  = 0;
+  virtual void ResetFOVAndGain()                               = 0;
+  virtual void SetVerticalFOV(int offset_from_top, int height) = 0;
+  virtual void AdjustGain(double factor)                       = 0;
+  virtual auto GetVerticalFOVOffset() -> int                   = 0;
+  virtual auto GetVerticalFOVHeight() -> int                   = 0;
+  virtual auto GetSerialNumber() -> std::string                = 0;
 };
 
 using ImageProviderPtr = std::unique_ptr<ImageProvider>;

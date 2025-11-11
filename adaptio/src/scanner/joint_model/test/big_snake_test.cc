@@ -1,11 +1,18 @@
 #include "scanner/joint_model/big_snake.h"
 
-#include <fmt/std.h>
+#include <fmt/core.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
+#include <numbers>
+#include <opencv2/imgcodecs.hpp>
+#include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "common/logging/application_log.h"
@@ -58,7 +65,7 @@ static std::vector<std::filesystem::path> GetImageFiles(std::filesystem::path co
       if (std::filesystem::exists(abs)) {
         image_files.push_back(abs);
       } else {
-        LOG_INFO("Listed test image not found, skipping: {} (looked at {})", td.filename, abs);
+        LOG_INFO("Listed test image not found, skipping: {} (looked at {})", td.filename, abs.string());
       }
     } else {
       LOG_INFO("Skipping non-tiff listed file: {}", td.filename);
@@ -324,12 +331,12 @@ TEST_SUITE("Test Big Snake") {
           auto big_snake = scanner::joint_model::BigSnake(test_data.joint_properties, test_data.scanner_config,
                                                           std::move(camera_model));
 
-          LOG_TRACE("Reading image from {}", abs_path);
+          LOG_TRACE("Reading image from {}", abs_path.string());
           auto grayscale_image = imread(abs_path.string(), cv::IMREAD_GRAYSCALE);
           REQUIRE_MESSAGE(!grayscale_image.empty(),
-                          fmt::format("Failed to read image: {} (absolute: {})", td.filename, abs_path));
+                          fmt::format("Failed to read image: {} (absolute: {})", td.filename, abs_path.string()));
 
-          auto maybe_image = scanner::image::ImageBuilder::From(grayscale_image, td.filename, 0, 0).Finalize();
+          auto maybe_image = scanner::image::ImageBuilder::From(grayscale_image, td.filename, 0).Finalize();
           auto* image      = maybe_image.value().get();
 
           auto res = big_snake.Parse(*image, {}, {}, false, {});
@@ -343,8 +350,8 @@ TEST_SUITE("Test Big Snake") {
           // Check all 7 points with tolerances
           const double tol_mm = 0.49;  // tolerance in mm
           for (size_t i = 0; i < 7; ++i) {
-            const double dx_mm = (td.expected_points[i].x - profile.points[i].x) * 1000.0;
-            const double dy_mm = (td.expected_points[i].y - profile.points[i].y) * 1000.0;
+            const double dx_mm = (td.expected_points[i].x - profile.groove[i].horizontal) * 1000.0;
+            const double dy_mm = (td.expected_points[i].y - profile.groove[i].vertical) * 1000.0;
             const double dist  = std::sqrt(dx_mm * dx_mm + dy_mm * dy_mm);
             CHECK_MESSAGE(dist <= tol_mm,
                           "image_id=" << td.filename << ": ABW" << i << " distance " << dist << "mm exceeds tolerance");

@@ -295,7 +295,9 @@ auto Simulator::UpdateTorchPosition(Point3d &torchpos_macs) -> void {
   this->transformer_->SetTorchPos(new_torchpos_macs);
 }
 
-auto Simulator::GetTorchPosition() -> Point3d { return this->transformer_->GetTorchPos(MACS); }
+auto Simulator::GetTorchPosition(CoordinateSystem ref_system) -> Point3d {
+  return this->transformer_->GetTorchPos(ref_system);
+}
 
 auto Simulator::GetAbwPoints(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> {
   if (!CheckReadiness()) {
@@ -307,46 +309,50 @@ auto Simulator::GetAbwPoints(CoordinateSystem ref_system) const -> std::vector<s
   const Plane3d lp_lpcs          = Plane3d(Vector3d(0, 0, 1), {0, 0, 0, LPCS});
   const Plane3d lp_rocs          = this->transformer_->Transform(lp_lpcs, ROCS);
 
-  const std::vector<std::optional<Point3d>> abw_rocs =
-      this->weld_object_->GetAbwPointsInPlane(lp_rocs, lpcs_origin_rocs, true);
-  std::vector<std::optional<Point3d>> abw_ref;
-  Point3d tmp_ref;
-  for (const auto &abw_point : abw_rocs) {
-    if (abw_point.has_value()) {
-      tmp_ref = this->transformer_->Transform(abw_point.value(), ref_system);
-      abw_ref.push_back(tmp_ref);
-    } else {
-      abw_ref.push_back({});
-    }
-  }
-
-  return abw_ref;
+  return InternalGetSlicePointsInPlane(ref_system, lp_rocs, lpcs_origin_rocs);
 }
 
-// auto Simulator::GetAbwPointCoords(int slice_index, std::vector<double> &x_coords, std::vector<double> &y_coords)
-// const
-//     -> void {
-//   const JointSlice *slice                         = this->weld_object_->GetSlice(slice_index);
-//   const std::unique_ptr<std::vector<Point2d>> abw = slice->GetAbwPoints();
-
-//   if (abw == nullptr) {
-//     return;
-//   }
-
-//   for (auto &point : *abw) {
-//     x_coords.push_back(point.GetX());
-//     y_coords.push_back(point.GetY());
-//   }
-// }
-
-auto Simulator::GetJointSliceCoords(int slice_index, std::vector<double> &x_coords, std::vector<double> &y_coords) const
-    -> void {
+auto Simulator::GetLatestDepositedSlice(CoordinateSystem ref_system) const -> std::vector<Point3d> {
   if (!CheckReadiness()) {
     throw std::runtime_error("Simulator has not been initilized.");
   }
 
-  const JointSlice *slice = this->weld_object_->GetSlice(slice_index);
-  slice->GetSlicePoints(x_coords, y_coords);
+  Point3d torch_tip_macs = this->transformer_->GetTorchPos(MACS);
+  Point3d wire_tip_macs{torch_tip_macs.GetX(), torch_tip_macs.GetY(),
+                        torch_tip_macs.GetZ() /*- this->sim_config_.target_stickout*/, MACS};
+  Point3d wire_tip_rocs           = this->transformer_->Transform(wire_tip_macs, ROCS);
+  const double wire_tip_angle     = std::atan2(-wire_tip_rocs.GetY(), wire_tip_rocs.GetZ());
+  wire_tip_macs                   = this->transformer_->Transform(wire_tip_rocs, MACS);
+  std::vector<Point3d> slice_rocs = this->weld_object_->GetLatestDepositedSlice(wire_tip_angle);
+
+  // Change basis of points to ref_system
+  std::vector<Point3d> slice_in_ref_sys;
+  Point3d tmp_ref;
+  for (const auto &slice_point : slice_rocs) {
+    tmp_ref = this->transformer_->Transform(slice_point, ref_system);
+    slice_in_ref_sys.push_back(tmp_ref);
+  }
+
+  return slice_in_ref_sys;
+}
+
+auto Simulator::InternalGetSlicePointsInPlane(CoordinateSystem ref_system, const Plane3d &slice_plane_rocs,
+                                              const Point3d &filter_point_rocs) const
+    -> std::vector<std::optional<Point3d>> {
+  const std::vector<std::optional<Point3d>> abw_rocs =
+      this->weld_object_->GetAbwPointsInPlane(slice_plane_rocs, filter_point_rocs, true);
+  std::vector<std::optional<Point3d>> abws_in_ref_sys;
+  Point3d tmp_ref;
+  for (const auto &abw_point : abw_rocs) {
+    if (abw_point) {
+      tmp_ref = this->transformer_->Transform(abw_point.value(), ref_system);
+      abws_in_ref_sys.push_back(tmp_ref);
+    } else {
+      abws_in_ref_sys.push_back({});
+    }
+  }
+
+  return abws_in_ref_sys;
 }
 
 auto Simulator::ComputeVolumeDepositionRate() const -> double {
@@ -467,26 +473,16 @@ auto Simulator::InternalRun(double delta_angle, double bead_radius) -> void {  /
   // std::cout << "New torch plane angle:" << this->weld_object_->GetTorchPlaneAngle() << "\n";
 }
 
-auto Simulator::GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<Point3d> {
+auto Simulator::GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> {
+  if (!CheckReadiness()) {
+    throw std::runtime_error("Simulator has not been initilized.");
+  }
   const Point3d mcs_origin_macs  = Point3d(0, 0, 0, MACS);
   const Point3d mcs_origin_rocs  = this->transformer_->Transform(mcs_origin_macs, ROCS);
   const Plane3d torch_plane_macs = Plane3d(Vector3d(0, 1, 0), {0, 0, 0, MACS});
   const Plane3d torch_plane_rocs = this->transformer_->Transform(torch_plane_macs, ROCS);
 
-  const std::vector<std::optional<Point3d>> abw_rocs =
-      this->weld_object_->GetAbwPointsInPlane(torch_plane_rocs, mcs_origin_rocs, true);
-  std::vector<Point3d> abw_ref;
-  Point3d tmp_ref;
-  for (const auto &abw_point : abw_rocs) {
-    if (abw_point.has_value()) {
-      tmp_ref = this->transformer_->Transform(abw_point.value(), ref_system);
-      abw_ref.push_back(tmp_ref);
-    } else {
-      abw_ref.push_back({});
-    }
-  }
-
-  return abw_ref;
+  return InternalGetSlicePointsInPlane(ref_system, torch_plane_rocs, mcs_origin_rocs);
 }
 
 auto Simulator::TouchLeftWall(double stickout) -> std::optional<Point3d> {
@@ -507,7 +503,7 @@ auto Simulator::TouchRightWall(double stickout) -> std::optional<Point3d> {
 
 auto Simulator::TouchWall(double stickout, HorizontalDirection direction) -> std::optional<Point3d> {
   // Compute what the 2d joint slice looks like in the torch plane
-  std::vector<Point3d> abws_in_torch_plane = GetSliceInTorchPlane(MACS);
+  std::vector<std::optional<Point3d>> abws_in_torch_plane = GetSliceInTorchPlane(MACS);
 
   // Determine where the wire tip is at in relation to the joint in slice
   double wire_radius = this->torches_.at(0)->GetWireDiameter() / 2;
@@ -526,8 +522,8 @@ auto Simulator::TouchWall(double stickout, HorizontalDirection direction) -> std
   int start_idx = (direction == LEFT_SIDE) ? 0 : 6;  // NOLINT
   int end_idx   = (direction == LEFT_SIDE) ? 1 : 5;  // NOLINT
   Line2d wall_line_macs =
-      Line2d::FromPoints({abws_in_torch_plane.at(start_idx).GetX(), abws_in_torch_plane.at(start_idx).GetZ()},
-                         {abws_in_torch_plane.at(end_idx).GetX(), abws_in_torch_plane.at(end_idx).GetZ()});
+      Line2d::FromPoints({abws_in_torch_plane.at(start_idx)->GetX(), abws_in_torch_plane.at(start_idx)->GetZ()},
+                         {abws_in_torch_plane.at(end_idx)->GetX(), abws_in_torch_plane.at(end_idx)->GetZ()});
 
   // Intersect horizontal lines with joint walls (if possible)
   std::unique_ptr<Point2d> int_point = horizontal_line.Intersect(wall_line_macs, false, true);
@@ -642,15 +638,15 @@ auto Simulator::CheckForVertexCollision(Point3d &start_pos, Point3d &end_pos) ->
   Point2d endpos_2d   = {end_pos.GetX(), end_pos.GetZ()};
   Line2d movement     = Line2d::FromPoints(startpos_2d, endpos_2d);
 
-  std::vector<Point3d> torch_plane_points = this->GetSliceInTorchPlane(MACS);
+  std::vector<std::optional<Point3d>> torch_plane_points = this->GetSliceInTorchPlane(MACS);
   Line2d surface;
   Point2d surface_start;
   Point2d surface_end;
   std::unique_ptr<Point2d> intersection;
 
   for (int i = 0; i < torch_plane_points.size() - 1; i++) {
-    surface_start = {torch_plane_points.at(i).GetX(), torch_plane_points.at(i).GetZ()};
-    surface_end   = {torch_plane_points.at(i + 1).GetX(), torch_plane_points.at(i + 1).GetZ()};
+    surface_start = {torch_plane_points.at(i)->GetX(), torch_plane_points.at(i)->GetZ()};
+    surface_end   = {torch_plane_points.at(i + 1)->GetX(), torch_plane_points.at(i + 1)->GetZ()};
     surface       = Line2d::FromPoints(surface_start, surface_end);
 
     intersection = surface.Intersect(movement, true, true);

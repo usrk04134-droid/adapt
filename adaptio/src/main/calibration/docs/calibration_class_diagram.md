@@ -22,7 +22,7 @@ package "weld-control\n<NS>" {
 }
 
 package "calibration\n<NS>" {
-    rectangle "CalibrationManagerV2Impl" as CalibrationManagerV2Impl
+    rectangle "CalibrationManagerImpl" as CalibrationManagerImpl
     rectangle "CalibrationSolver\n<IF>" as CalibrationSolver
     rectangle "CalibrationSolverImpl" as CalibrationSolverImpl
     rectangle "Storage" as Storage
@@ -40,9 +40,9 @@ package "slice-translator\n<NS>" {
 ' Relationships
 WeldControlImpl -down-|> SliceObserver
 
-CalibrationManagerV2Impl --> CalibrationSolver
-CalibrationManagerV2Impl --> Storage
-CalibrationManagerV2Impl --> ModelConfig
+CalibrationManagerImpl --> CalibrationSolver
+CalibrationManagerImpl --> Storage
+CalibrationManagerImpl --> ModelConfig
 CalibrationSolverImpl -up-|> CalibrationSolver
 CalibrationSolverImpl -up-> ModelExtract
 

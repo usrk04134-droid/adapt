@@ -11,6 +11,7 @@
 #include "cwo.h"
 #include "object-positioner.h"
 #include "src/line2d.h"
+#include "src/plane3d.h"
 #include "torch-base.h"
 #include "torch-interfaces.h"
 
@@ -48,6 +49,8 @@ class Simulator : public ISimulator {
   auto CheckForWireCollision(Point3d &target_torchpos_macs) -> std::optional<double>;
   auto CheckForVertexCollision(Point3d &start_pos, Point3d &end_pos) -> std::optional<double>;
   auto CreateSliceDefinition(double slice_angle) const -> SliceDefinition;
+  auto InternalGetSlicePointsInPlane(CoordinateSystem ref_system, const Plane3d &slice_plane_rocs,
+                                     const Point3d &filter_point_rocs) const -> std::vector<std::optional<Point3d>>;
 
  public:
   Simulator();
@@ -55,7 +58,8 @@ class Simulator : public ISimulator {
   auto Initialize(SimConfig config) -> void override;
   auto Reset() -> void override;
   auto GetAbwPoints(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> override;
-  auto GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<Point3d> override;
+  auto GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> override;
+  auto GetLatestDepositedSlice(CoordinateSystem ref_system) const -> std::vector<Point3d> override;
   auto AddSingleWireTorch(double wire_diam, double initial_wire_feed_speed)
       -> std::shared_ptr<ISingleWireTorch> override;
   auto AddTwinTorch(double wire_diam, double initial_wire_feed_speed) -> std::shared_ptr<ITwinTorch> override;
@@ -63,7 +67,7 @@ class Simulator : public ISimulator {
   auto SwitchToChuck() -> void override;
   auto UpdateTorchPosition(Point3d &torchpos_macs) -> void override;
   auto UpdateTravelSpeed(double travel_speed) -> void override;
-  auto GetTorchPosition() -> Point3d override;
+  auto GetTorchPosition(CoordinateSystem ref_system) -> Point3d override;
   auto GetTotalDriftFromStart() const -> double override;
   auto RunWithRotation(double delta_angle, double bead_radius) -> void override;
   auto Rotate(double delta_angle) -> void override;

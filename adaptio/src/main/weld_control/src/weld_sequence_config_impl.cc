@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "web_hmi/web_hmi.h"
@@ -65,7 +66,9 @@ void WeldSequenceConfigImpl::SubscribeWebHmi() {
   web_hmi_->Subscribe("AddWeldDataSet", [this](std::string const&, const nlohmann::json& payload) {
     auto ds = WeldDataSet::FromJson(payload);
     bool ok = ds.has_value() && weld_data_set_storage_.Store(ds.value());
-    web_hmi_->Send("AddWeldDataSetRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD);
+    web_hmi_->Send("AddWeldDataSetRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD,
+                   ok ? std::optional<std::string>{} : std::optional<std::string>{"Unable to add weld data set"},
+                   std::nullopt);
     if (ok) {
       on_update_();
     }
@@ -74,7 +77,9 @@ void WeldSequenceConfigImpl::SubscribeWebHmi() {
   web_hmi_->Subscribe("RemoveWeldDataSet", [this](std::string const&, const nlohmann::json& payload) {
     int id  = 0;
     bool ok = payload.contains("id") && payload.at("id").get_to(id) && weld_data_set_storage_.Remove(id);
-    web_hmi_->Send("RemoveWeldDataSetRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD);
+    web_hmi_->Send("RemoveWeldDataSetRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD,
+                   ok ? std::optional<std::string>{} : std::optional<std::string>{"Unable to remove weld data set"},
+                   std::nullopt);
     if (ok) {
       on_update_();
     }
@@ -86,13 +91,15 @@ void WeldSequenceConfigImpl::SubscribeWebHmi() {
     for (auto const& s : sets) {
       payload.push_back(s.ToJson());
     }
-    web_hmi_->Send("GetWeldDataSetsRsp", payload);
+    web_hmi_->Send("GetWeldDataSetsRsp", SUCCESS_PAYLOAD, payload);
   });
 
   web_hmi_->Subscribe("StoreWeldProgram", [this](std::string const&, const nlohmann::json& payload) {
     auto program = WeldProgram::FromJson(payload);
     bool ok      = program.has_value() && weld_program_storage_.Store(program.value());
-    web_hmi_->Send("StoreWeldProgramRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD);
+    web_hmi_->Send("StoreWeldProgramRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD,
+                   ok ? std::optional<std::string>{} : std::optional<std::string>{"Unable to store weld program"},
+                   std::nullopt);
     if (ok) {
       on_update_();
     }
@@ -104,13 +111,15 @@ void WeldSequenceConfigImpl::SubscribeWebHmi() {
     for (auto const& p : programs) {
       payload.push_back(p.ToJson());
     }
-    web_hmi_->Send("GetWeldProgramsRsp", payload);
+    web_hmi_->Send("GetWeldProgramsRsp", SUCCESS_PAYLOAD, payload);
   });
 
   web_hmi_->Subscribe("StoreABPParameters", [this](std::string const&, const nlohmann::json& payload) {
     auto abp = ABPParameters::FromJson(payload);
     bool ok  = abp.has_value() && abp_parameters_storage_.Store(abp.value());
-    web_hmi_->Send("StoreABPParametersRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD);
+    web_hmi_->Send("StoreABPParametersRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD,
+                   ok ? std::optional<std::string>{} : std::optional<std::string>{"Unable to store ABP parameters"},
+                   std::nullopt);
     if (ok) {
       on_update_();
     }
@@ -118,13 +127,16 @@ void WeldSequenceConfigImpl::SubscribeWebHmi() {
 
   web_hmi_->Subscribe("GetABPParameters", [this](std::string const&, const nlohmann::json&) {
     auto abp = abp_parameters_storage_.Get().value_or(ABPParameters{});
-    web_hmi_->Send("GetABPParametersRsp", abp.ToJson());
+    web_hmi_->Send("GetABPParametersRsp", SUCCESS_PAYLOAD, abp.ToJson());
   });
 
   web_hmi_->Subscribe("AddWeldProcessParameters", [this](std::string const&, const nlohmann::json& payload) {
     auto wpp = WeldProcessParameters::FromJson(payload);
     bool ok  = wpp.has_value() && weld_process_parameters_storage_.Store(wpp.value());
-    web_hmi_->Send("AddWeldProcessParametersRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD);
+    web_hmi_->Send(
+        "AddWeldProcessParametersRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD,
+        ok ? std::optional<std::string>{} : std::optional<std::string>{"Unable to add weld process parameters"},
+        std::nullopt);
     if (ok) {
       on_update_();
     }
@@ -136,7 +148,7 @@ void WeldSequenceConfigImpl::SubscribeWebHmi() {
     for (auto const& p : all) {
       payload.push_back(p.ToJson());
     }
-    web_hmi_->Send("GetWeldProcessParametersRsp", payload);
+    web_hmi_->Send("GetWeldProcessParametersRsp", SUCCESS_PAYLOAD, payload);
   });
 }
 

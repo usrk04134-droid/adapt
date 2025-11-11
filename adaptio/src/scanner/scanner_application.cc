@@ -5,23 +5,25 @@
 
 #include <Eigen/Eigen>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <thread>
 #include <tuple>
+#include <utility>
 
 #include "common/logging/application_log.h"
 #include "common/messages/scanner.h"
 #include "common/zevs/zevs_core.h"
 #include "common/zevs/zevs_socket.h"
+#include "scanner/core/scanner.h"
 #include "scanner/core/scanner_calibration_configuration.h"
 #include "scanner/core/scanner_configuration.h"
 #include "scanner/core/scanner_factory.h"
 #include "scanner/core/scanner_types.h"
 #include "scanner/core/src/scanner_impl.h"
 #include "scanner/core/src/scanner_server.h"
-#include "scanner/image/image.h"
 #include "scanner/image_logger/image_logger.h"
 #include "scanner/image_provider/image_provider.h"
 #include "scanner/image_provider/image_provider_configuration.h"

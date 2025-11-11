@@ -15,18 +15,19 @@ namespace deposition_simulator {
 
 class ISimulator {
  public:
-  virtual ~ISimulator()                                                                               = 0;
-  virtual auto Initialize(SimConfig config) -> void                                                   = 0;
-  virtual auto Reset() -> void                                                                        = 0;
-  virtual auto CreateSimConfig() -> SimConfig                                                         = 0;
-  virtual auto UpdateTorchPosition(Point3d& torchpos_macs) -> void                                    = 0;
-  virtual auto GetTorchPosition() -> Point3d                                                          = 0;
-  virtual auto GetTotalDriftFromStart() const -> double                                               = 0;
-  virtual auto UpdateTravelSpeed(double travel_speed) -> void                                         = 0;
-  virtual auto GetAbwPoints(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> = 0;
-  virtual auto GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<Point3d>        = 0;
-  virtual auto RunWithRotation(double delta_angle, double bead_radius) -> void                        = 0;
-  virtual auto Rotate(double delta_angle) -> void                                                     = 0;
+  virtual ~ISimulator()                                                                                       = 0;
+  virtual auto Initialize(SimConfig config) -> void                                                           = 0;
+  virtual auto Reset() -> void                                                                                = 0;
+  virtual auto CreateSimConfig() -> SimConfig                                                                 = 0;
+  virtual auto UpdateTorchPosition(Point3d& torchpos_macs) -> void                                            = 0;
+  virtual auto GetTorchPosition(CoordinateSystem ref_system) -> Point3d                                       = 0;
+  virtual auto GetTotalDriftFromStart() const -> double                                                       = 0;
+  virtual auto UpdateTravelSpeed(double travel_speed) -> void                                                 = 0;
+  virtual auto GetAbwPoints(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>>         = 0;
+  virtual auto GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> = 0;
+  virtual auto GetLatestDepositedSlice(CoordinateSystem ref_system) const -> std::vector<Point3d>             = 0;
+  virtual auto RunWithRotation(double delta_angle, double bead_radius) -> void                                = 0;
+  virtual auto Rotate(double delta_angle) -> void                                                             = 0;
   virtual auto AddSingleWireTorch(double wire_diam, double initial_wire_feed_speed)
       -> std::shared_ptr<ISingleWireTorch>                                                                   = 0;
   virtual auto AddTwinTorch(double wire_diam, double initial_wire_feed_speed) -> std::shared_ptr<ITwinTorch> = 0;

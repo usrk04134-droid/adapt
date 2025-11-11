@@ -2,8 +2,6 @@
 
 #include <cstdint>
 
-#include "common/logging/application_log.h"
-
 using controller::SlidePositionBufferImpl;
 
 namespace {

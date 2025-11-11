@@ -32,7 +32,10 @@ class WebHmiServer : public slice_translator::SliceObserver, public WebHmi {
   void Subscribe(std::string const& topic, OnRequest on_request) override;
   void SubscribePattern(std::regex const& pattern, OnRequest on_request) override;
   void Send(nlohmann::json const& data) override;
-  void Send(std::string const& topic, nlohmann::json const& payload) override;
+  void Send(std::string const& topic, const std::optional<nlohmann::json>& result,
+            const std::optional<nlohmann::json>& payload) override;
+  void Send(std::string const& topic, nlohmann::json const& result, const std::optional<std::string>& message_status,
+            const std::optional<nlohmann::json>& payload) override;
 
  private:
   void GetSlidesPositionRsp(double horizontal, double vertical);

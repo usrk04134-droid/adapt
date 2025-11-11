@@ -52,6 +52,11 @@ auto CoordinateTransformer::InternalTransform(Vector4d &vec, CoordinateSystem or
   Vector4d vec_macs;
   Vector4d vec_target;
   const Point3d transformed_point;
+
+  if (orig_system == target_system) {
+    return vec.block<3, 1>(0, 0);
+  }
+
   // First transform to MACS from current ref system
   switch (orig_system) {
     // case CLCS: {

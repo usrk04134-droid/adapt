@@ -142,6 +142,8 @@ class WeldControlImpl : public WeldControl,
   std::optional<std::chrono::steady_clock::time_point> scanner_low_confidence_timestamp_;
   std::optional<std::chrono::steady_clock::time_point> handover_to_abp_cap_timestamp_;
   std::optional<std::chrono::steady_clock::time_point> handover_to_manual_timestamp_;
+  std::optional<joint_geometry::JointGeometry> joint_geometry_;
+
   double cached_groove_area_{0.0};
   std::optional<common::Groove> cached_delayed_mcs_;
   std::optional<tracking::TrackingManager::Output> slides_desired_;

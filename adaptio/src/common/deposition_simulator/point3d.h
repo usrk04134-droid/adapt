@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Eigen/Eigen>
+#include <nlohmann/json.hpp>
 
 namespace deposition_simulator {
 
@@ -29,7 +30,7 @@ class Point3d {
   Point3d(double x_coord, double y_coord, double z_coord, CoordinateSystem ref);
   Point3d();
   ~Point3d() = default;
-  auto operator+(Eigen::Vector3d &other) const -> Point3d;
+  auto operator+(Eigen::Vector3d& other) const -> Point3d;
   auto ToHomVec() const -> Eigen::Vector4d;
   auto ToVec() const -> Eigen::Vector3d;
   auto ToString() const -> std::string;
@@ -38,5 +39,13 @@ class Point3d {
   auto GetY() const -> double;
   auto GetZ() const -> double;
 };
+
+inline auto to_json(nlohmann::json& json, const deposition_simulator::Point3d& point) -> void {  // NOLINT
+  json = nlohmann::json{
+      {"x", point.GetX()},
+      {"y", point.GetY()},
+      {"z", point.GetZ()}
+  };
+}
 
 }  // namespace deposition_simulator

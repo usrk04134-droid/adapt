@@ -37,10 +37,10 @@ class TiltedPerspectiveCamera : public CameraModel {
 
   ~TiltedPerspectiveCamera() override = default;
 
-  auto ImageToWorkspace(const PlaneCoordinates &image_coordinates, int vertical_crop_offset, int horizontal_crop_offset) const
+  auto ImageToWorkspace(const PlaneCoordinates &image_coordinates, int vertical_crop_offset) const
       -> boost::outcome_v2::result<WorkspaceCoordinates> override;
 
-  auto WorkspaceToImage(const WorkspaceCoordinates &workspace_coordinates, int vertical_crop_offset, int horizontal_crop_offset) const
+  auto WorkspaceToImage(const WorkspaceCoordinates &workspace_coordinates, int vertical_crop_offset) const
       -> boost::outcome_v2::result<PlaneCoordinates> override;
 
   /**

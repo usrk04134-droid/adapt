@@ -78,7 +78,7 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
   const Point3d start;
   const Point3d end;
   const Vector3d dir;
-  std::unique_ptr<std::vector<std::optional<Point2d>>> slice_abw_points;
+  std::vector<std::optional<Point2d>> slice_abw_points;
   std::vector<std::optional<Point3d>> end_abw_points;
   std::vector<std::optional<Point3d>> start_abw_points;
   std::unique_ptr<Point3d> p_int;
@@ -94,22 +94,19 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
   // size_t slice_index    = 0;
   size_t real_index = 0;
 
-  for (size_t si = 0; si <= this->slices_.size(); si++) {
+  for (size_t si = 0; si <= n_slices; si++) {
     real_index = si % n_slices;
     slice      = this->slices_[real_index];
 
+    // Get points from slice
     slice_abw_points = slice.GetAbwPoints(allow_cap_points);
-    rotmat           = Eigen::AngleAxisd(slice.GetSliceAngle(), Vector3d(1, 0, 0)).toRotationMatrix();
 
-    if (slice_abw_points == nullptr) {
-      throw std::runtime_error(
-          "Could not compute abw points for slice");  // TODO(zachjz): Consider changing this from throwing
-                                                      // to returning nothing... or something.
-    }
+    // Create the rotation transform to go from slice CS to ROCS
+    rotmat = Eigen::AngleAxisd(slice.GetSliceAngle(), Vector3d(1, 0, 0)).toRotationMatrix();
 
     if (!got_first) {
       // Convert 2D slice -> 3D, rotate and store in vector.
-      for (auto &it : *slice_abw_points) {
+      for (auto &it : slice_abw_points) {
         if (it.has_value()) {
           startpos_slice = Vector3d(it->GetX(), 0, it->GetY());
           startpos_rocs  = rotmat * startpos_slice;
@@ -121,13 +118,12 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
       }
 
       got_first = true;
-      // slice_index++;
       continue;
     }
 
     // Convert 2D slice -> 3D, rotate and store in vector.
     end_abw_points.clear();
-    for (auto &it : *slice_abw_points) {
+    for (auto &it : slice_abw_points) {
       if (it.has_value()) {
         endpos_slice = Vector3d(it->GetX(), 0, it->GetY());
         endpos_rocs  = rotmat * endpos_slice;
@@ -137,7 +133,6 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
         end_abw_points.push_back(std::nullopt);
       }
     }
-    // std::cout << endPos_rocs(1) << "," << endPos_rocs(2) << std::endl;
 
     // Construct interpolation lines between slices and check for intersection with plane.
     for (int i = 0; i < end_abw_points.size(); i++) {
@@ -148,43 +143,27 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
       line  = Line3d::FromPoints(start_abw_points[i].value(), end_abw_points[i].value());
       p_int = line.Intersect(plane_rocs, true);
 
-      // std::cout << i << "," << line.GetStart().GetX() << "," << line.GetEnd().GetX() << "," << line.GetStart().GetY()
-      // << "," << line.GetEnd().GetY() << "," << line.GetStart().GetZ() << "," << line.GetEnd().GetZ() << std::endl;
-
       if (p_int == nullptr) {
         continue;
       }  // Plane is not between start and end slice for this particular ABW[x]
 
-      // std::cout << "Intersection for slice " << si <<std::endl;
-
       // Since the plane intersects the "abw circle" at two points, check to see which of the intersection is the
       // one of interest.
       if (abw_found.contains(i)) {
-        // std::cout << "Key found" << std::endl;
         //  Check distance to lpcs origin to determine if this is the closer of the two possible ABWx points.
         // TODO(zachjz): change this to instead use the dot product to determine direction of intersection
         if (std::abs(abw_found[i].GetZ() - closest_point_filter_rocs.GetZ()) >
             std::abs(p_int->GetZ() - closest_point_filter_rocs.GetZ())) {
           abw_found[i] = *p_int;
-          // std::cout << "Updating abw found" << std::endl;
         }
         // continue;
       } else {
         abw_found[i] = *p_int;
-        // std::cout << "Adding to abw found" << std::endl;
       }
     }
 
-    // if (abwFound.size() == nbrAbw)
-    //   break;
-
     start_abw_points = end_abw_points;
-    // slice_index++;
   }
-
-  // if (abw_found.size() != nbr_abw_points_) {
-  //   throw std::runtime_error("Did not find the specified number of ABW points.");
-  // }
 
   std::vector<std::optional<Point3d>> abw;
   abw.reserve(nbr_abw_points_);
@@ -197,6 +176,48 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
   }
 
   return abw;
+}
+
+auto CircularWeldObject::GetLatestDepositedSlice(double wire_tip_angle) const -> std::vector<Point3d> {
+  double slice_angle = 0.0;
+  double curr_delta_cos{NAN};
+  double max_delta_cos{-INFINITY};
+  double curr_determinant{NAN};
+
+  // Normalized torch direction in ROCS yz plane
+  double t_y = -std::sin(wire_tip_angle);
+  double t_z = std::cos(wire_tip_angle);
+
+  // Normalized slice direction in ROCS yz plane
+  double s_y{NAN};
+  double s_z{NAN};
+
+  const size_t n_slices       = this->slices_.size();
+  size_t real_index           = 0;
+  size_t idx_of_closest_slice = 0;
+
+  for (size_t si = 0; si <= n_slices; si++) {
+    real_index       = si % n_slices;
+    slice_angle      = this->slices_[real_index].GetSliceAngle();
+    s_y              = -std::sin(slice_angle);
+    s_z              = std::cos(slice_angle);
+    curr_delta_cos   = t_y * s_y + t_z * s_z;  // scalar prod <=> cos of angle
+    curr_determinant = t_y * s_z - t_z * s_y;  // Sign gives which vector leads/trails
+
+    // If determinant > 0 then s is less than 180 ahead of t
+    // If determinant < 0 then s is less than 180 behind t
+    // Together with the scalar product this means that we can calculate
+    // how many degrees has passed since a slice s passed the torch.
+    // I.e. if determinant < 0 then the angle = 360 - sp_angle
+    // otherwise the angle = sp_angle
+
+    if (curr_determinant > 0 && curr_delta_cos > max_delta_cos) {
+      max_delta_cos        = curr_delta_cos;
+      idx_of_closest_slice = real_index;
+    }
+  }
+
+  return this->slices_[idx_of_closest_slice].GetSlicePoints();
 }
 
 // Returns the distance from the center to the surface of the weld object at a

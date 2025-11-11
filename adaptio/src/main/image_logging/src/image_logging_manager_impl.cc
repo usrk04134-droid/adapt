@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <string>
 
 #include "common/logging/application_log.h"
@@ -12,41 +13,40 @@
 
 namespace image_logging {
 
+const auto SUCCESS_PAYLOAD = nlohmann::json{
+    {"result", "ok"}
+};
+
 ImageLoggingManagerImpl::ImageLoggingManagerImpl(const Configuration& config, web_hmi::WebHmi* web_hmi,
                                                  scanner_client::ScannerClient* scanner_client)
     : default_config_(config), config_(config), web_hmi_(web_hmi), scanner_client_(scanner_client) {
   auto image_logging_on = [this](const std::string& /*name*/, const nlohmann::json& payload) {
     SetImageLoggingOnFromPayload(payload);
     this->UpdateImageLogger();
-    web_hmi_->Send("ImageLoggingOnRsp", nlohmann::json{
-                                            {"result", "ok"}
-    });
+    web_hmi_->Send("ImageLoggingOnRsp", SUCCESS_PAYLOAD, std::nullopt);
   };
 
   auto image_logging_off = [this](const std::string& /*name*/, const nlohmann::json& /*payload*/) {
     config_.mode = Mode::OFF;
     this->UpdateImageLogger();
-    web_hmi_->Send("ImageLoggingOffRsp", nlohmann::json{
-                                             {"result", "ok"}
-    });
+    web_hmi_->Send("ImageLoggingOffRsp", SUCCESS_PAYLOAD, std::nullopt);
   };
 
   auto image_logging_status = [this](const std::string& /*name*/, const nlohmann::json& /*payload*/) {
-    web_hmi_->Send("ImageLoggingStatusRsp", nlohmann::json{
-                                                {"mode",              ModeToString(config_.mode)       },
-                                                {"sampleRate",        config_.sample_rate              },
-                                                {"bufferSize",        config_.buffer_size              },
-                                                {"path",              config_.path                     },
-                                                {"onErrorIntervalMs", config_.on_error_interval.count()},
+    web_hmi_->Send("ImageLoggingStatusRsp", SUCCESS_PAYLOAD,
+                   nlohmann::json{
+                       {"mode",              ModeToString(config_.mode)       },
+                       {"sampleRate",        config_.sample_rate              },
+                       {"bufferSize",        config_.buffer_size              },
+                       {"path",              config_.path                     },
+                       {"onErrorIntervalMs", config_.on_error_interval.count()},
     });
   };
 
   auto image_logging_restore = [this](const std::string& /*name*/, const nlohmann::json& /*payload*/) {
     config_ = default_config_;
     this->UpdateImageLogger();
-    web_hmi_->Send("ImageLoggingRestoreRsp", nlohmann::json{
-                                                 {"result", "ok"}
-    });
+    web_hmi_->Send("ImageLoggingRestoreRsp", SUCCESS_PAYLOAD, std::nullopt);
   };
 
   web_hmi_->Subscribe("ImageLoggingOn", image_logging_on);

@@ -23,7 +23,6 @@
 #include <opencv2/core/mat.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <optional>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -47,6 +46,7 @@
 #include "scanner/joint_buffer/circular_joint_buffer.h"
 #include "scanner/joint_model/big_snake.h"
 #include "scanner/joint_model/joint_model.h"
+#include "scanner/slice_provider/slice_provider.h"
 #include "scanner/slice_provider/slice_provider_impl.h"
 
 namespace po = boost::program_options;
@@ -83,7 +83,8 @@ void Exit(int signum) {
 
 class ScannerOutputCBImpl : public scanner::ScannerOutputCB {
  public:
-  void ScannerOutput(const common::Groove& groove, uint64_t time_stamp, SliceConfidence confidence) override {};
+  void ScannerOutput(const common::Groove& groove, const std::array<common::Point, 100>& profile, uint64_t time_stamp,
+                     SliceConfidence confidence) override {};
 };
 
 auto getNumberOfImages(std::filesystem::path search_path) -> int {
@@ -352,11 +353,11 @@ auto main(int argc, char* argv[]) -> int {
       test_report << "  ABWPoints" << i << ":" << std::endl;
       i++;
       int point_index = 0;
-      for (auto abw : slice.profile.points) {
+      for (auto abw : slice.profile.groove) {
         test_report << "    ABW" << point_index << ":" << std::endl;
-        test_report << std::setprecision(std::numeric_limits<double>::digits10 + 1) << "      x: " << abw.x
+        test_report << std::setprecision(std::numeric_limits<double>::digits10 + 1) << "      x: " << abw.horizontal
                     << std::endl;
-        test_report << std::setprecision(std::numeric_limits<double>::digits10 + 1) << "      y: " << abw.y
+        test_report << std::setprecision(std::numeric_limits<double>::digits10 + 1) << "      y: " << abw.vertical
                     << std::endl;
         point_index++;
       }
@@ -371,7 +372,7 @@ auto main(int argc, char* argv[]) -> int {
       cv::eigen2cv(slice.image_data.value(), cv_image);
       cv::cvtColor(cv_image, cv_image_color, cv::COLOR_GRAY2RGBA);
 
-      auto maybe_centroids = camera_model_raw->WorkspaceToImage(slice.centroids, slice.vertical_crop_start, slice.horizontal_crop_start);
+      auto maybe_centroids = camera_model_raw->WorkspaceToImage(slice.centroids, slice.vertical_crop_start);
 
       if (maybe_centroids.has_value()) {
         auto centroids = maybe_centroids.value();
@@ -387,10 +388,10 @@ auto main(int argc, char* argv[]) -> int {
       int max_x = INT_MIN;
       int min_y = INT_MAX;
       int max_y = INT_MIN;
-      for (auto edge : slice.profile.points) {
+      for (auto edge : slice.profile.groove) {
         WorkspaceCoordinates wcs(3, 1);
-        wcs << edge.x, edge.y, 0.0;
-        auto img = camera_model_raw->WorkspaceToImage(wcs, slice.vertical_crop_start, slice.horizontal_crop_start).value();
+        wcs << edge.horizontal, edge.vertical, 0.0;
+        auto img = camera_model_raw->WorkspaceToImage(wcs, slice.vertical_crop_start).value();
         min_x    = std::min(static_cast<int>(img(0, 0)), min_x);
         min_y    = std::min(static_cast<int>(img(1, 0)), min_y);
         max_x    = std::max(static_cast<int>(img(0, 0)), max_x);

@@ -180,11 +180,11 @@ auto MoveInGrid(ISimulator *simulator) -> void {
 
   // Do touch sense
   simulator->TouchLeftWall(25e-3);
-  torch_pos = simulator->GetTorchPosition();
+  torch_pos = simulator->GetTorchPosition(deposition_simulator::MACS);
   WriteLineToFile("Touch left", torch_pos, grid_file);
 
   simulator->TouchRightWall(25e-3);
-  torch_pos = simulator->GetTorchPosition();
+  torch_pos = simulator->GetTorchPosition(deposition_simulator::MACS);
   WriteLineToFile("Touch right", torch_pos, grid_file);
 
   simulator->UpdateTorchPosition(initial_torch_pos);

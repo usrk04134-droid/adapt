@@ -22,7 +22,7 @@ class BaslerCameraUpstreamImageEventHandler : public Pylon::CImageEventHandler {
   using Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
   BaslerCameraUpstreamImageEventHandler(ImageProvider::OnImage on_image, Timestamp start_time, int64_t start_tick,
-                                        int original_offset, int original_offset_x);
+                                        int original_offset);
 
   void OnImageGrabbed(Pylon::CInstantCamera &camera, const Pylon::CGrabResultPtr &) override;
   void OnImagesSkipped(Pylon::CInstantCamera &camera, size_t) override;
@@ -31,7 +31,6 @@ class BaslerCameraUpstreamImageEventHandler : public Pylon::CImageEventHandler {
   Timestamp base_timestamp;
   int64_t base_tick;
   int original_offset_;
-  int original_offset_x_;
   ImageProvider::OnImage on_image_;
 };
 
@@ -63,13 +62,9 @@ class BaslerCamera : public ImageProvider {
   auto Started() const -> bool override;
   void ResetFOVAndGain() override;
   void SetVerticalFOV(int offset_from_top, int height) override;
-  void SetHorizontalFOV(int offset_from_left, int width) override;
   void AdjustGain(double factor) override;
   auto GetVerticalFOVOffset() -> int override;
   auto GetVerticalFOVHeight() -> int override;
-  auto GetHorizontalFOVOffset() -> int override;
-  auto GetHorizontalFOVWidth() -> int override;
-  auto GetMaxHorizontalWidth() -> int override;
   auto GetSerialNumber() -> std::string override;
   void SetOnImage(OnImage on_image) override { on_image_ = on_image; };
 
@@ -84,8 +79,7 @@ class BaslerCamera : public ImageProvider {
   std::thread grabbing_thread_;
   BaslerConfig config_;
   Fov fov_;
-  //int vertical_crop_offset_  = 0;
-  //int horizontal_crop_offset_ = 0;
+  int vertical_crop_offset_ = 0;
   OnImage on_image_;
 
   double initial_gain_ = 0.0;

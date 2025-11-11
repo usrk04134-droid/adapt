@@ -8,13 +8,51 @@
 
 namespace web_hmi {
 
-inline auto CreateMessage(const std::string& message_name, const nlohmann::json& payload) -> zevs::MessagePtr {
+inline auto CreateMessage(const std::string& message_name, const std::optional<nlohmann::json>& result,
+                          const std::optional<nlohmann::json>& payload) -> zevs::MessagePtr {
   nlohmann::json json_obj;
   json_obj = {
-      {"name",    message_name},
-      {"payload", payload     }
+      {"name", message_name},
   };
 
+  if (result) {
+    json_obj["result"] = result->value("result", "");
+  }
+
+  if (!payload || payload->is_null()) {
+    json_obj["payload"] = nlohmann::json::object();
+  } else {
+    json_obj["payload"] = *payload;
+  }
+
+  auto jstr = json_obj.dump();
+  LOG_DEBUG("web_hmi::PackMessage: {}", jstr.c_str());
+
+  auto message = zevs::GetCoreFactory()->CreateRawMessage(jstr.size());
+  std::memcpy(message->Data(), jstr.c_str(), jstr.size());
+
+  return message;
+}
+
+inline auto CreateMessage(const std::string& message_name, nlohmann::json const& result,
+                          const std::optional<std::string>& message_status,
+                          const std::optional<nlohmann::json>& payload) -> zevs::MessagePtr {
+  nlohmann::json json_obj = {
+      {"name", message_name},
+      {"result", result.value("result", "")}
+  };
+
+  if (result.value("result", "") == "ok") {
+    if (!payload || payload->is_null()) {
+      json_obj["payload"] = nlohmann::json::object();
+    } else {
+      json_obj["payload"] = *payload;
+    }
+  } else {
+    if (message_status) {
+      json_obj["message"] = *message_status;
+    }
+  }
   auto jstr = json_obj.dump();
   LOG_DEBUG("web_hmi::PackMessage: {}", jstr.c_str());
 
@@ -36,14 +74,6 @@ inline void UnpackMessage(const zevs::MessagePtr& message, std::string& message_
     message_name = "";
     payload      = "";
   }
-}
-
-inline auto UnpackMessageName(const zevs::MessagePtr& message) -> std::string {
-  auto jstr               = std::string{static_cast<char*>(message->Data()), message->Size()};
-  nlohmann::json json_obj = nlohmann::json::parse(jstr);
-
-  auto message_name = json_obj.at("name").get<std::string>();
-  return message_name;
 }
 
 inline auto UnpackMessagePayload(const zevs::MessagePtr& message) -> nlohmann::json {

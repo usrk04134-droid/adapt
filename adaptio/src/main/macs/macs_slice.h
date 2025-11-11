@@ -14,6 +14,7 @@ namespace macs {
 
 struct Slice {
   std::optional<common::Groove> groove;
+  std::vector<common::Point> line;
   uint64_t time_stamp;
 
   auto Describe() const -> std::string;

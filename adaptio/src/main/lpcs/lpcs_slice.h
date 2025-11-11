@@ -35,6 +35,7 @@ auto inline SliceConfidenceToString(SliceConfidence confidence) -> std::string {
 
 struct Slice {
   std::optional<std::vector<Point>> groove;
+  std::vector<Point> line;
   uint64_t time_stamp;
   double groove_area{0.0};
   SliceConfidence confidence{SliceConfidence::NO};

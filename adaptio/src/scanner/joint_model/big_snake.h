@@ -35,7 +35,7 @@ class BigSnake : public JointModel {
   auto Parse(image::Image& image, std::optional<JointProfile> median_profile,
              std::optional<JointProperties> updated_properties, bool use_approximation,
              std::optional<std::tuple<double, double>> abw0_abw6_horizontal)
-      -> std::expected<std::tuple<JointProfile, image::WorkspaceCoordinates, uint64_t, uint64_t>,
+      -> std::expected<std::tuple<JointProfile, std::array<common::Point, INTERPOLATED_SNAKE_SIZE>, uint64_t, uint64_t>,
                        JointModelErrorCode> override;
 
  protected:

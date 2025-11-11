@@ -10,7 +10,7 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     helpers/helpers_joint_geometry.h
     helpers/helpers_simulator.h
     helpers/helpers_json_compare.h
-    helpers/helpers_calibration_v2.h
+    helpers/helpers_calibration.h
     helpers/helpers_settings.h
     helpers/helpers_state_monitor.h
     helpers/helpers_mfx.h

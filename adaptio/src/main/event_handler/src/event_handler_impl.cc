@@ -36,6 +36,14 @@ auto const EVENT_ACKNOWLEDGEMENT_ID_PATTERN = std::regex("EventHandlerAck/id=(\\
 auto const EVENT_ID_OFFSET                  = 10000;
 auto const MAX_RESOLVED_EVENTS              = 200;
 auto const RESOLVED_EVENTS_MAX_AGE          = std::chrono::hours(48);
+
+const auto SUCCESS_PAYLOAD = nlohmann::json{
+    {"result", "ok"}
+};
+
+const auto FAILURE_PAYLOAD = nlohmann::json{
+    {"result", "fail"}
+};
 }  // namespace
 
 namespace event {
@@ -116,7 +124,7 @@ void EventHandlerImpl::SetWebHmi(web_hmi::WebHmi* web_hmi) {
       response.push_back(EventInternalToJson(ei));
     }
 
-    web_hmi_->Send("GetEventsRsp", response);
+    web_hmi_->Send("GetEventsRsp", SUCCESS_PAYLOAD, response);
   };
   web_hmi_->Subscribe("GetEvents", get_events);
 
@@ -235,7 +243,7 @@ void EventHandlerImpl::SendEvents() {
     }
   }
 
-  web_hmi_->Send("events", json);
+  web_hmi_->Send("events", std::nullopt, json);
 }
 
 void EventHandlerImpl::SendEventInternal(const Event& event, const Code& code, std::optional<std::string> detail) {

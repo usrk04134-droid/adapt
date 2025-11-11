@@ -78,13 +78,14 @@ void JointGeometryProviderImpl::OnGetJointGeometry() {
   for (auto const& sj : gjg) {
     payload.push_back(sj.ToJson());
   }
-  web_hmi_->Send("GetJointGeometryRsp", ConvertToWebJointGeometryFormat(payload));
+  web_hmi_->Send("GetJointGeometryRsp", SUCCESS_PAYLOAD, ConvertToWebJointGeometryFormat(payload));
 }
 
 void JointGeometryProviderImpl::OnSetJointGeometry(nlohmann::json const& payload) {
   auto sjg = StoredJointGeometry::FromJson(ConvertToDbJointGeometryFormat(payload));
   bool ok  = sjg.has_value() && joint_geometry_storage_.Store(sjg.value());
-  web_hmi_->Send("SetJointGeometryRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD);
+  web_hmi_->Send("SetJointGeometryRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD,
+                 ok ? std::optional<std::string>{} : "Unable to set joint geometry", std::nullopt);
   if (ok && on_update_) {
     on_update_();
   }
@@ -96,12 +97,12 @@ auto JointGeometryProviderImpl::ConvertToDbJointGeometryFormat(const nlohmann::j
   if (payload.is_object()) {
     stored_jg["id"]                          = 1;
     stored_jg["name"]                        = "default";
-    stored_jg["upper_joint_width_mm"]        = payload.at("upper_joint_width_mm");
-    stored_jg["groove_depth_mm"]             = payload.at("groove_depth_mm");
-    stored_jg["left_joint_angle_rad"]        = payload.at("left_joint_angle_rad");
-    stored_jg["right_joint_angle_rad"]       = payload.at("right_joint_angle_rad");
-    stored_jg["left_max_surface_angle_rad"]  = payload.at("left_max_surface_angle_rad");
-    stored_jg["right_max_surface_angle_rad"] = payload.at("right_max_surface_angle_rad");
+    stored_jg["upper_joint_width_mm"]        = payload.at("upperJointWidthMm");
+    stored_jg["groove_depth_mm"]             = payload.at("grooveDepthMm");
+    stored_jg["left_joint_angle_rad"]        = payload.at("leftJointAngleRad");
+    stored_jg["right_joint_angle_rad"]       = payload.at("rightJointAngleRad");
+    stored_jg["left_max_surface_angle_rad"]  = payload.at("leftMaxSurfaceAngleRad");
+    stored_jg["right_max_surface_angle_rad"] = payload.at("rightMaxSurfaceAngleRad");
   }
   return stored_jg;
 }
@@ -111,12 +112,12 @@ auto JointGeometryProviderImpl::ConvertToWebJointGeometryFormat(const nlohmann::
 
   for (const auto& item : payload) {
     if (item.at("id") == 1) {
-      web_jg["upper_joint_width_mm"]        = item.at("upper_joint_width_mm");
-      web_jg["groove_depth_mm"]             = item.at("groove_depth_mm");
-      web_jg["left_joint_angle_rad"]        = item.at("left_joint_angle_rad");
-      web_jg["right_joint_angle_rad"]       = item.at("right_joint_angle_rad");
-      web_jg["left_max_surface_angle_rad"]  = item.at("left_max_surface_angle_rad");
-      web_jg["right_max_surface_angle_rad"] = item.at("right_max_surface_angle_rad");
+      web_jg["upperJointWidthMm"]       = item.at("upper_joint_width_mm");
+      web_jg["grooveDepthMm"]           = item.at("groove_depth_mm");
+      web_jg["leftJointAngleRad"]       = item.at("left_joint_angle_rad");
+      web_jg["rightJointAngleRad"]      = item.at("right_joint_angle_rad");
+      web_jg["leftMaxSurfaceAngleRad"]  = item.at("left_max_surface_angle_rad");
+      web_jg["rightMaxSurfaceAngleRad"] = item.at("right_max_surface_angle_rad");
     }
   }
   return web_jg;

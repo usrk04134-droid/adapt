@@ -38,6 +38,10 @@ note over WebHMI : "Start Calibration" button press
 WebHMI -> Adaptio : WeldObjectCalStart
 WebHMI <- Adaptio : WeldObjectCalStartRsp(result:"ok")
 
+note over WebHMI : "Top Position" button press
+WebHMI -> Adaptio : WeldObjectCalTopPos
+WebHMI <- Adaptio : WeldObjectCalTopPosRsp(result:"ok")
+
 note over WebHMI : "Left wall" button press
 WebHMI -> Adaptio : WeldObjectCalLeftPos
 Adaptio -> WebHMI : WeldObjectCalLeftPosRsp(result:"ok")
@@ -60,6 +64,10 @@ note over WebHMI: Status: Calibrated
 == Calibration failure ==
 alt start fail
     WebHMI <- Adaptio : WeldObjectCalStartRsp(result:"fail")
+    note over Adaptio : idle
+
+else top position fail
+    WebHMI <- Adaptio : WeldObjectCalTopPosRsp(result:"fail")
     note over Adaptio : idle
 
 else left/right fail

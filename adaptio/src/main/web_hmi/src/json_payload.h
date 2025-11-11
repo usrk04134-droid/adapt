@@ -26,8 +26,8 @@ inline auto PositionToPayload(double horizontal, double vertical) -> nlohmann::j
 
 inline auto SlidesStatusToPayload(bool horizontal_in_position, bool vertical_in_position) -> nlohmann::json {
   nlohmann::json payload = {
-      {"horizontal_in_position", horizontal_in_position},
-      {"vertical_in_position",   vertical_in_position  }
+      {"horizontalInPosition", horizontal_in_position},
+      {"verticalInPosition",   vertical_in_position  }
   };
 
   return payload;

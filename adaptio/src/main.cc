@@ -3,6 +3,7 @@
 #include <bits/chrono.h>
 #include <fmt/core.h>
 #include <prometheus/exposer.h>
+#include <prometheus/gauge.h>
 #include <prometheus/registry.h>
 #include <signal.h>
 #include <SQLiteCpp/Database.h>

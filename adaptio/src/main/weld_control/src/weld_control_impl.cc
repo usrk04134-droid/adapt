@@ -3,6 +3,7 @@
 
 #include <prometheus/counter.h>
 #include <prometheus/gauge.h>
+#include <prometheus/histogram.h>
 #include <prometheus/registry.h>
 #include <SQLiteCpp/Database.h>
 
@@ -13,7 +14,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
-#include <memory>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <numbers>
@@ -26,7 +26,6 @@
 #include "bead_control/bead_control.h"
 #include "bead_control/bead_control_types.h"
 #include "common/clock_functions.h"
-#include "common/containers/relative_position_buffer.h"
 #include "common/groove/groove.h"
 #include "common/groove/point.h"
 #include "common/logging/application_log.h"
@@ -72,6 +71,19 @@ auto const WELD_OBJECT_DISTANCE_MAX_REVERSE_THRESHOLD = 5;                      
 auto const WELD_AXIS_POSITION_OUT_OF_BOUNDS_THRESHOLD = (2 * std::numbers::pi) + common::math::DegToRad(3.0);
 auto const FIXED_HANDOVER_GRACE                       = std::chrono::seconds(3);
 auto const READY_FOR_CAP_CONFIDENT_BUFFER_FILL_RATIO  = 0.95;
+auto const JOINT_GEOMETRY_DEPTH_MIN_VALID_MM          = 10.0;
+
+// Map depth 0..joint_geometry_depth to gain 1..max_gain (linear)
+inline auto DepthScaledGain(double depth, double joint_geometry_depth_mm, double max_gain) -> double {
+  if (max_gain <= 1.0 || joint_geometry_depth_mm < JOINT_GEOMETRY_DEPTH_MIN_VALID_MM) {
+    return 1.0;
+  }
+  auto const depth_in_range = std::clamp(depth, 0.0, joint_geometry_depth_mm);
+  return 1.0 + ((max_gain - 1.0) * depth_in_range / joint_geometry_depth_mm);
+}
+
+// Scale the "deviation from 1.0" by gain
+inline auto ApplyAdaptivityGain(double ratio, double gain) -> double { return 1.0 + (ratio - 1.0) * gain; }
 
 auto StateToString(weld_control::State state) -> std::string {
   switch (state) {
@@ -84,6 +96,13 @@ auto StateToString(weld_control::State state) -> std::string {
   }
   return "invalid";
 }
+
+const auto SUCCESS_PAYLOAD = nlohmann::json{
+    {"result", "ok"}
+};
+const auto FAILURE_PAYLOAD = nlohmann::json{
+    {"result", "fail"}
+};
 
 }  // namespace
 
@@ -208,7 +227,6 @@ WeldControlImpl::WeldControlImpl(
 
   auto clear_weld_session = [this](std::string const& /*topic*/, const nlohmann::json& /*payload*/) {
     auto ok = false;
-    nlohmann::json response_payload;
     std::string msg;
 
     if (mode_ == Mode::AUTOMATIC_BEAD_PLACEMENT) {
@@ -220,18 +238,12 @@ WeldControlImpl::WeldControlImpl(
     if (ok) {
       ClearWeldSession();
 
-      response_payload = {
-          {"result", "ok"}
-      };
     } else {
       LOG_ERROR("Failed to clear weld session ({})", msg);
-      response_payload = {
-          {"result",  "fail"},
-          {"message", msg   }
-      };
     }
 
-    web_hmi_->Send("ClearWeldSessionRsp", response_payload);
+    web_hmi_->Send("ClearWeldSessionRsp", ok ? SUCCESS_PAYLOAD : FAILURE_PAYLOAD,
+                   ok ? std::optional<std::string>{} : "Failed to clear weld session" + msg, std::nullopt);
   };
   web_hmi_->Subscribe("ClearWeldSession", clear_weld_session);
 
@@ -429,7 +441,7 @@ void WeldControlImpl::GetWeldControlStatus() const {
     response["totalBeads"] = bead_control_status.total_beads.value();
   }
 
-  web_hmi_->Send("GetWeldControlStatusRsp", response);
+  web_hmi_->Send("GetWeldControlStatusRsp", SUCCESS_PAYLOAD, response);
 };
 
 void WeldControlImpl::LogData(std::optional<std::string> annotation = std::nullopt) {
@@ -1000,9 +1012,34 @@ void WeldControlImpl::UpdateOutput(double bead_slice_area_ratio, double area_rat
   }
 
   if (mode_ == Mode::AUTOMATIC_BEAD_PLACEMENT && state_ == State::WELDING) {
+    // Compute gains based on current groove depth
+    double depth_mm = 0.0;
+    if (cached_mcs_.groove.has_value()) {
+      depth_mm = cached_mcs_.groove->AvgDepth();  // measured depth
+    }
+
+    double joint_geometry_depth_mm = 0.0;
+    if (joint_geometry_.has_value()) {
+      joint_geometry_depth_mm = joint_geometry_->groove_depth_mm;
+    }
+
+    auto const speed_gain =
+        DepthScaledGain(depth_mm, joint_geometry_depth_mm, config_.adaptivity.speed_adaptivity_max_gain);
+    auto const current_gain =
+        DepthScaledGain(depth_mm, joint_geometry_depth_mm, config_.adaptivity.current_adaptivity_max_gain);
+
+    // Scale the *deviation from 1.0* for each ratio independently
+    auto const weld_speed_ratio   = ApplyAdaptivityGain(area_ratio, speed_gain);
+    auto const weld_current_ratio = ApplyAdaptivityGain(bead_slice_area_ratio, current_gain);
+
+    LOG_TRACE(
+        "adaptivity: depth(mm): {:.2f} gains(speed/current): {:.2f}/{:.2f} "
+        "ratios_in(speed/current): {:.4f}/{:.4f} ratios_out(speed/current): {:.4f}/{:.4f}",
+        depth_mm, speed_gain, current_gain, area_ratio, bead_slice_area_ratio, weld_speed_ratio, weld_current_ratio);
+
     auto const result = WeldCalc::CalculateAdaptivity(WeldCalc::CalculateAdaptivityInput{
-        .weld_current_ratio = bead_slice_area_ratio,
-        .weld_speed_ratio   = area_ratio,
+        .weld_current_ratio = weld_current_ratio,
+        .weld_speed_ratio   = weld_speed_ratio,
         .heat_input_min     = abp_parameters->HeatInputMin(),
         .heat_input_max     = abp_parameters->HeatInputMax(),
         .ws1 =
@@ -1359,6 +1396,7 @@ void WeldControlImpl::JointTrackingStart(const joint_geometry::JointGeometry& jo
     case Mode::IDLE: {
       LOG_INFO("JT Start with mode: {} horizontal-offset: {} vertical-offset: {}",
                tracking::TrackingModeToString(tracking_mode), horizontal_offset, vertical_offset);
+      joint_geometry_ = joint_geometry;
       scanner_client_->Start({.interval = config_.scanner_input_interval}, joint_geometry);
       break;
     }

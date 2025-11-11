@@ -40,10 +40,11 @@ class WebHmiMock : public web_hmi::WebHmi {
     web_hmi_on_requests = on_request;
   };
   void Send(nlohmann::json const& /*data*/) override { FAIL("not implemented"); }
-  void Send(std::string const& topic, nlohmann::json const& payload) override {
+  void Send(std::string const& topic, const std::optional<nlohmann::json>& /*result*/,
+            const std::optional<nlohmann::json>& payload) override {
     if (topic == "events") {
       active_events.clear();
-      for (const auto& event : payload) {
+      for (const auto& event : *payload) {
         std::string code;
         std::string time;
         std::string title;
@@ -72,7 +73,7 @@ class WebHmiMock : public web_hmi::WebHmi {
       }
     } else if (topic == "GetEventsRsp") {
       get_events_response.clear();
-      for (const auto& event : payload) {
+      for (const auto& event : *payload) {
         std::string code;
         std::string time;
         std::string title;
@@ -101,6 +102,11 @@ class WebHmiMock : public web_hmi::WebHmi {
     } else {
       FAIL("Unknown topic: {}", topic);
     }
+  };
+  void Send(std::string const& /*topic*/, nlohmann::json const& /*result*/,
+            const std::optional<std::string>& /*message_status*/,
+            const std::optional<nlohmann::json>& /*payload*/) override {
+    FAIL("not implemented");
   };
 
   std::vector<EventInfo> active_events;

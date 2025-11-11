@@ -47,5 +47,6 @@ class CircularWeldObject {
   auto GetMaxX() const -> double;
   auto GetMaxRadius() const -> double;
   auto ToTriangleMesh() const -> std::vector<Triangle3d>;
+  auto GetLatestDepositedSlice(double wire_tip_angle) const -> std::vector<Point3d>;
 };
 }  // namespace deposition_simulator

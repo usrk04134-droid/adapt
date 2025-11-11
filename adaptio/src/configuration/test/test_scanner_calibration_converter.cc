@@ -10,7 +10,6 @@
 #include "../configuration_error.h"
 #include "../scanner_calibration_converter.h"
 #include "configuration/conf_factory.h"
-#include "controller/pn_driver/pn_driver.h"
 #include "mock/mock_factory.h"
 #include "mock/mock_file_handler.h"
 #include "scanner/core/scanner_calibration_configuration.h"

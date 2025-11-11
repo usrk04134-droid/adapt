@@ -12,8 +12,6 @@ enum class ActivityStatusE : uint32_t {
   WELD_OBJECT_CALIBRATION = 2,
   CALIBRATION_AUTO_MOVE   = 3,
   TRACKING                = 4,
-  SERVICE_MODE_TRACKING   = 5,
-  SERVICE_MODE_KINEMATICS = 6,
 };
 
 inline auto ActivityStatusToString(ActivityStatusE status) -> std::string {
@@ -28,10 +26,6 @@ inline auto ActivityStatusToString(ActivityStatusE status) -> std::string {
       return "calibration-auto-move";
     case ActivityStatusE::TRACKING:
       return "tracking";
-    case ActivityStatusE::SERVICE_MODE_TRACKING:
-      return "service-mode-tracking";
-    case ActivityStatusE::SERVICE_MODE_KINEMATICS:
-      return "service-mode-kinematics";
     default:
       break;
   }

@@ -8,7 +8,7 @@
 #include <string>
 
 #include "bead_control/src/bead_control_impl.h"
-#include "calibration/src/calibration_manager_v2_impl.h"
+#include "calibration/src/calibration_manager_impl.h"
 #include "calibration/src/calibration_metrics.h"
 #include "calibration/src/calibration_solver_impl.h"
 #include "common/clock_functions.h"
@@ -25,7 +25,6 @@
 #include "slice_translator/src/coordinates_translator.h"
 #include "slice_translator/src/model_impl.h"
 #include "tracking/src/tracking_manager_impl.h"
-#include "web_hmi/src/service_mode_manager_impl.h"
 #include "web_hmi/src/web_hmi_server.h"
 #include "weld_control/src/delay_buffer.h"
 #include "weld_control/src/settings_provider.h"
@@ -67,11 +66,10 @@ class Application {
   std::unique_ptr<slice_translator::ModelImpl> model_impl_;
   std::unique_ptr<calibration::CalibrationSolverImpl> calibration_solver_;
   std::unique_ptr<calibration::CalibrationMetrics> calibration_metrics_;
-  std::unique_ptr<calibration::CalibrationManagerV2Impl> calibration_manager_v2_;
+  std::unique_ptr<calibration::CalibrationManagerImpl> calibration_manager_;
   std::unique_ptr<tracking::TrackingManagerImpl> tracking_manager_;
   std::unique_ptr<slice_translator::CoordinatesTranslator> coordinates_translator_;
   std::unique_ptr<management::ManagementServer> management_server_;
-  std::unique_ptr<web_hmi::ServiceModeManagerImpl> service_mode_manager_;
   std::unique_ptr<web_hmi::WebHmiServer> web_hmi_server_;
   std::unique_ptr<coordination::ActivityStatus> activity_status_;
   std::unique_ptr<common::containers::RelativePositionBuffer<bead_control::WeldPositionData>> weld_pos_data_storage_;

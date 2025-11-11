@@ -1,14 +1,13 @@
 #include "controller/controller_data.h"
 #include "helpers/helpers.h"
 #include "helpers/helpers_abp_parameters.h"
-#include "helpers/helpers_calibration_v2.h"
+#include "helpers/helpers_calibration.h"
 #include "helpers/helpers_joint_geometry.h"
 #include "helpers/helpers_settings.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
 
 #include <doctest/doctest.h>
-#include <fmt/core.h>
 
 using controller::AxisInput;
 using controller::TrackInput;

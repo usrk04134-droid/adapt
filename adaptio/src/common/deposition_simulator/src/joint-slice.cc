@@ -12,6 +12,7 @@
 #include <numbers>
 #include <optional>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "../sim-config.h"
@@ -708,7 +709,7 @@ auto JointSlice::AddBead(double target_bead_area, double bead_radius, double tar
   }
 }
 
-auto JointSlice::GetAbwPoints(bool allow_cap_points) const -> std::unique_ptr<std::vector<std::optional<Point2d>>> {
+auto JointSlice::GetAbwPoints(bool allow_cap_points) const -> std::vector<std::optional<Point2d>> {
   std::vector<std::optional<Point2d>> abw;
   abw.reserve(DEFAULT_NBR_ABW_POINTS);
 
@@ -719,7 +720,7 @@ auto JointSlice::GetAbwPoints(bool allow_cap_points) const -> std::unique_ptr<st
   const auto abw6 = ComputeTopRightAbw();
 
   if (!abw0 || !abw6) {
-    return std::make_unique<std::vector<std::optional<Point2d>>>(std::move(abw));
+    return abw;
   }
 
   const auto abw1                = ComputeBottomLeftAbw(*abw0);
@@ -732,7 +733,7 @@ auto JointSlice::GetAbwPoints(bool allow_cap_points) const -> std::unique_ptr<st
   abw.push_back(abw6);
 
   if (!both_sides_detected) {
-    return std::make_unique<std::vector<std::optional<Point2d>>>(std::move(abw));
+    return abw;
   }
 
   // Compute intermediate bottom points
@@ -755,7 +756,7 @@ auto JointSlice::GetAbwPoints(bool allow_cap_points) const -> std::unique_ptr<st
   // Insert bottom points between bottom-left and bottom-right
   abw.insert(abw.begin() + 2, bottom_points.begin(), bottom_points.end());
 
-  return std::make_unique<std::vector<std::optional<Point2d>>>(std::move(abw));
+  return abw;
 }
 
 auto JointSlice::FindIntersectionWithSurface(const Line2d &line) const -> std::optional<Point2d> {
@@ -864,6 +865,24 @@ auto JointSlice::ComputeTopRightAbw() const -> std::optional<Point2d> {
 
   return *abw6_orig;
 }
+auto JointSlice::GetSlicePoints2d() const -> std::vector<Point2d> {
+  std::vector<Point2d> slice_points;
+  double x_coord{NAN};
+  double y_coord{NAN};
+
+  for (const auto &line : this->slice_lines_) {
+    y_coord = line.GetStart().GetY();
+    x_coord = line.GetStart().GetX();
+    slice_points.emplace_back(x_coord, y_coord);
+  }
+
+  // Add the end of the last slice line.
+  y_coord = slice_lines_.back().GetStart().GetY();
+  x_coord = slice_lines_.back().GetEnd().GetX();
+  slice_points.emplace_back(x_coord, y_coord);
+
+  return slice_points;
+}
 
 auto JointSlice::GetSlicePoints() const -> std::vector<Point3d> {
   std::vector<Point3d> slice_points;
@@ -893,28 +912,26 @@ auto JointSlice::GetSlicePoints() const -> std::vector<Point3d> {
   z_coord = std::cos(slice_angle_rocs_) * r_coord;
   slice_points.emplace_back(x_coord, y_coord, z_coord, ROCS);
 
-  // To left inner side
-  x_coord = slice_lines_.front().GetStart().GetX();
-  slice_points.emplace_back(x_coord, y_coord, z_coord, ROCS);
-
-  // Back to left point (start)
-  r_coord = slice_lines_.front().GetStart().GetY();
+  // To center line at right side r_coord
+  // r_coord: same as latest one
+  x_coord = (joint_def_left_.root_face - joint_def_left_.basemetal_thickness) * std::tan(joint_def_left_.groove_ang) -
+            root_gap_ / 2 + center_line_offset_;
   y_coord = -std::sin(slice_angle_rocs_) * r_coord;
   z_coord = std::cos(slice_angle_rocs_) * r_coord;
   slice_points.emplace_back(x_coord, y_coord, z_coord, ROCS);
 
+  // To center line at left side r_coord
+  // x_coord: same as latest one
+  r_coord = slice_lines_.front().GetStart().GetY() - joint_def_left_.basemetal_thickness;
+  y_coord = -std::sin(slice_angle_rocs_) * r_coord;
+  z_coord = std::cos(slice_angle_rocs_) * r_coord;
+  slice_points.emplace_back(x_coord, y_coord, z_coord, ROCS);
+
+  // To leftest point inner side
+  x_coord = slice_lines_.front().GetStart().GetX();
+  slice_points.emplace_back(x_coord, y_coord, z_coord, ROCS);
+
   return slice_points;
-}
-
-auto JointSlice::GetSlicePoints(std::vector<double> &x_coords, std::vector<double> &y_coords) const -> void {
-  // const double innerRadiusLeft = joint_def_left_.outer_diameter - joint_def_left_.basemetal_thickness;
-
-  for (const auto &line : this->slice_lines_) {
-    x_coords.push_back(line.GetStart().GetX());
-    y_coords.push_back(line.GetStart().GetY());
-    x_coords.push_back(line.GetEnd().GetX());
-    y_coords.push_back(line.GetEnd().GetY());
-  }
 }
 
 auto JointSlice::GetMinX() const -> double {

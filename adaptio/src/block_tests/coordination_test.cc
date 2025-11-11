@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 #include "common/messages/management.h"
@@ -36,11 +37,11 @@ TEST_SUITE("Coordination") {
 
     // Check that status is IDLE
     {
-      auto get_activity_status = web_hmi::CreateMessage("GetActivityStatus", {});
+      auto get_activity_status = web_hmi::CreateMessage("GetActivityStatus", std::nullopt, {});
       fixture.WebHmiIn()->DispatchMessage(std::move(get_activity_status));
       auto status_payload = ReceiveJsonByName(fixture, "GetActivityStatusRsp");
       CHECK(status_payload != nullptr);
-      CHECK_EQ(status_payload["value"], ACTIVITY_STATUS_IDLE);
+      CHECK_EQ(status_payload.at("payload").at("value"), ACTIVITY_STATUS_IDLE);
     }
 
     // Start Joint tracking
@@ -53,11 +54,11 @@ TEST_SUITE("Coordination") {
 
     // Check that status is TRACKING
     {
-      auto get_activity_status = web_hmi::CreateMessage("GetActivityStatus", {});
+      auto get_activity_status = web_hmi::CreateMessage("GetActivityStatus", std::nullopt, {});
       fixture.WebHmiIn()->DispatchMessage(std::move(get_activity_status));
       auto status_payload = ReceiveJsonByName(fixture, "GetActivityStatusRsp");
       CHECK(status_payload != nullptr);
-      CHECK_EQ(status_payload["value"], ACTIVITY_STATUS_TRACKING);
+      CHECK_EQ(status_payload.at("payload").at("value"), ACTIVITY_STATUS_TRACKING);
     }
 
     // ABW points on scanner interface
@@ -101,16 +102,16 @@ TEST_SUITE("Coordination") {
         static_cast<uint32_t>(tracking::TrackingMode::TRACKING_LEFT_HEIGHT), HORIZONTAL_OFFSET, VERTICAL_OFFSET};
     fixture.Management()->Dispatch(start_joint_tracking_msg);
 
-    auto start_cal = web_hmi::CreateMessage("LaserToTorchCalibration", {});
+    auto start_cal = web_hmi::CreateMessage("LaserToTorchCalibration", std::nullopt, {});
     fixture.WebHmiIn()->DispatchMessage(std::move(start_cal));
 
     // Check that status is still TRACKING
     {
-      auto get_activity_status = web_hmi::CreateMessage("GetActivityStatus", {});
+      auto get_activity_status = web_hmi::CreateMessage("GetActivityStatus", std::nullopt, {});
       fixture.WebHmiIn()->DispatchMessage(std::move(get_activity_status));
       auto status_payload = ReceiveJsonByName(fixture, "GetActivityStatusRsp");
       CHECK(status_payload != nullptr);
-      CHECK_EQ(status_payload["value"], ACTIVITY_STATUS_TRACKING);
+      CHECK_EQ(status_payload.at("payload").at("value"), ACTIVITY_STATUS_TRACKING);
     }
   }
 }

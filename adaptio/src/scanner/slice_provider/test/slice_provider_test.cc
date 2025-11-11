@@ -1,4 +1,6 @@
 
+#include "scanner/slice_provider/slice_provider.h"
+
 #include <doctest/doctest.h>
 
 #include <chrono>
@@ -13,15 +15,15 @@
 // NOLINTBEGIN(*-magic-numbers)
 namespace scanner::slice_provider {
 
-const auto abw0 = joint_model::Point{0.0, 0.0};
-const auto abw1 = joint_model::Point{0.0, -0.008};
-const auto abw2 = joint_model::Point{0.0, 0.0};
-const auto abw3 = joint_model::Point{0.0, 0.0};
-const auto abw4 = joint_model::Point{0.0, 0.0};
-const auto abw5 = joint_model::Point{0.0, -0.008};
-const auto abw6 = joint_model::Point{0.0, 0.0};
+const auto abw0 = common::Point{0.0, 0.0};
+const auto abw1 = common::Point{0.0, -0.008};
+const auto abw2 = common::Point{0.0, 0.0};
+const auto abw3 = common::Point{0.0, 0.0};
+const auto abw4 = common::Point{0.0, 0.0};
+const auto abw5 = common::Point{0.0, -0.008};
+const auto abw6 = common::Point{0.0, 0.0};
 
-auto deep_joint = scanner::joint_model::ABWPoints{abw0, abw1, abw2, abw3, abw4, abw5, abw6};
+auto deep_joint = common::Groove{abw0, abw1, abw2, abw3, abw4, abw5, abw6};
 
 TEST_SUITE("Slice provider") {
   TEST_CASE("Add") {
@@ -31,7 +33,7 @@ TEST_SUITE("Slice provider") {
 
     scanner::joint_buffer::JointSlice slice = {
         .timestamp          = std::chrono::high_resolution_clock::now(),
-        .profile            = {.points = deep_joint},
+        .profile            = {.groove = deep_joint},
         .num_walls_found    = 2,
         .approximation_used = false,
     };
@@ -89,10 +91,10 @@ TEST_SUITE("Slice provider") {
     CHECK(!slice_provider.GetSlice());
 
     // Still quite high wall on one side
-    auto slice_mod2                = slice;
-    slice_mod2.profile.points[1].y = 0.003;
-    slice_mod2.profile.points[1].y = 0.0061;
-    slice_mod2.num_walls_found     = 1;
+    auto slice_mod2                       = slice;
+    slice_mod2.profile.groove[1].vertical = 0.003;
+    slice_mod2.profile.groove[1].vertical = 0.0061;
+    slice_mod2.num_walls_found            = 1;
     slice_provider.AddSlice(slice_mod2);
     slice_mod2.num_walls_found = 1;
     slice_provider.AddSlice(slice_mod2);

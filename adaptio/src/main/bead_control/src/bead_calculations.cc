@@ -4,7 +4,6 @@
 #include <cassert>
 #include <cmath>
 #include <numbers>
-#include <numeric>
 #include <vector>
 
 #include "common/groove/groove.h"

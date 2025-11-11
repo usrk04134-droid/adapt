@@ -5,6 +5,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <regex>
 #include <string>
 #include <utility>
@@ -26,6 +27,14 @@
 namespace {
 
 const std::string ADAPTIO_IO = "adaptio_io";
+
+const auto SUCCESS_PAYLOAD = nlohmann::json{
+    {"result", "ok"}
+};
+
+const auto FAILURE_PAYLOAD = nlohmann::json{
+    {"result", "fail"}
+};
 
 }  // namespace
 
@@ -69,26 +78,26 @@ void WebHmiServer::OnMessage(zevs::MessagePtr message) {
     }
 
     if (message_name == "GetAdaptioVersion") {
-      auto response = CreateMessage("GetAdaptioVersionRsp", VersionToPayload(ADAPTIO_VERSION));
+      auto response = CreateMessage("GetAdaptioVersionRsp", SUCCESS_PAYLOAD, VersionToPayload(ADAPTIO_VERSION));
       out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(response));
 
     } else if (message_name == "GetSlidesPosition") {
       auto on_get_slides_position = [this](std::uint64_t /*time_stamp*/, double horizontal, double vertical) {
         auto payload = PositionToPayload(horizontal, vertical);
-        auto message = CreateMessage("GetSlidesPositionRsp", payload);
+        auto message = CreateMessage("GetSlidesPositionRsp", SUCCESS_PAYLOAD, payload);
         out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
       };
       kinematics_client_->GetSlidesPosition(on_get_slides_position);
     } else if (message_name == "GetSlidesStatus") {
       auto on_get_slides_status = [this](bool horizontal_in_position, bool vertical_in_position) {
         auto payload = SlidesStatusToPayload(horizontal_in_position, vertical_in_position);
-        auto message = CreateMessage("GetSlidesStatusRsp", payload);
+        auto message = CreateMessage("GetSlidesStatusRsp", SUCCESS_PAYLOAD, payload);
         out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
       };
       kinematics_client_->GetSlidesStatus(on_get_slides_status);
     } else if (message_name == "GetActivityStatus") {
       auto payload = ActivityStatusToPayload(activity_status_->Get());
-      auto message = CreateMessage("GetActivityStatusRsp", payload);
+      auto message = CreateMessage("GetActivityStatusRsp", SUCCESS_PAYLOAD, payload);
       out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
 
     } else if (message_name == "GetGroove") {
@@ -96,22 +105,25 @@ void WebHmiServer::OnMessage(zevs::MessagePtr message) {
       if (groove_) {
         payload = GrooveToPayload(groove_.value());
       }
-      auto message = CreateMessage("GetGrooveRsp", payload);
+      auto message = CreateMessage("GetGrooveRsp", SUCCESS_PAYLOAD, payload);
       out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
     } else if (message_name == "GetEdgePosition") {
       auto on_get_edge_position = [this](double position) {
         nlohmann::json payload = {
             {"position", position}
         };
-        auto message = CreateMessage("GetEdgePositionRsp", payload);
+        auto message = CreateMessage("GetEdgePositionRsp", SUCCESS_PAYLOAD, payload);
         out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
       };
       kinematics_client_->GetEdgePosition(on_get_edge_position);
     } else {
       LOG_ERROR("Unknown Message: message_name={}", message_name);
+      auto message_str = message_name + " - The requested message type is not recognized";
+      Send("UnknownMessageRsp", FAILURE_PAYLOAD, message_str, std::nullopt);
     }
   } catch (nlohmann::json::exception& exception) {
     LOG_ERROR("nlohman JSON exception: {}, for message: {}", exception.what(), message_name);
+    Send(message_name + "Rsp", FAILURE_PAYLOAD, "Exception error", std::nullopt);
   }
 }
 
@@ -146,9 +158,19 @@ void WebHmiServer::Send(nlohmann::json const& data) {
   out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
 }
 
-void WebHmiServer::Send(std::string const& topic, nlohmann::json const& payload) {
-  LOG_TRACE("web_hmi::Send topic: {} payload: {}", topic.c_str(), payload.dump());
+void WebHmiServer::Send(std::string const& topic, const std::optional<nlohmann::json>& result,
+                        const std::optional<nlohmann::json>& payload) {
+  LOG_TRACE("web_hmi::Send topic: {}, payload: {}", topic.c_str(),
+            payload ? payload->dump() : nlohmann::json({}).dump());
+  auto message = CreateMessage(topic, result, payload);
+  out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
+}
 
-  auto message = CreateMessage(topic, payload);
+void WebHmiServer::Send(std::string const& topic, nlohmann::json const& result,
+                        const std::optional<std::string>& message_status,
+                        const std::optional<nlohmann::json>& payload) {
+  LOG_TRACE("web_hmi::Send topic: {}, payload: {}", topic.c_str(),
+            payload ? payload->dump() : nlohmann::json({}).dump());
+  auto message = CreateMessage(topic, result, message_status, payload);
   out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
 }

@@ -43,35 +43,6 @@ struct GridPoint {
 };
 
 // TODO: Move this function to another file
-inline auto ValidateAndCalculateGrooveTopCenter(const joint_geometry::JointGeometry& joint_geometry,
-                                                double min_touch_width_ratio, double max_touch_width_ratio,
-                                                double wire_diameter, double stickout,
-                                                const common::Point& left_touch_position,
-                                                const common::Point& right_touch_position)
-    -> std::optional<common::Point> {
-  const auto touch_width = left_touch_position.horizontal - right_touch_position.horizontal + wire_diameter;
-  auto touch_ratio       = touch_width / joint_geometry.upper_joint_width_mm;
-
-  if (touch_ratio < min_touch_width_ratio || touch_ratio > max_touch_width_ratio) {
-    LOG_ERROR("Touch width ratio invalid: {}", touch_ratio);
-    return {};
-  }
-
-  const auto min_groove_angle = std::min(joint_geometry.left_joint_angle_rad, joint_geometry.right_joint_angle_rad);
-
-  // depth of touch points relative to groove top
-  const double touch_depth = HALF * (joint_geometry.upper_joint_width_mm - touch_width) / std::tan(min_groove_angle);
-
-  if (touch_depth > joint_geometry.groove_depth_mm || touch_depth < 0.0) {
-    LOG_ERROR("Touch depth invalid: {}", touch_depth);
-    return {};
-  }
-
-  return common::Point{.horizontal = std::midpoint(left_touch_position.horizontal, right_touch_position.horizontal),
-                       .vertical   = left_touch_position.vertical - stickout + touch_depth};
-}
-
-// TODO: Move this function to another file
 inline auto ValidateAndCalculateGrooveTopCenter2(const joint_geometry::JointGeometry& joint_geometry,
                                                  double wire_diameter, double stickout,
                                                  const common::Point& left_wall_touch_position,
