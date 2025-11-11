@@ -47,7 +47,7 @@ TEST_SUITE("Slice provider") {
 
     auto tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    auto confidence = get<1>(tracking.value());
+    auto confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::HIGH);
 
     slice_provider.Reset();
@@ -65,7 +65,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -84,7 +84,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -105,7 +105,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -124,8 +124,33 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = tracking->confidence;
     CHECK(confidence == slice_provider::SliceConfidence::LOW);
+  }
+
+  TEST_CASE("Latest snake retrieval") {
+    auto joint_buffer          = std::make_unique<joint_buffer::CircularJointBuffer>();
+    auto steady_clock_now_func = []() { return std::chrono::steady_clock::now(); };
+    auto slice_provider = scanner::slice_provider::SliceProviderImpl(std::move(joint_buffer), steady_clock_now_func);
+
+    scanner::joint_buffer::JointSlice slice = {
+        .timestamp          = std::chrono::high_resolution_clock::now(),
+        .profile            = {.groove = deep_joint},
+        .num_walls_found    = 2,
+        .approximation_used = false,
+    };
+
+    slice.snake_points[0] = {.horizontal = 0.01, .vertical = -0.001};
+    slice.snake_points[1] = {.horizontal = 0.02, .vertical = -0.0015};
+
+    slice_provider.AddSlice(slice);
+    slice_provider.AddSlice(slice);
+    slice_provider.AddSlice(slice);
+
+    auto latest_tracking = slice_provider.GetTrackingSlice();
+    CHECK(latest_tracking.has_value());
+    CHECK_EQ(latest_tracking->snake.at(0).horizontal, doctest::Approx(0.01));
+    CHECK_EQ(latest_tracking->snake.at(1).vertical, doctest::Approx(-0.0015));
   }
 }
 }  // namespace scanner::slice_provider

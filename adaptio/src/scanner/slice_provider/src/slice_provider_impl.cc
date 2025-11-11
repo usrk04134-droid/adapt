@@ -50,29 +50,40 @@ auto SliceProviderImpl::GetSlice() -> std::optional<joint_model::JointProfile> {
   return std::nullopt;
 }
 
-auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> {
-  std::tuple<common::Groove, SliceConfidence, uint64_t> result = {};
-  auto maybe_slice                                             = MedianOfRecentSlices();
+auto SliceProviderImpl::GetTrackingSlice() -> std::optional<TrackingSlice> {
+  TrackingSlice result{};
+  auto maybe_slice = MedianOfRecentSlices();
   if (maybe_slice.has_value()) {
     auto slice = maybe_slice.value();
 
-    common::Groove groove;
-
+    TrackingSlice tracking_slice{};
     uint32_t index = 0;
     for (const auto& point : slice.profile.groove) {
-      groove[index++] = {.horizontal = point.horizontal, .vertical = point.vertical};
+      tracking_slice.groove[index++] = {.horizontal = point.horizontal, .vertical = point.vertical};
     }
 
-    auto confidence = GetConfidence(slice);
-    latest_slice_   = {groove, SliceConfidence::NO};
-    result          = std::make_tuple(groove, confidence, slice.timestamp.time_since_epoch().count());
+    tracking_slice.timestamp  = slice.timestamp.time_since_epoch().count();
+    tracking_slice.confidence = GetConfidence(slice);
+    tracking_slice.snake =
+        joint_buffer_->GetSlice()
+            .transform([](const auto& latest_slice) { return latest_slice.snake_points; })
+            .value_or(slice.snake_points);
+
+    latest_slice_ = TrackingSlice{.groove = tracking_slice.groove,
+                                  .snake = tracking_slice.snake,
+                                  .timestamp = tracking_slice.timestamp,
+                                  .confidence = SliceConfidence::NO};
+
+    result = tracking_slice;
   } else {
     auto time_stamp = high_resolution_clock::now().time_since_epoch().count();
-    result          = std::make_tuple(std::get<0>(latest_slice_), std::get<1>(latest_slice_), time_stamp);
+    result.groove   = latest_slice_.groove;
+    result.snake    = latest_slice_.snake;
+    result.timestamp = time_stamp;
+    result.confidence = latest_slice_.confidence;
   }
 
-  auto confidence = get<1>(result);
-  switch (confidence) {
+  switch (result.confidence) {
     case SliceConfidence::NO:
     case SliceConfidence::LOW:
       if (last_sent_ts_.has_value() && ((steady_clock_now_func_() - last_sent_ts_.value()) > NO_SLICE_DATA_TMO_MS)) {

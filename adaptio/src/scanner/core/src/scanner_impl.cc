@@ -334,8 +334,9 @@ void ScannerImpl::Update() {
   m_buffer_mutex.unlock();
 
   if (tracking_data.has_value()) {
-    auto [groove, confidence, time_stamp] = tracking_data.value();
-    scanner_output_->ScannerOutput(groove, std::array<common::Point, 100>{}, time_stamp, confidence);
+    const auto& tracking_slice = tracking_data.value();
+    scanner_output_->ScannerOutput(tracking_slice.groove, tracking_slice.snake, tracking_slice.timestamp,
+                                   tracking_slice.confidence);
   } else {
     // This should not happen
     LOG_ERROR("No slice sent due to missing ABW points.");
