@@ -497,19 +497,19 @@ void BeadControlImpl::ResumeBeadOperation(double angular_position) {
   LOG_INFO("Resume state {} at position {:.4f} layer: {} bead: {} progress: {:.1f}%", StateToString(state_),
            *paused_angular_position_, layer_number_, bead_number_, progress_ * 100.0);
 
-  auto bead_operation_distance = 0.0;
-  switch (state_) {
-    case State::STEADY:
-      bead_operation_distance = 2 * std::numbers::pi;
-      break;
-    case State::OVERLAPPING:
-      bead_operation_distance = bead_overlap_;
-      break;
-    case State::REPOSITIONING:
-      /* repositioning does not need to be resumed */
-    case State::IDLE:
-      return;
-  }
+    auto bead_operation_distance = 0.0;
+    switch (state_) {
+      case State::STEADY:
+        bead_operation_distance = 2 * std::numbers::pi;
+        break;
+      case State::OVERLAPPING:
+        bead_operation_distance = BeadCalc::Distance2Angle(weld_object_radius_, bead_overlap_);
+        break;
+      case State::REPOSITIONING:
+        /* repositioning does not need to be resumed */
+      case State::IDLE:
+        return;
+    }
 
   auto const distance_since_pause =
       common::math::WrappedDist(*paused_angular_position_, angular_position, 2 * std::numbers::pi);
