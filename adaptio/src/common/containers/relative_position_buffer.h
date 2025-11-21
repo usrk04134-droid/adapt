@@ -15,8 +15,6 @@ class RelativePositionBuffer {
   };
 
   explicit RelativePositionBuffer(size_t capacity) : data_(capacity) {}
-  explicit RelativePositionBuffer(size_t capacity, std::optional<double> wrap_value)
-      : data_(capacity), wrap_value_(wrap_value) {}
 
   ~RelativePositionBuffer() = default;
 
@@ -30,27 +28,31 @@ class RelativePositionBuffer {
     }
   }
 
-  auto Get(double position) -> std::optional<T> {
+  auto Get(double position, double distance) -> std::optional<T> {
     if (data_.empty()) {
       return {};
     }
 
+    if (distance < 0.0) {
+      return {};
+    }
+
+    auto const reference_position = data_.front().position;
+    auto const remaining          = distance - (position - reference_position);
+
+    if (remaining < 0.0) {
+      return {};
+    }
+
     auto sum           = 0.0;
-    auto last_position = data_[0].position;
+    auto last_position = reference_position;
 
     for (int i = 0; i < data_.size(); i++) {
       auto cur_position = data_[i].position;
 
-      if (wrap_value_.has_value()) {
-        sum += last_position < cur_position ? last_position + wrap_value_.value() - cur_position
-                                            : last_position - cur_position;
-      } else {
-        sum += last_position - cur_position;
-      }
+      sum += last_position - cur_position;
 
-      auto dist = position - sum;
-
-      if (dist < 0.0) {
+      if (sum > remaining) {
         return i > 0 ? std::optional<T>{data_[i - 1].data} : std::nullopt;
       }
 
@@ -62,6 +64,5 @@ class RelativePositionBuffer {
 
  private:
   boost::circular_buffer<Entry> data_;
-  std::optional<double> wrap_value_;
 };
 }  // namespace common::containers
