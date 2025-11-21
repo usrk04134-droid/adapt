@@ -1,8 +1,9 @@
 #pragma once
 
 #include <boost/circular_buffer.hpp>
+
 #include <cmath>
-#include <iostream>
+#include <limits>
 #include <optional>
 namespace common::containers {
 
@@ -15,8 +16,6 @@ class RelativePositionBuffer {
   };
 
   explicit RelativePositionBuffer(size_t capacity) : data_(capacity) {}
-  explicit RelativePositionBuffer(size_t capacity, std::optional<double> wrap_value)
-      : data_(capacity), wrap_value_(wrap_value) {}
 
   ~RelativePositionBuffer() = default;
 
@@ -25,43 +24,36 @@ class RelativePositionBuffer {
   void Clear() { data_.clear(); };
 
   void Store(double position, const T& value) {
-    if (data_.front().position != position) {
+    if (data_.empty() || data_.front().position != position) {
       data_.push_front(Entry{.position = position, .data = value});
     }
   }
 
-  auto Get(double position) -> std::optional<T> {
+  auto Get(double position, double distance) const -> std::optional<T> {
     if (data_.empty()) {
-      return {};
+      return std::nullopt;
     }
 
-    auto sum           = 0.0;
-    auto last_position = data_[0].position;
+    const double target_position = position - distance;
+    const double epsilon         = std::numeric_limits<double>::epsilon();
 
-    for (int i = 0; i < data_.size(); i++) {
-      auto cur_position = data_[i].position;
+    const Entry* closest_entry = nullptr;
+    double smallest_diff       = std::numeric_limits<double>::infinity();
 
-      if (wrap_value_.has_value()) {
-        sum += last_position < cur_position ? last_position + wrap_value_.value() - cur_position
-                                            : last_position - cur_position;
-      } else {
-        sum += last_position - cur_position;
+    for (const auto& entry : data_) {
+      const double diff = std::abs(entry.position - target_position);
+
+      if (closest_entry == nullptr || diff < smallest_diff ||
+          (std::abs(diff - smallest_diff) <= epsilon && entry.position > closest_entry->position)) {
+        closest_entry = &entry;
+        smallest_diff = diff;
       }
-
-      auto dist = position - sum;
-
-      if (dist < 0.0) {
-        return i > 0 ? std::optional<T>{data_[i - 1].data} : std::nullopt;
-      }
-
-      last_position = cur_position;
     }
 
-    return data_.back().data;
+    return closest_entry ? std::optional<T>{closest_entry->data} : std::nullopt;
   }
 
  private:
   boost::circular_buffer<Entry> data_;
-  std::optional<double> wrap_value_;
 };
 }  // namespace common::containers

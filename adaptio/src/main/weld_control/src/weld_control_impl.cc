@@ -941,14 +941,20 @@ auto WeldControlImpl::GetDelayedGrooveMCS() -> common::Groove {
   auto const delay = GetSampleToTorchDist(cached_lpcs_.time_stamp, cached_weld_axis_ang_velocity_,
                                           cached_distance_from_torch_to_scanner_);
 
-  auto delayed_groove = delay_buffer_->Get(delay).value_or(current);
+  auto delayed_groove = cached_linear_object_distance_.has_value()
+                            ? delay_buffer_->Get(cached_linear_object_distance_.value(), delay).value_or(current)
+                            : current;
 
   return delayed_groove;
 }
 
 auto WeldControlImpl::GetHybridGrooveMCS() const -> common::Groove {
   auto const current_groove = cached_mcs_.groove.value();
-  auto const delayed_groove = delay_buffer_->Get(cached_distance_from_torch_to_scanner_).value_or(current_groove);
+  auto const delayed_groove =
+      cached_linear_object_distance_.has_value()
+          ? delay_buffer_->Get(cached_linear_object_distance_.value(), cached_distance_from_torch_to_scanner_)
+                .value_or(current_groove)
+          : current_groove;
 
   // Use ABW0,6 from current groove
   // Attempt to update the y values for the bottom of the groove.
