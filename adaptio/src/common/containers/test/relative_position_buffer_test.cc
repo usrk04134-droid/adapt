@@ -17,16 +17,14 @@ TEST_SUITE("RelativePositionBuffer") {
     common::containers::RelativePositionBuffer<int> pb(10);
 
     pb.Store(1.0, 1);
-
     CHECK_EQ(pb.Size(), 1);
 
     pb.Store(1.0, 2);
     CHECK_EQ(pb.Size(), 1);
-
     CHECK(!pb.Empty());
 
     CHECK_EQ(pb.Get(1.0, 0.0), 1);
-    CHECK_EQ(pb.Get(1.0, 1.0), 1);
+    CHECK_EQ(pb.Get(1.0, 0.5), std::nullopt);
   }
 
   TEST_CASE("two entries") {
@@ -40,19 +38,18 @@ TEST_SUITE("RelativePositionBuffer") {
 
     CHECK_EQ(pb.Get(1.5, 0.3), 2);
     CHECK_EQ(pb.Get(1.5, 0.6), 1);
+    CHECK_EQ(pb.Get(1.5, 1.0), std::nullopt);
   }
 
-  TEST_CASE("position ahead of stored reference clamps remaining distance") {
+  TEST_CASE("insufficient history returns nullopt") {
     common::containers::RelativePositionBuffer<int> pb(10);
 
     pb.Store(1.0, 1);
     pb.Store(1.5, 2);
 
     CHECK_FALSE(pb.Get(2.0, 0.3).has_value());
-    CHECK_EQ(pb.Get(1.7, 0.6), 2);
-    CHECK_EQ(pb.Get(1.4, 0.3), 2);
-    CHECK_EQ(pb.Get(1.4, 0.8), 1);
   }
+
   TEST_CASE("Negative values") {
     common::containers::RelativePositionBuffer<int> pb(10);
 
@@ -64,6 +61,20 @@ TEST_SUITE("RelativePositionBuffer") {
 
     CHECK_EQ(pb.Get(-1.0, 0.3), 2);
     CHECK_EQ(pb.Get(-1.0, 0.6), 1);
+  }
+
+  TEST_CASE("returns closest available historical position") {
+    common::containers::RelativePositionBuffer<int> pb(10);
+
+    pb.Store(3.0, 3);
+    pb.Store(7.0, 7);
+    pb.Store(9.0, 9);
+    pb.Store(12.0, 12);
+
+    CHECK_EQ(pb.Get(18.0, 5.0), 12);
+    CHECK_EQ(pb.Get(18.0, 8.0), 9);
+    CHECK_EQ(pb.Get(18.0, 15.0), 3);
+    CHECK_FALSE(pb.Get(18.0, 20.0).has_value());
   }
 }
 
