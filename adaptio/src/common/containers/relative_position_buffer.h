@@ -37,20 +37,34 @@ class RelativePositionBuffer {
     const double target_position = position - distance;
     const double epsilon         = std::numeric_limits<double>::epsilon();
 
-    const Entry* closest_entry = nullptr;
-    double smallest_diff       = std::numeric_limits<double>::infinity();
+    const Entry* candidate_entry = nullptr;  // entry at or before target
+    double candidate_diff        = std::numeric_limits<double>::infinity();
+
+    const Entry* fallback_entry = nullptr;  // entry after target (no history before target)
+    double fallback_diff        = std::numeric_limits<double>::infinity();
 
     for (const auto& entry : data_) {
-      const double diff = std::abs(entry.position - target_position);
+      const double delta = target_position - entry.position;
 
-      if (closest_entry == nullptr || diff < smallest_diff ||
-          (std::abs(diff - smallest_diff) <= epsilon && entry.position > closest_entry->position)) {
-        closest_entry = &entry;
-        smallest_diff = diff;
+      if (delta >= -epsilon) {
+        const double normalized_delta = delta < 0.0 ? 0.0 : delta;
+        if (candidate_entry == nullptr || normalized_delta < candidate_diff ||
+            (std::abs(normalized_delta - candidate_diff) <= epsilon && entry.position > candidate_entry->position)) {
+          candidate_entry = &entry;
+          candidate_diff  = normalized_delta;
+        }
+      } else {
+        const double abs_delta = std::abs(delta);
+        if (fallback_entry == nullptr || abs_delta < fallback_diff ||
+            (std::abs(abs_delta - fallback_diff) <= epsilon && entry.position > fallback_entry->position)) {
+          fallback_entry = &entry;
+          fallback_diff  = abs_delta;
+        }
       }
     }
 
-    return closest_entry ? std::optional<T>{closest_entry->data} : std::nullopt;
+    const Entry* selected_entry = candidate_entry != nullptr ? candidate_entry : fallback_entry;
+    return selected_entry ? std::optional<T>{selected_entry->data} : std::nullopt;
   }
 
  private:

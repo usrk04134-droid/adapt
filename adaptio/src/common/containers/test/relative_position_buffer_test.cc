@@ -31,7 +31,7 @@ TEST_SUITE("RelativePositionBuffer") {
     CHECK_EQ(pb.Get(1.0, 0.0), 1);
   }
 
-  TEST_CASE("returns closest position for requested distance") {
+  TEST_CASE("selects closest earlier position when possible") {
     common::containers::RelativePositionBuffer<int> pb(10);
 
     pb.Store(3.0, 3);
@@ -47,13 +47,22 @@ TEST_SUITE("RelativePositionBuffer") {
     CHECK_EQ(pb.Get(18.0, 15.0).value(), 3);
   }
 
-  TEST_CASE("prefers newest entry when equidistant") {
+  TEST_CASE("returns earliest entry when target precedes buffer range") {
+    common::containers::RelativePositionBuffer<int> pb(10);
+
+    pb.Store(5.0, 5);
+    pb.Store(10.0, 10);
+
+    CHECK_EQ(pb.Get(3.0, 0.0).value(), 5);
+  }
+
+  TEST_CASE("prefers earlier entry when future data is equally close") {
     common::containers::RelativePositionBuffer<int> pb(10);
 
     pb.Store(10.0, 1);
     pb.Store(20.0, 2);
 
-    CHECK_EQ(pb.Get(25.0, 10.0).value(), 2);
+    CHECK_EQ(pb.Get(25.0, 10.0).value(), 1);
   }
 
   TEST_CASE("handles negative positions") {
