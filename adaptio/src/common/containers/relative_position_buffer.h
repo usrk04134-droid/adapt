@@ -15,8 +15,6 @@ class RelativePositionBuffer {
   };
 
   explicit RelativePositionBuffer(size_t capacity) : data_(capacity) {}
-  explicit RelativePositionBuffer(size_t capacity, std::optional<double> wrap_value)
-      : data_(capacity), wrap_value_(wrap_value) {}
 
   ~RelativePositionBuffer() = default;
 
@@ -25,43 +23,34 @@ class RelativePositionBuffer {
   void Clear() { data_.clear(); };
 
   void Store(double position, const T& value) {
-    if (data_.front().position != position) {
+    if (data_.empty() || data_.front().position != position) {
       data_.push_front(Entry{.position = position, .data = value});
     }
   }
 
-  auto Get(double position) -> std::optional<T> {
+  auto Get(double position, double distance) -> std::optional<T> {
     if (data_.empty()) {
       return {};
     }
 
-    auto sum           = 0.0;
-    auto last_position = data_[0].position;
+    auto const target_position = position - distance;
 
-    for (int i = 0; i < data_.size(); i++) {
-      auto cur_position = data_[i].position;
+    auto closest_it = data_.begin();
+    auto min_diff   = std::abs(closest_it->position - target_position);
 
-      if (wrap_value_.has_value()) {
-        sum += last_position < cur_position ? last_position + wrap_value_.value() - cur_position
-                                            : last_position - cur_position;
-      } else {
-        sum += last_position - cur_position;
+    for (auto it = data_.begin() + 1; it != data_.end(); ++it) {
+      auto const diff = std::abs(it->position - target_position);
+      if (diff > min_diff) {
+        break;
       }
-
-      auto dist = position - sum;
-
-      if (dist < 0.0) {
-        return i > 0 ? std::optional<T>{data_[i - 1].data} : std::nullopt;
-      }
-
-      last_position = cur_position;
+      min_diff   = diff;
+      closest_it = it;
     }
 
-    return data_.back().data;
+    return closest_it->data;
   }
 
  private:
   boost::circular_buffer<Entry> data_;
-  std::optional<double> wrap_value_;
 };
 }  // namespace common::containers
