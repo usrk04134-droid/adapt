@@ -1,6 +1,6 @@
 // NOLINTBEGIN(*-magic-number)
 
-#include "scanner/core/scanner.h"
+#include "scanner/core/src/scanner.h"
 
 #include <doctest/doctest.h>
 #include <prometheus/registry.h>
@@ -22,11 +22,11 @@
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
 #include "scanner/image/image_builder.h"
-#include "scanner/image_logger/image_logger_impl.h"
+#include "scanner/image_logger/src/image_logger_impl.h"
 #include "scanner/image_provider/image_provider.h"
 #include "scanner/joint_buffer/src/single_joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/slice_provider/slice_provider_impl.h"
+#include "scanner/slice_provider/src/slice_provider_impl.h"
 
 using common::file::Yaml;
 

@@ -560,6 +560,15 @@ void WeldControlImpl::LogData(std::optional<std::string> annotation = std::nullo
     logdata["edgePosition"] = cached_edge_position_;
   }
 
+  nlohmann::json mcs_profile = nlohmann::json::array();
+  for (auto const& point : cached_mcs_.profile) {
+    mcs_profile.push_back({
+        {"x", floor(point.horizontal, LOG_3_DECIMALS)},
+        {"y", floor(point.vertical,   LOG_3_DECIMALS)},
+    });
+  }
+  logdata["profile"] = mcs_profile;
+
   weld_logger_.Log(logdata.dump());
 
   last_log_ = now;

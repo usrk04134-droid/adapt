@@ -19,12 +19,12 @@ struct JointSlice {
   std::string image_name;
   scanner::joint_model::JointProfile profile;
   image::WorkspaceCoordinates centroids;
-  std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE> snake_points;
 
   uint64_t num_walls_found = 0;
   uint64_t processing_time;
   int vertical_crop_start;
   bool approximation_used;
+  std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE> snake_points;
 };
 
 class JointBuffer {

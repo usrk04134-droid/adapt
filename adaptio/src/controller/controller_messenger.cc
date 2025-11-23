@@ -28,8 +28,12 @@ using controller::ControllerMessenger;
 
 ControllerMessenger::ControllerMessenger(ControllerPtr controller, uint32_t cycle_time,
                                          clock_functions::SystemClockNowFunc system_clock_now_func,
+                                         clock_functions::SteadyClockNowFunc steady_clock_now_func,
                                          std::string endpoint_base_url)
-    : controller_(std::move(controller)), cycle_time_(cycle_time), system_clock_now_func_(system_clock_now_func) {
+    : steady_clock_now_func_(std::move(steady_clock_now_func)),
+      controller_(std::move(controller)),
+      cycle_time_(cycle_time),
+      system_clock_now_func_(std::move(system_clock_now_func)) {
   management_endpoint_url_  = fmt::format("inproc://{}/management", endpoint_base_url);
   kinematics_endpoint_url_  = fmt::format("inproc://{}/kinematics", endpoint_base_url);
   weld_system_endpoint_url_ = fmt::format("inproc://{}/weld-system", endpoint_base_url);
@@ -122,6 +126,20 @@ void ControllerMessenger::OnDisconnected(uint32_t reason_code) { management_clie
 
 auto ControllerMessenger::ValidateHeartbeat() -> bool { return heartbeat_ != previous_heartbeat_; }
 
+void ControllerMessenger::CheckAdaptioHeartbeat() {
+  using namespace std::chrono_literals;
+
+  if (ValidateHeartbeat()) {
+    heartbeat_last_changed_ = steady_clock_now_func_();
+  } else {
+    if (steady_clock_now_func_() - heartbeat_last_changed_ > 500ms) {
+      LOG_ERROR("Detected the PLC heartbeat lost");
+      heartbeat_last_changed_ = steady_clock_now_func_();
+      OnHeartbeatLost();
+    }
+  }
+}
+
 void ControllerMessenger::OnPowerSourceOutput(uint32_t index, PowerSourceOutput const& data) {
   if (index == 1) {
     controller_->SetPowerSource1(data);
@@ -174,6 +192,8 @@ void ControllerMessenger::AdaptioOutputUpdate(const AdaptioOutput& data) {
 
 void ControllerMessenger::TrackOutputUpdate(const TrackOutput& data) { OnTrackOutputUpdate(data); }
 
+void ControllerMessenger::SuperviseHeartbeat() { supervise_heartbeat_ = true; }
+
 auto ControllerMessenger::Connect() -> boost::outcome_v2::result<bool> {
   const std::uint32_t max_number_of_attempts    = 10;
   const std::uint32_t sleep_before_next_attempt = 10;  // sec
@@ -201,6 +221,10 @@ void ControllerMessenger::OnTimeout() {
 
     static uint32_t counter = 0;
     auto maybe_delta_time   = controller_->RetrieveInputs();
+    if (supervise_heartbeat_ && maybe_delta_time.has_value()) {
+      CheckAdaptioHeartbeat();
+    }
+
     management_client_->Update();
 
     if (auto result = controller_->WriteOutputs(); result.has_error()) {

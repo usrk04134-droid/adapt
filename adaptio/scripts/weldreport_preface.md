@@ -18,10 +18,10 @@ Each subplot overlays one or two **ABW profiles**:
 
 ## Coordinates and reference
 
-All coordinates in the plots are **relative to `abw0`** (the left top corner of the groove). We use `hybrid groove` as reference in the figures. The `hybrid groove` is what is used by Adaptio for the joint tracking. It is a combination of direct and delayed scanner data. The bead positions are calculated as follows:
+All coordinates in the plots are **relative to `abw6`** (the top right corner of the groove). We use `hybrid groove` as reference in the figures. The `hybrid groove` is what is used by Adaptio for the joint tracking. It is a combination of direct and delayed scanner data. The bead positions are calculated as follows:
 
-- **X:** `slides.actual.horizontal - abw0.x`
-- **Z:** `slides.actual.vertical - stickout - abw0.z`
+- **X:** `slides.actual.horizontal - abw6.x`
+- **Z:** `slides.actual.vertical - stickout - abw6.z`
 
 All coordinates are expressed in the Machine Coordinate System (MCS) used in Adaptio. MCS is also directly used by the PLC slides control. The joint tracking and bead placement functions use a combination of realtime and delayed scanner data (`hybrid groove`). When the joint moves rapidly due to for example longitudinal welds, the system acts on realtime scanner data. In situations when overlapping beads, the system instead acts on delayed data.
 

@@ -17,17 +17,16 @@
 #include "common/messages/scanner.h"
 #include "common/zevs/zevs_core.h"
 #include "common/zevs/zevs_socket.h"
-#include "scanner/core/scanner.h"
 #include "scanner/core/scanner_calibration_configuration.h"
 #include "scanner/core/scanner_configuration.h"
-#include "scanner/core/scanner_factory.h"
-#include "scanner/core/scanner_types.h"
+#include "scanner/core/src/scanner.h"
 #include "scanner/core/src/scanner_impl.h"
 #include "scanner/core/src/scanner_server.h"
 #include "scanner/image_logger/image_logger.h"
 #include "scanner/image_provider/image_provider.h"
 #include "scanner/image_provider/image_provider_configuration.h"
 #include "scanner/joint_model/joint_model.h"
+#include "scanner/scanner_factory.h"
 
 namespace scanner {
 

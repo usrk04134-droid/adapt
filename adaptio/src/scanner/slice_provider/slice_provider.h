@@ -18,12 +18,14 @@ using Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 class SliceProvider {
  public:
-  virtual ~SliceProvider()                                                                                = default;
-  virtual void AddSlice(const scanner::joint_buffer::JointSlice& slice)                                   = 0;
-  virtual auto GetSlice() -> std::optional<joint_model::JointProfile>                                     = 0;
-  virtual auto GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> = 0;
-  virtual auto SliceDegraded() -> bool                                                                    = 0;
-  virtual void Reset()                                                                                    = 0;
+  virtual ~SliceProvider()                                              = default;
+  virtual void AddSlice(const scanner::joint_buffer::JointSlice& slice) = 0;
+  virtual auto GetSlice() -> std::optional<joint_model::JointProfile>   = 0;
+  virtual auto GetTrackingSlice()
+      -> std::optional<std::tuple<common::Groove, std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>,
+                                  SliceConfidence, uint64_t>> = 0;
+  virtual auto SliceDegraded() -> bool                        = 0;
+  virtual void Reset()                                        = 0;
 };
 
 using SliceProviderPtr = std::unique_ptr<SliceProvider>;

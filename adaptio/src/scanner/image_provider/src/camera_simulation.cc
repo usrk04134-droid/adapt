@@ -1,4 +1,4 @@
-#include "scanner/image_provider/camera_simulation.h"
+#include "scanner/image_provider/src/camera_simulation.h"
 
 #include <cassert>
 #include <chrono>

@@ -248,14 +248,14 @@ auto RunTest(TestContext &context, help_sim::TestParameters &test_parameters, in
       steps_executed_this_call++;
 
       abws = helpers_simulator::ConvertFromOptionalAbwVector(context.simulator->GetAbwPoints(depsim::LPCS));
-
       //
       // Update adaptio
       //
       // ABW points on scanner interface
       auto slice_data = helpers_simulator::GetSliceData(
-          abws, static_cast<std::uint64_t>(
-                    context.fixture.GetClockNowFuncWrapper()->GetSystemClock().time_since_epoch().count()));
+          abws, *context.simulator,
+          static_cast<std::uint64_t>(
+              context.fixture.GetClockNowFuncWrapper()->GetSystemClock().time_since_epoch().count()));
       context.fixture.Scanner()->Dispatch(slice_data);
 
       auto get_slides_position = context.fixture.Kinematics()->Receive<common::msg::kinematics::GetSlidesPosition>();

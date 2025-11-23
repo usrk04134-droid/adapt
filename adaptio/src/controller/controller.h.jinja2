@@ -6,7 +6,6 @@
 
 #include "common/logging/application_log.h"
 #include "controller/controller_data.h"
-#include "controller/systems/system.h"
 
 namespace controller {
 // clang-format off
@@ -56,7 +55,6 @@ class Controller {
     callback_interface_ = std::nullopt;
   }
 
-
 {%- for output_name, output_type in data['outputs'].items() %}
   virtual void Write{{ output_name|snake_to_pascal }}Output(controller::{{ output_type }} data) {}
 {%- endfor %}
@@ -85,29 +83,6 @@ class Controller {
     return true;
   }
 
-  virtual void AddSystem(SystemPtr system) {
-    systems_.emplace_back(std::move(system));
-  }
-
-  virtual void RunSystems() {
-    for (const auto &system : systems_) {
-      system->Apply();
-    }
-  }
-
-  virtual auto ValidateHeartbeat() -> bool {
-    if (callback_interface_) {
-      return callback_interface_.value()->ValidateHeartbeat();
-    }
-    return false;
-  }
-
-  virtual void OnHeartbeatLost() {
-    if (callback_interface_) {
-      callback_interface_.value()->OnHeartbeatLost();
-    }
-  }
-
   virtual void OnDisconnected(uint32_t reason_code) {
     if (callback_interface_) {
       callback_interface_.value()->OnDisconnected(reason_code);
@@ -116,7 +91,6 @@ class Controller {
 
  protected:
   std::optional<ControllerDataCallbacks*> callback_interface_ = {};
-  std::vector<SystemPtr> systems_ = {};
   bool set_external_command_mode_ = false;
 };
 

@@ -44,7 +44,7 @@ namespace {
 // Constants
 //
 const int NUMBER_OF_STEPS_PER_REV{200};
-const int NBR_HIGH_RES_SAMPLES_PER_REV{20};
+const int HIGH_RES_DOWN_SAMPLE_FACTOR{2};
 const double DELTA_ANGLE{2. * help_sim::PI / NUMBER_OF_STEPS_PER_REV};
 const int START_BEAD_STATE_MONITORING_AT_STEP{static_cast<int>(NUMBER_OF_STEPS_PER_REV * 0.9)};
 const int CHECK_MONITORED_BEAD_STATE_AT_STEP{static_cast<int>(NUMBER_OF_STEPS_PER_REV * 0.8)};
@@ -448,7 +448,7 @@ auto AdaptiveWeldingTest(TestFixture &fixture, help_sim::TestParameters &test_pa
           torch_pos_macs.GetZ());
 
   // Get high resolution slices of empty joint
-  help_sim::RunIdleRevolutionToDumpSlices(*simulator, NBR_HIGH_RES_SAMPLES_PER_REV);
+  help_sim::RunIdleRevolutionToDumpSlices(*simulator, NUMBER_OF_STEPS_PER_REV, HIGH_RES_DOWN_SAMPLE_FACTOR);
   simulator->Initialize(sim_config);
 
   //
@@ -494,7 +494,6 @@ auto AdaptiveWeldingTest(TestFixture &fixture, help_sim::TestParameters &test_pa
   //
   //  Execute Adaptivity Welding
   //
-  const int nbr_steps_between_high_res_samples = NUMBER_OF_STEPS_PER_REV / NBR_HIGH_RES_SAMPLES_PER_REV;
   auto test_ready{false};
   std::map<int, int> beads_per_layer;
   auto current_layer{1};
@@ -521,7 +520,7 @@ auto AdaptiveWeldingTest(TestFixture &fixture, help_sim::TestParameters &test_pa
       //
       // ABW points on scanner interface
       auto slice_data = helpers_simulator::GetSliceData(
-          abws,
+          abws, *simulator,
           static_cast<std::uint64_t>(fixture.GetClockNowFuncWrapper()->GetSystemClock().time_since_epoch().count()));
       fixture.Scanner()->Dispatch(slice_data);
 
@@ -698,8 +697,8 @@ auto AdaptiveWeldingTest(TestFixture &fixture, help_sim::TestParameters &test_pa
       simulator->RunWithRotation(DELTA_ANGLE,
                                  test_parameters.test_joint_geometry.simulator_joint_geometry.bead_radians_m);
 
-      if (step % nbr_steps_between_high_res_samples == 0) {
-        help_sim::DumpHighResolutionSliceAtTorch(*simulator, step / nbr_steps_between_high_res_samples,
+      if (step % HIGH_RES_DOWN_SAMPLE_FACTOR == 0) {
+        help_sim::DumpHighResolutionSliceAtTorch(*simulator, step / HIGH_RES_DOWN_SAMPLE_FACTOR,
                                                  set_welding_system_settings, adaptive_weld_speed_m_per_s);
       }
 

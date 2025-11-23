@@ -70,6 +70,8 @@ weld_control:
     gaussian_filter:
       kernel_size: 301
       sigma: 50.0
+    current_adaptivity_max_gain: 1.0
+    speed_adaptivity_max_gain: 1.0
   # Time for the opeator to change mode when adaptio signals for handover.
   # The grace time is not exact and can vary serveral seconds depending on
   # what mode adaptio is in.

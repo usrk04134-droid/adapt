@@ -182,12 +182,6 @@ Response:
 --------------------
 
 Request:
-{"name":"GetGroove","payload":{}}
-Response:
-{"name":"GetGrooveRsp","payload":{"groove":[{"horizontal":0.0,"vertical":0.0},{"horizontal":0.0,"vertical":0.0},{"horizontal":0.0,"vertical":0.0},{"horizontal":0.0,"vertical":0.0},{"horizontal":0.0,"vertical":0.0},{"horizontal":0.0,"vertical":0.0},{"horizontal":0.0,"vertical":0.0}]},"result":"ok"}
--------------------
-
-Request:
 {"name":"GetEdgePosition","payload":{}}
 Response:
 {"name":"GetEdgePositionRsp","payload":{"position":1.6263716220855713},"result":"ok"}

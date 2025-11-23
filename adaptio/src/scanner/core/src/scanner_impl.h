@@ -11,7 +11,7 @@
 #include <functional>
 
 #include "common/groove/groove.h"
-#include "scanner/core/scanner.h"
+#include "scanner/core/src/scanner.h"
 #include "scanner/image_logger/image_logger.h"
 #include "scanner/image_provider/image_provider.h"
 #include "scanner/joint_model/joint_model.h"
@@ -98,8 +98,9 @@ class ScannerImpl : public Scanner {
 
 class ScannerOutputCBImpl : public ScannerOutputCB {
  public:
-  void ScannerOutput(const common::Groove& groove, const std::array<common::Point, 100>& profile, uint64_t time_stamp,
-                     slice_provider::SliceConfidence confidence) override {};
+  void ScannerOutput(const common::Groove& groove,
+                     const std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>& profile,
+                     uint64_t time_stamp, slice_provider::SliceConfidence confidence) override {};
 };
 
 class ScannerExposed : public ScannerImpl {

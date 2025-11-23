@@ -10,6 +10,7 @@
 #include <optional>
 #include <vector>
 
+#include "common/math/lin_interp.h"
 #include "helpers.h"
 #include "helpers_abp_parameters.h"
 #include "helpers_joint_geometry.h"
@@ -286,7 +287,7 @@ const TestJointGeometry TEST_JOINT_GEOMETRY_NARROW_WITH_GROOVE_ANGLE_DEV{
                                     .root_gap_m                 = 1e-3,
                                     .joint_depth_percentage     = 40,
                                     .joint_bottom_curv_radius_m = 1.0,
-                                    .bead_radians_m             = 8e-3},
+                                    .bead_radians_m             = 16e-3},
     .joint_deviations            = {
                                     {.position = 10,  // All deviations set to zero at position 10 deg. Increase starts here
                     .deltas_left =
@@ -304,9 +305,9 @@ const TestJointGeometry TEST_JOINT_GEOMETRY_NARROW_WITH_GROOVE_ANGLE_DEV{
                                            .delta_chamfer_ang = 0.0,
                                            .delta_chamfer_len = 0.0,
                                            .delta_root_face   = 0.0},
-                    .delta_root_gap     = 0.0,
+                    .delta_root_gap     = 3.0e-3,
                     .center_line_offset = 0.0},
-                                    {.position           = 180,  // Groove angles constant until 180 deg.
+                                    {.position           = 120,  // Groove angles constant until 120 deg.
                     .deltas_left        = {.delta_groove_ang  = 2.0 * RAD_PER_DEG,
                                            .delta_chamfer_ang = 0.0,
                                            .delta_chamfer_len = 0.0,
@@ -315,9 +316,20 @@ const TestJointGeometry TEST_JOINT_GEOMETRY_NARROW_WITH_GROOVE_ANGLE_DEV{
                                            .delta_chamfer_ang = 0.0,
                                            .delta_chamfer_len = 0.0,
                                            .delta_root_face   = 0.0},
-                    .delta_root_gap     = 0.0,
-                    .center_line_offset = 0.0},
-                                    {.position           = 300,  // Left groove angle decrease until 300 deg.
+                    .delta_root_gap     = 3.0e-3,
+                    .center_line_offset = 8.0e-3},  // Offset increasing until 120 deg.
+        {.position           = 180,      // Groove angles constant until 180 deg.
+                    .deltas_left        = {.delta_groove_ang  = 2.0 * RAD_PER_DEG,
+                                           .delta_chamfer_ang = 0.0,
+                                           .delta_chamfer_len = 0.0,
+                                           .delta_root_face   = 0.0},
+                    .deltas_right       = {.delta_groove_ang  = 1.0 * RAD_PER_DEG,
+                                           .delta_chamfer_ang = 0.0,
+                                           .delta_chamfer_len = 0.0,
+                                           .delta_root_face   = 0.0},
+                    .delta_root_gap     = 3.0e-3,
+                    .center_line_offset = 0.0},  // Offset back to zero at 180 deg
+        {.position           = 300,   // Left groove angle decrease until 300 deg.
                     .deltas_left        = {.delta_groove_ang  = 1.0 * RAD_PER_DEG,
                                            .delta_chamfer_ang = 0.0,
                                            .delta_chamfer_len = 0.0,
@@ -526,8 +538,59 @@ inline auto ConvertFromOptionalAbwVector(const std::vector<std::optional<deposit
   return converted;
 }
 
-inline auto GetSliceData(std::vector<deposition_simulator::Point3d>& abws_lpcs, const std::uint64_t time_stamp)
+inline auto ConvertPoint3dVectorToCommonPoints(const std::vector<deposition_simulator::Point3d>& full_res)
+    -> std::vector<common::Point> {
+  std::vector<common::Point> out;
+  out.reserve(full_res.size());
+  for (const auto& p : full_res) {
+    // Map X -> horizontal, Z -> vertical
+    out.push_back(common::Point{p.GetX(), p.GetZ()});
+  }
+  return out;
+}
+
+inline auto BuildInterpolatedSnake(const std::vector<common::Point>& full_profile,
+                                   std::vector<deposition_simulator::Point3d>& abws_lpcs)
+    -> std::array<common::Point, scanner::joint_model::INTERPOLATED_SNAKE_SIZE> {
+  std::array<common::Point, scanner::joint_model::INTERPOLATED_SNAKE_SIZE> line{};
+  std::vector<std::tuple<double, double>> segments;
+  segments.reserve(full_profile.size());
+  constexpr double DUPLICATE_EPSILON = 1e-9;
+  std::optional<double> previous_x;
+  for (const auto& pt : full_profile) {
+    const double x = pt.horizontal;
+    const double y = pt.vertical;
+    if (!std::isfinite(x) || !std::isfinite(y)) {
+      continue;
+    }
+    if (previous_x.has_value() && std::abs(x - previous_x.value()) < DUPLICATE_EPSILON) {
+      continue;
+    }
+    segments.emplace_back(x, y);
+    previous_x = x;
+  }
+
+  constexpr double INTERPOLATION_MARGIN_METERS = 20.0e-3;
+  const double start                           = ConvertM2Mm(abws_lpcs[0].GetX()) - INTERPOLATION_MARGIN_METERS;
+  const double stop                            = ConvertM2Mm(abws_lpcs[6].GetX()) + INTERPOLATION_MARGIN_METERS;
+
+  // Generate x_samples and interpolate y_samples
+  auto x_samples = common::math::lin_interp::linspace(start, stop, scanner::joint_model::INTERPOLATED_SNAKE_SIZE);
+  auto y_samples = common::math::lin_interp::lin_interp_2d(x_samples, segments);
+
+  for (std::size_t i = 0; i < x_samples.size(); ++i) {
+    line[i] = common::Point{x_samples[i], y_samples[i]};
+  }
+
+  return line;
+}
+
+inline auto GetSliceData(std::vector<deposition_simulator::Point3d>& abws_lpcs,
+                         deposition_simulator::ISimulator& simulator, const std::uint64_t time_stamp)
     -> common::msg::scanner::SliceData {
+  auto full_res_p3d        = simulator.GetLatestDepositedSlice(deposition_simulator::MACS);
+  auto full_profile_common = helpers_simulator::ConvertPoint3dVectorToCommonPoints(full_res_p3d);
+  auto interp_snake        = helpers_simulator::BuildInterpolatedSnake(full_profile_common, abws_lpcs);
   common::msg::scanner::SliceData slice_data{
       .groove{{.x = ConvertM2Mm(abws_lpcs[0].GetX()), .y = ConvertM2Mm(abws_lpcs[0].GetY())},
               {.x = ConvertM2Mm(abws_lpcs[1].GetX()), .y = ConvertM2Mm(abws_lpcs[1].GetY())},
@@ -536,13 +599,7 @@ inline auto GetSliceData(std::vector<deposition_simulator::Point3d>& abws_lpcs, 
               {.x = ConvertM2Mm(abws_lpcs[4].GetX()), .y = ConvertM2Mm(abws_lpcs[4].GetY())},
               {.x = ConvertM2Mm(abws_lpcs[5].GetX()), .y = ConvertM2Mm(abws_lpcs[5].GetY())},
               {.x = ConvertM2Mm(abws_lpcs[6].GetX()), .y = ConvertM2Mm(abws_lpcs[6].GetY())}},
-      .profile{{.x = ConvertM2Mm(abws_lpcs[0].GetX()), .y = ConvertM2Mm(abws_lpcs[0].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[1].GetX()), .y = ConvertM2Mm(abws_lpcs[1].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[2].GetX()), .y = ConvertM2Mm(abws_lpcs[2].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[3].GetX()), .y = ConvertM2Mm(abws_lpcs[3].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[4].GetX()), .y = ConvertM2Mm(abws_lpcs[4].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[5].GetX()), .y = ConvertM2Mm(abws_lpcs[5].GetY())},
-              {.x = ConvertM2Mm(abws_lpcs[6].GetX()), .y = ConvertM2Mm(abws_lpcs[6].GetY())}},
+      .profile    = interp_snake,
       .confidence = common::msg::scanner::SliceConfidence::HIGH,
       .time_stamp = time_stamp,
   };
@@ -593,13 +650,16 @@ inline auto DumpHighResolutionSliceAtTorch(
   TESTLOG("first_slice_behind_torch: {}", slice_log_entry.dump(4));
 }
 
-inline auto RunIdleRevolutionToDumpSlices(deposition_simulator::ISimulator& simulator, int nbr_samples_per_rev)
-    -> void {
-  double angle_between_samples = 2 * PI / nbr_samples_per_rev;
+inline auto RunIdleRevolutionToDumpSlices(deposition_simulator::ISimulator& simulator, int nbr_steps_per_rev,
+                                          int down_sample_factor) -> void {
+  const double delta_angle{2 * PI / nbr_steps_per_rev};
 
-  for (int i = 0; i < nbr_samples_per_rev; i++) {
-    DumpHighResolutionSliceAtTorch(simulator, i, std::nullopt, NAN);
-    simulator.Rotate(angle_between_samples);
+  for (int step = 0; step < nbr_steps_per_rev; step++) {
+    simulator.Rotate(delta_angle);
+
+    if (step % down_sample_factor == 0) {
+      DumpHighResolutionSliceAtTorch(simulator, step / down_sample_factor, std::nullopt, NAN);
+    }
   }
 }
 

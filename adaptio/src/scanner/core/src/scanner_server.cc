@@ -15,7 +15,8 @@ const double MM_PER_METER = 1000.0;
 
 ScannerServer::ScannerServer(zevs::SocketPtr socket) : socket_(socket) { LOG_DEBUG("Creating ScannerServer"); }
 
-void ScannerServer::ScannerOutput(const common::Groove& groove, const std::array<common::Point, 100>& profile,
+void ScannerServer::ScannerOutput(const common::Groove& groove,
+                                  const std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>& profile,
                                   uint64_t time_stamp, slice_provider::SliceConfidence confidence) {
   common::msg::scanner::SliceData input{
       .groove_area = groove.Area(),

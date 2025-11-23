@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "common/enum_helpers.h"
 #include "common/logging/application_log.h"
 #include "common/messages/management.h"
 #include "common/zevs/zevs_socket.h"
@@ -80,27 +81,20 @@ void ManagementClient::SendStop() {
 }
 
 void ManagementClient::OnReadyState(common::msg::management::ReadyState data) {
-  switch (data.state) {
-    case common::msg::management::ReadyState::State::NOT_READY:
-      ready_state_ = ReadyState::NOT_READY;
-      break;
-    case common::msg::management::ReadyState::State::NOT_READY_AUTO_CAL_MOVE:
-      ready_state_ = ReadyState::NOT_READY_AUTO_CAL_MOVE;
-      break;
-    case common::msg::management::ReadyState::State::TRACKING_READY:
-      ready_state_ = ReadyState::TRACKING_READY;
-      break;
-    case common::msg::management::ReadyState::State::ABP_READY:
-      ready_state_ = ReadyState::ABP_READY;
-      break;
-    case common::msg::management::ReadyState::State::ABP_CAP_READY:
-      ready_state_ = ReadyState::ABP_CAP_READY;
-      break;
-    case common::msg::management::ReadyState::State::ABP_AND_ABP_CAP_READY:
-      ready_state_ = ReadyState::ABP_AND_ABP_CAP_READY;
-      break;
-    default:
-      LOG_ERROR("Invalid ReadyState");
+  static const std::unordered_map<common::msg::management::ReadyState::State, ReadyState> STATE_MAP = {
+      {common::msg::management::ReadyState::State::NOT_READY,               ReadyState::NOT_READY              },
+      {common::msg::management::ReadyState::State::NOT_READY_AUTO_CAL_MOVE, ReadyState::NOT_READY_AUTO_CAL_MOVE},
+      {common::msg::management::ReadyState::State::TRACKING_READY,          ReadyState::TRACKING_READY         },
+      {common::msg::management::ReadyState::State::ABP_READY,               ReadyState::ABP_READY              },
+      {common::msg::management::ReadyState::State::ABP_CAP_READY,           ReadyState::ABP_CAP_READY          },
+      {common::msg::management::ReadyState::State::ABP_AND_ABP_CAP_READY,   ReadyState::ABP_AND_ABP_CAP_READY  }
+  };
+
+  auto it = STATE_MAP.find(data.state);
+  if (it != STATE_MAP.end()) {
+    ready_state_ = it->second;
+  } else {
+    LOG_ERROR("Invalid ReadyState");
   }
 
   LOG_DEBUG("OnReadyState - ReadyState={}", ReadyStateToString(ready_state_));
@@ -131,58 +125,35 @@ void ManagementClient::OnGracefulStop(common::msg::management::GracefulStop /*da
 
 void ManagementClient::Init() { socket_->Send(common::msg::management::SubscribeReadyState{}); }
 
+auto ManagementClient::GetGeneralAdaptioState(InterfaceState state) -> GeneralAdaptioState {
+  switch (state) {
+    case InterfaceState::IDLE:
+      return {.ready = true, .active = false, .error = false, .active_sequence_type = SEQUENCE_NONE};
+    case InterfaceState::TRACKING:
+      return {.ready = false, .active = true, .error = false, .active_sequence_type = SEQUENCE_TRACKING};
+    case InterfaceState::ABP:
+      return {.ready = false, .active = true, .error = false, .active_sequence_type = SEQUENCE_AUTO_WELDING};
+    case InterfaceState::ABP_CAP:
+      return {.ready = false, .active = true, .error = false, .active_sequence_type = SEQUENCE_AUTO_CAP_WELDING};
+    case InterfaceState::ERROR:
+    default:
+      return {.ready = false, .active = true, .error = true, .active_sequence_type = SEQUENCE_NONE};
+  }
+}
+
 void ManagementClient::Update() {
   // Note that the heartbeat field in AdaptioOutput is set in ControllerMessenger
   AdaptioOutput output{};
   TrackOutput track_output{};
 
-  switch (state_) {
-    case InterfaceState::IDLE:
-      output.set_status_ready(true);
-      output.set_status_active(false);
-      output.set_status_error(false);
-      output.set_active_sequence_type(SEQUENCE_NONE);
+  const auto general_state = GetGeneralAdaptioState(state_);
+  output.set_status_ready(general_state.ready);
+  output.set_status_active(general_state.active);
+  output.set_status_error(general_state.error);
+  output.set_active_sequence_type(general_state.active_sequence_type);
 
-      track_output.set_status_active(false);
-      track_output.set_status_error(false);
-      break;
-    case InterfaceState::TRACKING:
-      output.set_status_ready(false);
-      output.set_status_active(true);
-      output.set_status_error(false);
-      output.set_active_sequence_type(SEQUENCE_TRACKING);
-
-      track_output.set_status_active(true);
-      track_output.set_status_error(false);
-      break;
-    case InterfaceState::ABP:
-      output.set_status_ready(false);
-      output.set_status_active(true);
-      output.set_status_error(false);
-      output.set_active_sequence_type(SEQUENCE_AUTO_WELDING);
-
-      track_output.set_status_active(true);
-      track_output.set_status_error(false);
-      break;
-    case InterfaceState::ABP_CAP:
-      output.set_status_ready(false);
-      output.set_status_active(true);
-      output.set_status_error(false);
-      output.set_active_sequence_type(SEQUENCE_AUTO_CAP_WELDING);
-
-      track_output.set_status_active(true);
-      track_output.set_status_error(false);
-      break;
-    case InterfaceState::ERROR:
-      output.set_status_ready(false);
-      output.set_status_active(true);
-      output.set_status_error(true);
-      output.set_active_sequence_type(SEQUENCE_NONE);
-
-      track_output.set_status_active(true);
-      track_output.set_status_error(true);
-      break;
-  }
+  track_output.set_status_active(general_state.active);
+  track_output.set_status_error(general_state.error);
 
   // ReadyState::NOT_READY_AUTO_CAL_MOVE is a late addition to handle a case where
   // a calibration sequence is started from the WebHMI and the PLC must be informed
@@ -277,20 +248,32 @@ void ManagementClient::OnAdaptioInput(const InputData& data) {
     return;
   }
 
-  if (data.sequence_type == Sequence::ABP &&
-      (ready_state_ != ReadyState::ABP_READY && ready_state_ != ReadyState::ABP_AND_ABP_CAP_READY)) {
-    SetState(InterfaceState::ERROR, "Cannot start ABP", data);
-    return;
+  // Validate ready state for requested sequence
+  bool is_ready = false;
+  std::string error_msg;
+  switch (data.sequence_type) {
+    case Sequence::ABP:
+      is_ready  = (ready_state_ == ReadyState::ABP_READY || ready_state_ == ReadyState::ABP_AND_ABP_CAP_READY);
+      error_msg = "Cannot start ABP";
+      break;
+    case Sequence::ABP_CAP:
+      is_ready  = (ready_state_ == ReadyState::ABP_CAP_READY || ready_state_ == ReadyState::ABP_AND_ABP_CAP_READY);
+      error_msg = "Cannot start ABP CAP";
+      break;
+    case Sequence::TRACKING:
+      is_ready  = (ready_state_ != ReadyState::NOT_READY);
+      error_msg = "Cannot start tracking";
+      break;
+    case Sequence::NO_SEQUENCE:
+      break;
+    default:
+      LOG_ERROR("Unknown sequence type");
+      error_msg = "Unknown sequence type";
+      break;
   }
 
-  if (data.sequence_type == Sequence::ABP_CAP &&
-      (ready_state_ != ReadyState::ABP_CAP_READY && ready_state_ != ReadyState::ABP_AND_ABP_CAP_READY)) {
-    SetState(InterfaceState::ERROR, "Cannot start ABP CAP", data);
-    return;
-  }
-
-  if (data.sequence_type == Sequence::TRACKING && ready_state_ == ReadyState::NOT_READY) {
-    SetState(InterfaceState::ERROR, "Cannot start tracking", data);
+  if (!is_ready && data.sequence_type != Sequence::NO_SEQUENCE) {
+    SetState(InterfaceState::ERROR, error_msg, data);
     return;
   }
 
@@ -394,12 +377,7 @@ auto ManagementClient::SequenceToString(Sequence sequence) -> std::string {
       {Sequence::ABP,         "abp"        },
       {Sequence::ABP_CAP,     "abp-cap"    }
   };
-
-  auto it = SEQUENCE_TO_STRING_MAP.find(sequence);
-  if (it != SEQUENCE_TO_STRING_MAP.end()) {
-    return it->second;
-  }
-  return "unknown";
+  return common::EnumToString(sequence, SEQUENCE_TO_STRING_MAP);
 }
 
 auto ManagementClient::InterfaceStateToString(InterfaceState state) -> std::string {
@@ -410,12 +388,7 @@ auto ManagementClient::InterfaceStateToString(InterfaceState state) -> std::stri
       {InterfaceState::ABP_CAP,  "abp-cap" },
       {InterfaceState::ERROR,    "error"   }
   };
-
-  auto it = INTERFACE_STATE_MAP.find(state);
-  if (it != INTERFACE_STATE_MAP.end()) {
-    return it->second;
-  }
-  return "unknown";
+  return common::EnumToString(state, INTERFACE_STATE_MAP);
 }
 
 auto ManagementClient::ReadyStateToString(ReadyState state) -> std::string {
@@ -424,12 +397,8 @@ auto ManagementClient::ReadyStateToString(ReadyState state) -> std::string {
       {ReadyState::NOT_READY_AUTO_CAL_MOVE, "not_ready_auto_cal_move"},
       {ReadyState::TRACKING_READY,          "tracking_ready"         },
       {ReadyState::ABP_READY,               "abp_ready"              },
-      {ReadyState::ABP_CAP_READY,           "abp_cap_ready"          }
+      {ReadyState::ABP_CAP_READY,           "abp_cap_ready"          },
+      {ReadyState::ABP_AND_ABP_CAP_READY,   "abp_and_abp_cap_ready"  }
   };
-
-  auto it = READY_STATE_MAP.find(state);
-  if (it != READY_STATE_MAP.end()) {
-    return it->second;
-  }
-  return "unknown";
+  return common::EnumToString(state, READY_STATE_MAP);
 }

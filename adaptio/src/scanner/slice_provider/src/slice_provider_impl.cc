@@ -1,4 +1,4 @@
-#include "scanner/slice_provider/slice_provider_impl.h"
+#include "scanner/slice_provider/src/slice_provider_impl.h"
 
 #include <math.h>
 
@@ -50,9 +50,12 @@ auto SliceProviderImpl::GetSlice() -> std::optional<joint_model::JointProfile> {
   return std::nullopt;
 }
 
-auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::Groove, SliceConfidence, uint64_t>> {
-  std::tuple<common::Groove, SliceConfidence, uint64_t> result = {};
-  auto maybe_slice                                             = MedianOfRecentSlices();
+auto SliceProviderImpl::GetTrackingSlice()
+    -> std::optional<std::tuple<common::Groove, std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>,
+                                SliceConfidence, uint64_t>> {
+  std::tuple<common::Groove, std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE>, SliceConfidence, uint64_t>
+      result       = {};
+  auto maybe_slice = MedianOfRecentSlices();
   if (maybe_slice.has_value()) {
     auto slice = maybe_slice.value();
 
@@ -64,14 +67,18 @@ auto SliceProviderImpl::GetTrackingSlice() -> std::optional<std::tuple<common::G
     }
 
     auto confidence = GetConfidence(slice);
-    latest_slice_   = {groove, SliceConfidence::NO};
-    result          = std::make_tuple(groove, confidence, slice.timestamp.time_since_epoch().count());
+    line            = joint_buffer_->GetSlice()
+               .transform([](const auto& latest_slice) { return latest_slice.snake_points; })
+               .value_or(slice.snake_points);
+    latest_slice_ = {groove, SliceConfidence::NO};
+    result        = std::make_tuple(groove, line, confidence, slice.timestamp.time_since_epoch().count());
   } else {
+    std::array<common::Point, joint_model::INTERPOLATED_SNAKE_SIZE> line = {};
     auto time_stamp = high_resolution_clock::now().time_since_epoch().count();
-    result          = std::make_tuple(std::get<0>(latest_slice_), std::get<1>(latest_slice_), time_stamp);
+    result          = std::make_tuple(std::get<0>(latest_slice_), line, std::get<1>(latest_slice_), time_stamp);
   }
 
-  auto confidence = get<1>(result);
+  auto confidence = get<2>(result);
   switch (confidence) {
     case SliceConfidence::NO:
     case SliceConfidence::LOW:

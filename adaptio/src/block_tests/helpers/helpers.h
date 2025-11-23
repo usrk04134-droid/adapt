@@ -164,7 +164,8 @@ struct MockPlc : public controller::Controller {
 
 class ControllerFixture {
  public:
-  explicit ControllerFixture(clock_functions::SystemClockNowFunc system_clock_now_func);
+  explicit ControllerFixture(clock_functions::SystemClockNowFunc system_clock_now_func,
+                             clock_functions::SteadyClockNowFunc steady_clock_now_func);
 
   void Start();
   void Stop();
@@ -178,6 +179,7 @@ class ControllerFixture {
 
  private:
   clock_functions::SystemClockNowFunc system_clock_now_func_;
+  clock_functions::SteadyClockNowFunc steady_clock_now_func_;
   MockPlc *mock_plc_;
   controller::ControllerMessengerPtr controller_messenger_;
   std::string base_url_;

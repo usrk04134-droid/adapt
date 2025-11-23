@@ -89,9 +89,7 @@ enum class ActivityStatusE : uint32_t {
   LASER_TORCH_CALIBRATION       = 1,
   WELD_OBJECT_CALIBRATION       = 2,
   TRACKING                      = 3,
-  SERVICE_MODE_TRACKING         = 4,
-  SERVICE_MODE_KINEMATICS       = 5,
-  SERVICE_MODE_IMAGE_COLLECTION = 6
+  SERVICE_MODE_IMAGE_COLLECTION = 4
 };
 ```
 
@@ -161,54 +159,6 @@ Horizontal and vertical position (in mm)
 
 ```json
 {"name":"GetSlidesPositionRsp","payload":{"horizontal":5.0,"vertical":10.0}}
-```
-
-## ServiceModeTracking
-
-Joint tracking can be started as a service mode function. This is mainly for test purposes.
-
-**Message:** ServiceModeTracking \
-**Direction:** In \
-**Description:** Request to enter service mode tracking
-
-**Example:**
-
-```json
-{"name":"ServiceModeTracking","payload":{}}
-```
-
-**Message:** StartTracking \
-**Direction:** In \
-**Description:** Request to start service mode tracking
-
-**Example:**
-
-```json
-{"name":"StartTracking","payload":{"horizontal_offset":5.0, "vertical_offset":10.0}}
-```
-
-## ServiceModeKinematicsControl
-
-Slides position can be set using a service mode function. This is mainly for test purposes.
-
-**Message:** ServiceModeKinematicsControl \
-**Direction:** In \
-**Description:** Request to enter service mode for kinematics control
-
-**Example:**
-
-```json
-{"name":"ServiceModeKinematicsControl","payload":{}}
-```
-
-**Message:** SetSlidesPosition \
-**Direction:** In \
-**Description:** Request to set slides position
-
-**Example:**
-
-```json
-{"name":"SetSlidesPosition","payload":{"horizontal":30.0, "vertical":30.0}}
 ```
 
 ## Automatic Bead Placement (ABP) Parameters

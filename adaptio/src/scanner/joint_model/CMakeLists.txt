@@ -2,8 +2,8 @@ add_subdirectory(test)
 
 target_sources(${ADAPTIO_APPLICATION}
     PRIVATE
-    big_snake.h
     joint_model.h
+    src/big_snake.h
     src/naive.h
     src/slice.h
     src/snake.h

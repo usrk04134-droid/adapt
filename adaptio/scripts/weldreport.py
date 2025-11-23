@@ -158,9 +158,9 @@ def _extract_title_info(input_path):
 
 def _compute_hybrid_ref(mcs, mcs_delayed):
     """
-    Compute the hybrid groove reference (ABW 0) and corner deltas.
+    Compute the hybrid groove reference (ABW 6) and corner deltas.
     - Select corner with smallest vertical delta (left: idx 0, right: idx 6).
-    - Reference is delayed left corner shifted by (dx, dz) of the selected corner.
+    - Reference is delayed RIGHT corner (idx 6) shifted by (dx, dz) of the selected corner.
     Returns (ref_x, ref_z, delta_x, delta_z, ok)
     """
     if mcs and mcs_delayed and len(mcs) >= 7 and len(mcs_delayed) >= 7:
@@ -169,8 +169,8 @@ def _compute_hybrid_ref(mcs, mcs_delayed):
         sel_idx = 0 if abs(left_dz) <= abs(right_dz) else 6
         delta_x = mcs[sel_idx]["x"] - mcs_delayed[sel_idx]["x"]
         delta_z = mcs[sel_idx]["z"] - mcs_delayed[sel_idx]["z"]
-        ref_x = mcs_delayed[0]["x"] + delta_x
-        ref_z = mcs_delayed[0]["z"] + delta_z
+        ref_x = mcs_delayed[6]["x"] + delta_x
+        ref_z = mcs_delayed[6]["z"] + delta_z
         return ref_x, ref_z, delta_x, delta_z, True
     return None, None, 0.0, 0.0, False
 
@@ -217,7 +217,7 @@ def load_and_filter_entries(input_path, pos_deg, stickout, post_scan=False):
                 # Capture first ABW profile as early as possible (independent of ABP/JT)
                 # Take the first entry that is inside the angular window and has >= 7 mcs points.
                 # HYBRID GROOVE: select corner by smallest vertical delta (latest mcs vs delayed), then
-                # add that (dx, dz) to ABW1..ABW6 of the delayed slice; anchor to *hybrid* ABW0.
+                # add that (dx, dz) to ABW1..ABW6 of the delayed slice; anchor to *hybrid* ABW6.
                 if (not abw_collected) and mcs and mcs_delayed and len(mcs) >= 7 and len(mcs_delayed) >= 7:
                     position = entry.get("weldAxis", {}).get("position")
                     if position is not None and angle_filter(position):
@@ -255,7 +255,7 @@ def load_and_filter_entries(input_path, pos_deg, stickout, post_scan=False):
                     if not mcs:
                         continue
 
-                    # Reference point for relative coordinates — use HYBRID ABW0 if possible
+                    # Reference point for relative coordinates — use HYBRID ABW6 if possible
                     ref_x_h, ref_z_h, _dx, _dz, ok_h = _compute_hybrid_ref(mcs, mcs_delayed)
                     if not ok_h:
                         continue
@@ -269,7 +269,7 @@ def load_and_filter_entries(input_path, pos_deg, stickout, post_scan=False):
                         continue
 
                     slides = entry["slides"]["actual"]
-                    # Store horizontal/vertical relative to HYBRID ABW0
+                    # Store horizontal/vertical relative to HYBRID ABW6
                     # NOTE: subtract stickout here instead of adding it to ABW profile points
                     vertical = (slides["vertical"] - stickout) - ref_z_h
                     horizontal = slides["horizontal"] - ref_x_h
@@ -338,7 +338,7 @@ def load_and_filter_entries(input_path, pos_deg, stickout, post_scan=False):
                         if not mcs:
                             continue
 
-                        # Reference point for relative coordinates — use HYBRID ABW0 if possible
+                        # Reference point for relative coordinates — use HYBRID ABW6 if possible
                         ref_x_h, ref_z_h, _dx, _dz, ok_h = _compute_hybrid_ref(mcs, mcs_delayed)
                         if not ok_h:
                             continue
@@ -460,8 +460,8 @@ def plot_flat(entries, abw_profile_points, abw_profile_points_post_scan, pos_deg
             ax.plot(abw_xs_p, abw_ys_p, color='green', marker='x')
 
         ax.set_title(title)
-        ax.set_xlabel("x (rel abw 0, mm)")
-        ax.set_ylabel("z (rel abw 0, mm)")
+        ax.set_xlabel("x (rel abw 6, mm)")
+        ax.set_ylabel("z (rel abw 6, mm)")
         ax.invert_xaxis()
         ax.grid(True)
         ax.set_aspect("equal")

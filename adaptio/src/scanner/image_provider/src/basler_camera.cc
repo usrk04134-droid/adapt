@@ -1,4 +1,4 @@
-#include "scanner/image_provider/basler_camera.h"
+#include "scanner/image_provider/src/basler_camera.h"
 
 #include <GenApi/INodeMap.h>
 #include <prometheus/gauge.h>

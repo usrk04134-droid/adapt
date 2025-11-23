@@ -304,11 +304,19 @@ auto Simulator::GetAbwPoints(CoordinateSystem ref_system) const -> std::vector<s
     throw std::runtime_error("Simulator has not been initilized.");
   }
 
-  const Point3d lpcs_origin_lpcs = Point3d(0, 0, 0, LPCS);
-  const Point3d lpcs_origin_rocs = this->transformer_->Transform(lpcs_origin_lpcs, ROCS);
-  const Plane3d lp_lpcs          = Plane3d(Vector3d(0, 0, 1), {0, 0, 0, LPCS});
-  const Plane3d lp_rocs          = this->transformer_->Transform(lp_lpcs, ROCS);
+  // LPCS origin
+  const Point3d lpcs_origin_lpcs(0, 0, 0, LPCS);
 
+  // Convert origin to ROCS
+  const Point3d lpcs_origin_rocs = this->transformer_->Transform(lpcs_origin_lpcs, ROCS);
+
+  // Plane at LPCS origin
+  const Plane3d lp_lpcs(Vector3d(0, 0, 1), lpcs_origin_lpcs);
+
+  // Convert plane to ROCS
+  const Plane3d lp_rocs = this->transformer_->Transform(lp_lpcs, ROCS);
+
+  // Compute ABW points in requested ref system
   return InternalGetSlicePointsInPlane(ref_system, lp_rocs, lpcs_origin_rocs);
 }
 
@@ -339,16 +347,19 @@ auto Simulator::GetLatestDepositedSlice(CoordinateSystem ref_system) const -> st
 auto Simulator::InternalGetSlicePointsInPlane(CoordinateSystem ref_system, const Plane3d &slice_plane_rocs,
                                               const Point3d &filter_point_rocs) const
     -> std::vector<std::optional<Point3d>> {
+  // Get ABW points in ROCS
   const std::vector<std::optional<Point3d>> abw_rocs =
       this->weld_object_->GetAbwPointsInPlane(slice_plane_rocs, filter_point_rocs, true);
+
   std::vector<std::optional<Point3d>> abws_in_ref_sys;
-  Point3d tmp_ref;
+  abws_in_ref_sys.reserve(abw_rocs.size());  // avoid reallocations
+
+  // Convert ABW points to requested coordinate system
   for (const auto &abw_point : abw_rocs) {
-    if (abw_point) {
-      tmp_ref = this->transformer_->Transform(abw_point.value(), ref_system);
-      abws_in_ref_sys.push_back(tmp_ref);
+    if (abw_point.has_value()) {
+      abws_in_ref_sys.emplace_back(this->transformer_->Transform(*abw_point, ref_system));
     } else {
-      abws_in_ref_sys.push_back({});
+      abws_in_ref_sys.emplace_back(std::nullopt);
     }
   }
 

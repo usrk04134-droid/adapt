@@ -34,9 +34,9 @@
 #include "configuration/config_manager_impl.h"
 #include "controller/controller_factory.h"
 #include "controller/controller_messenger.h"
-#include "scanner/core/scanner_factory.h"
 #include "scanner/image_provider/image_provider_configuration.h"
 #include "scanner/scanner_application.h"
+#include "scanner/scanner_factory.h"
 #include "version.h"
 
 namespace po = boost::program_options;
@@ -306,7 +306,9 @@ auto main(int argc, char* argv[]) -> int {
       controller::ControllerFactory::CreateController(configuration->GetController(), steady_clock_now_func);
 
   auto controller_messenger = std::make_unique<::controller::ControllerMessenger>(
-      std::move(controller), configuration->GetController().cycle_time_ms, system_clock_now_func, "adaptio");
+      std::move(controller), configuration->GetController().cycle_time_ms, system_clock_now_func, steady_clock_now_func,
+      "adaptio");
+  controller_messenger->SuperviseHeartbeat();
   controller_messenger->StartThread("Controller Messenger");
 
   auto scanner_config = configuration->GetScanner();

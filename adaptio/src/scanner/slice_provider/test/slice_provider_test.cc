@@ -10,7 +10,7 @@
 #include "scanner/joint_buffer/circular_joint_buffer.h"
 #include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
-#include "scanner/slice_provider/slice_provider_impl.h"
+#include "scanner/slice_provider/src/slice_provider_impl.h"
 
 // NOLINTBEGIN(*-magic-numbers)
 namespace scanner::slice_provider {
@@ -47,7 +47,7 @@ TEST_SUITE("Slice provider") {
 
     auto tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    auto confidence = get<1>(tracking.value());
+    auto confidence = get<2>(tracking.value());
     CHECK(confidence == slice_provider::SliceConfidence::HIGH);
 
     slice_provider.Reset();
@@ -65,7 +65,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = get<2>(tracking.value());
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -84,7 +84,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = get<2>(tracking.value());
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -105,7 +105,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = get<2>(tracking.value());
     CHECK(confidence == slice_provider::SliceConfidence::MEDIUM);
 
     slice_provider.Reset();
@@ -124,7 +124,7 @@ TEST_SUITE("Slice provider") {
     CHECK(maybe_slice);
     tracking = slice_provider.GetTrackingSlice();
     CHECK(tracking);
-    confidence = get<1>(tracking.value());
+    confidence = get<2>(tracking.value());
     CHECK(confidence == slice_provider::SliceConfidence::LOW);
   }
 }

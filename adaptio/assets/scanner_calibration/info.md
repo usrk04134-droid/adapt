@@ -6,3 +6,5 @@
    * GRI Seville
 * HIL
    * HIL room Gothenburg
+* LX31624160052
+   * Gantry Laxå

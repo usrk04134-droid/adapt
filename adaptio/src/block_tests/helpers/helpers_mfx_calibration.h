@@ -16,7 +16,7 @@ const uint32_t SEQUENCE_AUTO_CAL_MOVE = 3;
 inline void ProvideScannerAndKinematicsData(MultiFixture& mfx, deposition_simulator::ISimulator& simulator,
                                             const deposition_simulator::Point3d& point) {
   auto abws_lpcs  = helpers_simulator::ConvertFromOptionalAbwVector(simulator.GetAbwPoints(deposition_simulator::LPCS));
-  auto slice_data = helpers_simulator::GetSliceData(abws_lpcs, NowTimeStamp(mfx.Main()));
+  auto slice_data = helpers_simulator::GetSliceData(abws_lpcs, simulator, NowTimeStamp(mfx.Main()));
 
   // update slide postion from simulator
   controller::AxisInput slide_x_postion{};

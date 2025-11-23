@@ -1,4 +1,4 @@
-#include "scanner/joint_model/big_snake.h"
+#include "scanner/joint_model/src/big_snake.h"
 
 #include <math.h>
 
@@ -34,9 +34,6 @@ auto BuildInterpolatedSnake(const image::WorkspaceCoordinates& snake_lpcs, const
     -> std::array<common::Point, INTERPOLATED_SNAKE_SIZE> {
   std::array<common::Point, INTERPOLATED_SNAKE_SIZE> line{};
 
-  // Prepare to log matrices in debug output
-  Eigen::IOFormat debug_io_format(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n", "[", "]");
-
   std::vector<std::tuple<double, double>> segments;
   segments.reserve(static_cast<std::size_t>(snake_lpcs.cols()));
 
@@ -58,28 +55,17 @@ auto BuildInterpolatedSnake(const image::WorkspaceCoordinates& snake_lpcs, const
 
   const double start = profile.groove[0].horizontal - INTERPOLATION_MARGIN_METERS;
   const double stop  = profile.groove[6].horizontal + INTERPOLATION_MARGIN_METERS;
-  LOG_DEBUG("BuildInterpolatedSnake: interpolation X-range = [{}, {}] (including margin)", start, stop);
+  LOG_TRACE("BuildInterpolatedSnake: interpolation X-range = [{}, {}] (including margin)", start, stop);
 
   // Generate linearly spaced X samples and interpolate Y values
   auto x_samples = common::math::lin_interp::linspace(start, stop, INTERPOLATED_SNAKE_SIZE);
   auto y_samples = common::math::lin_interp::lin_interp_2d(x_samples, segments);
-  LOG_DEBUG("BuildInterpolatedSnake: generated {} x_samples and {} y_samples.", x_samples.size(), y_samples.size());
+  LOG_TRACE("BuildInterpolatedSnake: generated {} x_samples and {} y_samples.", x_samples.size(), y_samples.size());
 
   // Construct the interpolated line points
   for (std::size_t i = 0; i < x_samples.size(); ++i) {
     line[i] = common::Point{x_samples[i], y_samples[i]};
   }
-
-  // Log the interpolated snake line points
-  Eigen::Matrix<double, 2, Eigen::Dynamic> line_mat(2, line.size());
-  for (std::size_t i = 0; i < line.size(); ++i) {
-    line_mat(0, i) = line[i].horizontal;
-    line_mat(1, i) = line[i].vertical;
-  }
-  std::stringstream ss_line;
-  ss_line << line_mat.format(debug_io_format);
-  LOG_DEBUG("BuildInterpolatedSnake: interpolated snake (rows: {} cols: {});\n{}", line_mat.rows(), line_mat.cols(),
-            ss_line.str());
 
   return line;
 }

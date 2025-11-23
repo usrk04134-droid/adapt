@@ -95,6 +95,14 @@ class ManagementClient {
   void SendABPCapStart();
   void SendABPCapStop();
   void SendStop();
+
+  struct GeneralAdaptioState {
+    bool ready;
+    bool active;
+    bool error;
+    uint32_t active_sequence_type;
+  };
+  static auto GetGeneralAdaptioState(InterfaceState state) -> GeneralAdaptioState;
 };
 
 }  // namespace controller

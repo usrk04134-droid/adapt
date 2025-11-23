@@ -139,8 +139,6 @@ auto Application::Run(const std::string& event_loop_name, const std::string& end
   event_handler_->SetWebHmi(web_hmi_server_.get());
   joint_geometry_provider_->SetWebHmi(web_hmi_server_.get());
 
-  coordinates_translator_->AddObserver(web_hmi_server_.get());
-
   bead_control_ = std::make_unique<bead_control::BeadControlImpl>(
       configuration_->GetWeldControlConfiguration().storage_resolution, steady_clock_now_func_);
 

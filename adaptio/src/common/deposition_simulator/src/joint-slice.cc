@@ -325,8 +325,10 @@ auto JointSlice::ComputeBaseMetalLines() -> void {
   // x = 0 should be given by left joint edge (top/groove interpolated intersection)
   // y = 0 should be r = 0 in ROCS cylindrical coords.
 
-  Vector2d shift                  = {-left_edge->GetX() + center_line_offset_,
-                                     (joint_def_left_.outer_diameter / 2) - joint_def_left_.basemetal_thickness};
+  // Vector2d shift                  = {-left_edge->GetX() + center_line_offset_,
+  //                                    (joint_def_left_.outer_diameter / 2) - joint_def_left_.basemetal_thickness};
+
+  Vector2d shift                  = {0.0, (joint_def_left_.outer_diameter / 2) - joint_def_left_.basemetal_thickness};
   this->left_edge_to_center_dist_ = shift(0);
 
   base_metal_lines_[TOP_SURFACE_LEFT_INDEX]  = left_lines[3];
@@ -914,8 +916,7 @@ auto JointSlice::GetSlicePoints() const -> std::vector<Point3d> {
 
   // To center line at right side r_coord
   // r_coord: same as latest one
-  x_coord = (joint_def_left_.root_face - joint_def_left_.basemetal_thickness) * std::tan(joint_def_left_.groove_ang) -
-            root_gap_ / 2 + center_line_offset_;
+  x_coord = center_line_offset_;
   y_coord = -std::sin(slice_angle_rocs_) * r_coord;
   z_coord = std::cos(slice_angle_rocs_) * r_coord;
   slice_points.emplace_back(x_coord, y_coord, z_coord, ROCS);

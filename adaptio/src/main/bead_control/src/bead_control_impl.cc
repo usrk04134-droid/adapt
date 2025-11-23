@@ -503,7 +503,7 @@ void BeadControlImpl::ResumeBeadOperation(double angular_position) {
       bead_operation_distance = 2 * std::numbers::pi;
       break;
     case State::OVERLAPPING:
-      bead_operation_distance = bead_overlap_;
+      bead_operation_distance = BeadCalc::Distance2Angle(weld_object_radius_, bead_overlap_);
       break;
     case State::REPOSITIONING:
       /* repositioning does not need to be resumed */

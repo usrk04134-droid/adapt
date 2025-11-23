@@ -72,31 +72,25 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
     throw std::runtime_error("Plane not defined in ROCS");
   }
 
-  std::unordered_map<int, Point3d> abw_found{};
+  const size_t n_slices = slices_.size();
+  const int N           = nbr_abw_points_;
 
-  Line3d line;
-  const Point3d start;
-  const Point3d end;
-  const Vector3d dir;
+  // Faster than unordered_map for small fixed size keys (0..N)
+  std::vector<std::optional<Point3d>> abw_found(N);
+
+  // Storage for slice start/end
+  std::vector<std::optional<Point3d>> start_abw(N);
+  std::vector<std::optional<Point3d>> end_abw(N);
+
   std::vector<std::optional<Point2d>> slice_abw_points;
-  std::vector<std::optional<Point3d>> end_abw_points;
-  std::vector<std::optional<Point3d>> start_abw_points;
-  std::unique_ptr<Point3d> p_int;
-  // std::vector<Line3d> abwLines;
+  slice_abw_points.reserve(N);
+
   Eigen::Matrix3d rotmat;
-  JointSlice slice;
-  Vector3d startpos_slice;
-  Vector3d startpos_rocs;
-  Vector3d endpos_slice;
-  Vector3d endpos_rocs;
-  const size_t n_slices = this->slices_.size();
-  bool got_first        = false;
-  // size_t slice_index    = 0;
-  size_t real_index = 0;
+
+  bool got_first = false;
 
   for (size_t si = 0; si <= n_slices; si++) {
-    real_index = si % n_slices;
-    slice      = this->slices_[real_index];
+    const JointSlice &slice = slices_[si == n_slices ? 0 : si];
 
     // Get points from slice
     slice_abw_points = slice.GetAbwPoints(allow_cap_points);
@@ -104,17 +98,20 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
     // Create the rotation transform to go from slice CS to ROCS
     rotmat = Eigen::AngleAxisd(slice.GetSliceAngle(), Vector3d(1, 0, 0)).toRotationMatrix();
 
+    // First slice → Just fill start_abw
     if (!got_first) {
       // Convert 2D slice -> 3D, rotate and store in vector.
-      for (auto &it : slice_abw_points) {
-        if (it.has_value()) {
-          startpos_slice = Vector3d(it->GetX(), 0, it->GetY());
-          startpos_rocs  = rotmat * startpos_slice;
-          Point3d start{startpos_rocs(0), startpos_rocs(1), startpos_rocs(2), ROCS};
-          start_abw_points.push_back(start);
+      int idx = 0;
+      for (const auto &pt2d : slice_abw_points) {
+        if (pt2d.has_value()) {
+          const Vector3d p_slice(pt2d->GetX(), 0.0, pt2d->GetY());
+          const Vector3d p_rocs = rotmat * p_slice;
+
+          start_abw[idx].emplace(p_rocs.x(), p_rocs.y(), p_rocs.z(), ROCS);
         } else {
-          start_abw_points.push_back(std::nullopt);
+          start_abw[idx].reset();
         }
+        idx++;
       }
 
       got_first = true;
@@ -122,60 +119,56 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
     }
 
     // Convert 2D slice -> 3D, rotate and store in vector.
-    end_abw_points.clear();
-    for (auto &it : slice_abw_points) {
-      if (it.has_value()) {
-        endpos_slice = Vector3d(it->GetX(), 0, it->GetY());
-        endpos_rocs  = rotmat * endpos_slice;
-        Point3d end{endpos_rocs(0), endpos_rocs(1), endpos_rocs(2), ROCS};
-        end_abw_points.push_back(end);
+    int idx_end = 0;
+    for (const auto &pt2d : slice_abw_points) {
+      if (pt2d.has_value()) {
+        const Vector3d p_slice(pt2d->GetX(), 0.0, pt2d->GetY());
+        const Vector3d p_rocs = rotmat * p_slice;
+
+        end_abw[idx_end].emplace(p_rocs.x(), p_rocs.y(), p_rocs.z(), ROCS);
       } else {
-        end_abw_points.push_back(std::nullopt);
+        end_abw[idx_end].reset();
       }
+      idx_end++;
     }
 
     // Construct interpolation lines between slices and check for intersection with plane.
-    for (int i = 0; i < end_abw_points.size(); i++) {
-      if (!start_abw_points.at(i).has_value() || !end_abw_points.at(i).has_value()) {
-        continue;
-      }
+    for (int i = 0; i < N; i++) {
+      // skip missing ABW points
+      if (!start_abw[i].has_value() || !end_abw[i].has_value()) continue;
 
-      line  = Line3d::FromPoints(start_abw_points[i].value(), end_abw_points[i].value());
-      p_int = line.Intersect(plane_rocs, true);
+      Line3d line = Line3d::FromPoints(*start_abw[i], *end_abw[i]);
 
-      if (p_int == nullptr) {
-        continue;
-      }  // Plane is not between start and end slice for this particular ABW[x]
+      std::unique_ptr<Point3d> p_int = line.Intersect(plane_rocs, true);
+      if (!p_int) continue;  // Plane is not between start and end slice for this particular ABW[x]
 
-      // Since the plane intersects the "abw circle" at two points, check to see which of the intersection is the
-      // one of interest.
-      if (abw_found.contains(i)) {
-        //  Check distance to lpcs origin to determine if this is the closer of the two possible ABWx points.
-        // TODO(zachjz): change this to instead use the dot product to determine direction of intersection
-        if (std::abs(abw_found[i].GetZ() - closest_point_filter_rocs.GetZ()) >
-            std::abs(p_int->GetZ() - closest_point_filter_rocs.GetZ())) {
-          abw_found[i] = *p_int;
-        }
-        // continue;
+      // Since the plane intersects the "abw circle" at two points,
+      // check to see which of the intersection is the one of interest.
+      if (abw_found[i].has_value()) {
+        // Check distance to lpcs origin to determine if this is the closer of the two possible ABWx points.
+        const double old_d = std::abs(abw_found[i]->GetZ() - closest_point_filter_rocs.GetZ());
+        const double new_d = std::abs(p_int->GetZ() - closest_point_filter_rocs.GetZ());
+
+        if (new_d < old_d) abw_found[i] = *p_int;
+
       } else {
         abw_found[i] = *p_int;
       }
     }
 
-    start_abw_points = end_abw_points;
+    // Move end slice to start slice for next iteration
+    start_abw = end_abw;
   }
 
-  std::vector<std::optional<Point3d>> abw;
-  abw.reserve(nbr_abw_points_);
-  for (int i = 0; i < nbr_abw_points_; i++) {
-    if (abw_found.contains(i)) {
-      abw.emplace_back(abw_found.at(i));
-    } else {
-      abw.emplace_back(std::nullopt);
-    }
+  // Final output
+  std::vector<std::optional<Point3d>> result;
+  result.reserve(N);
+
+  for (const auto &pt : abw_found) {
+    result.emplace_back(pt);
   }
 
-  return abw;
+  return result;
 }
 
 auto CircularWeldObject::GetLatestDepositedSlice(double wire_tip_angle) const -> std::vector<Point3d> {

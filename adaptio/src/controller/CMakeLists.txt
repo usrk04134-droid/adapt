@@ -65,5 +65,4 @@ target_sources(${ADAPTIO_APPLICATION}
 )
 
 add_subdirectory(simulation)
-add_subdirectory(systems)
 add_subdirectory(pn_driver)

@@ -42,9 +42,9 @@
 #include "joint_geometry/joint_geometry.h"
 #include "scanner/core/scanner_calibration_configuration.h"
 #include "scanner/core/scanner_configuration.h"
-#include "scanner/core/scanner_factory.h"
 #include "scanner/image_provider/image_provider_configuration.h"
 #include "scanner/scanner_application.h"
+#include "scanner/scanner_factory.h"
 #include "test_utils/testlog.h"
 #include "weld_control/weld_control_types.h"
 
@@ -403,7 +403,7 @@ auto ScannerDataWrapper::ShiftHorizontal(double value) -> ScannerDataWrapper& {
   }
 
   for (auto& coord : data_.profile) {
-    coord.x += value;
+    coord.horizontal += value;
   }
 
   return *this;
@@ -415,18 +415,20 @@ auto ScannerDataWrapper::FillUp(double value) -> ScannerDataWrapper& {
   }
 
   for (auto& coord : data_.profile) {
-    if (coord.y < TOP_LEVEL) coord.y += value;
+    if (coord.vertical < TOP_LEVEL) coord.vertical += value;
   }
 
   return *this;
 }
 
-ControllerFixture::ControllerFixture(clock_functions::SystemClockNowFunc system_clock_now_func)
-    : system_clock_now_func_(std::move(system_clock_now_func)) {
+ControllerFixture::ControllerFixture(clock_functions::SystemClockNowFunc system_clock_now_func,
+                                     clock_functions::SteadyClockNowFunc steady_clock_now_func)
+    : system_clock_now_func_(std::move(system_clock_now_func)),
+      steady_clock_now_func_(std::move(steady_clock_now_func)) {
   auto mock_plc_ptr     = std::make_unique<MockPlc>();
   mock_plc_             = mock_plc_ptr.get();
-  controller_messenger_ = std::make_unique<controller::ControllerMessenger>(std::move(mock_plc_ptr), PLC_CYCLE_TIME_MS,
-                                                                            system_clock_now_func_, ENDPOINT_BASE_URL);
+  controller_messenger_ = std::make_unique<controller::ControllerMessenger>(
+      std::move(mock_plc_ptr), PLC_CYCLE_TIME_MS, system_clock_now_func_, steady_clock_now_func_, ENDPOINT_BASE_URL);
 }
 
 void ControllerFixture::Start() {
@@ -449,7 +451,8 @@ auto ControllerFixture::Mock() -> MockPlc* { return mock_plc_; }
 auto ControllerFixture::Sut() -> controller::ControllerMessenger* { return controller_messenger_.get(); }
 
 MultiFixture::MultiFixture()
-    : ctrl_([wrapper = app_.GetClockNowFuncWrapper()]() { return wrapper->GetSystemClock(); }) {
+    : ctrl_([wrapper = app_.GetClockNowFuncWrapper()]() { return wrapper->GetSystemClock(); },
+            [wrapper = app_.GetClockNowFuncWrapper()]() { return wrapper->GetSteadyClock(); }) {
   app_.StartApplication();
   ctrl_.Start();
 

@@ -1,4 +1,4 @@
-#include "scanner/image_logger/image_logger_impl.h"
+#include "scanner/image_logger/src/image_logger_impl.h"
 
 #include <fmt/core.h>
 

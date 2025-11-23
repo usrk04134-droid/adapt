@@ -24,8 +24,8 @@
 #include <vector>
 
 #include "common/logging/application_log.h"
-#include "scanner/core/scanner.h"
 #include "scanner/core/scanner_types.h"
+#include "scanner/core/src/scanner.h"
 #include "scanner/image/camera_model.h"
 #include "scanner/image/image.h"
 #include "scanner/image/image_types.h"  // IWYU pragma: keep
@@ -214,12 +214,12 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
                                         .num_walls_found     = num_walls_found,
                                         .processing_time     = processing_time,
                                         .vertical_crop_start = image->GetVerticalCropStart(),
-                                        .approximation_used  = profile.approximation_used};
+                                        .approximation_used  = profile.approximation_used,
+                                        .snake_points        = interpolated_snake};
       if (store_image_data_) {
         // Store image data only if necessary. Not needed when running Adaptio
         slice.image_data = image->Data();
       }
-      slice.snake_points = interpolated_snake;
 
       m_buffer_mutex.lock();
       slice_provider_->AddSlice(slice);
@@ -334,8 +334,8 @@ void ScannerImpl::Update() {
   m_buffer_mutex.unlock();
 
   if (tracking_data.has_value()) {
-    auto [groove, confidence, time_stamp] = tracking_data.value();
-    scanner_output_->ScannerOutput(groove, std::array<common::Point, 100>{}, time_stamp, confidence);
+    auto [groove, snake, confidence, time_stamp] = tracking_data.value();
+    scanner_output_->ScannerOutput(groove, snake, time_stamp, confidence);
   } else {
     // This should not happen
     LOG_ERROR("No slice sent due to missing ABW points.");

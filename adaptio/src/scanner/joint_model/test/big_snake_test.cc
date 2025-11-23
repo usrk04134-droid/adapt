@@ -1,4 +1,4 @@
-#include "scanner/joint_model/big_snake.h"
+#include "scanner/joint_model/src/big_snake.h"
 
 #include <fmt/core.h>
 

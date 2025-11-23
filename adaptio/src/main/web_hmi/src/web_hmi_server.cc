@@ -12,15 +12,12 @@
 
 #include "../web_hmi_json_helpers.h"
 #include "calibration/src/calibration_metrics.h"
-#include "common/groove/point.h"
 #include "common/logging/application_log.h"
 #include "common/zevs/zevs_core.h"
 #include "coordination/activity_status.h"
 #include "joint_geometry/joint_geometry_provider.h"
 #include "json_payload.h"
 #include "kinematics/kinematics_client.h"
-#include "lpcs/lpcs_slice.h"
-#include "macs/macs_slice.h"
 #include "version.h"
 #include "web_hmi/web_hmi.h"
 
@@ -100,13 +97,6 @@ void WebHmiServer::OnMessage(zevs::MessagePtr message) {
       auto message = CreateMessage("GetActivityStatusRsp", SUCCESS_PAYLOAD, payload);
       out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
 
-    } else if (message_name == "GetGroove") {
-      nlohmann::json payload;
-      if (groove_) {
-        payload = GrooveToPayload(groove_.value());
-      }
-      auto message = CreateMessage("GetGrooveRsp", SUCCESS_PAYLOAD, payload);
-      out_socket_->SendWithEnvelope(ADAPTIO_IO, std::move(message));
     } else if (message_name == "GetEdgePosition") {
       auto on_get_edge_position = [this](double position) {
         nlohmann::json payload = {
@@ -125,13 +115,6 @@ void WebHmiServer::OnMessage(zevs::MessagePtr message) {
     LOG_ERROR("nlohman JSON exception: {}, for message: {}", exception.what(), message_name);
     Send(message_name + "Rsp", FAILURE_PAYLOAD, "Exception error", std::nullopt);
   }
-}
-
-// SliceObserver
-void WebHmiServer::Receive(const macs::Slice& data, const lpcs::Slice& /*scanner_data*/,
-                           const common::Point& /*axis_position*/, const double /*angle_from_torch_to_scanner*/) {
-  // could be an empty optional
-  groove_ = data.groove;
 }
 
 void WebHmiServer::SubscribePattern(std::regex const& pattern, OnRequest on_request) {

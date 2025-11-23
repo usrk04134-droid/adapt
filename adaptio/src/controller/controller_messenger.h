@@ -44,6 +44,7 @@ class ControllerMessenger : public ControllerDataCallbacks,
  public:
   explicit ControllerMessenger(ControllerPtr controller, uint32_t cycle_time,
                                clock_functions::SystemClockNowFunc system_clock_now_func,
+                               clock_functions::SteadyClockNowFunc steady_clock_now_func,
                                std::string endpoint_base_url = "controller_messages");
 
   ControllerMessenger(ControllerMessenger&)                     = delete;
@@ -64,6 +65,7 @@ class ControllerMessenger : public ControllerDataCallbacks,
   void OnDisconnected(uint32_t reason_code) override;
   auto ValidateHeartbeat() -> bool override;
 
+  void SuperviseHeartbeat();
   void ThreadEntry(const std::string& name);
   void StartThread(const std::string& event_loop_name);
   void JoinThread();
@@ -72,6 +74,12 @@ class ControllerMessenger : public ControllerDataCallbacks,
   void AdaptioOutputUpdate(const AdaptioOutput& data) override;
   void TrackOutputUpdate(const TrackOutput& data) override;
   void OnPowerSourceOutput(uint32_t index, PowerSourceOutput const& data) override;
+
+ protected:
+  void CheckAdaptioHeartbeat();
+
+  std::chrono::time_point<std::chrono::steady_clock> heartbeat_last_changed_ = {};
+  clock_functions::SteadyClockNowFunc steady_clock_now_func_;
 
  private:
   ControllerPtr controller_;
@@ -94,6 +102,8 @@ class ControllerMessenger : public ControllerDataCallbacks,
   std::unique_ptr<WeldSystemServerImpl> weld_system_server_;
   std::unique_ptr<WeldAxisFilter> weld_axis_median_filter_;
   clock_functions::SystemClockNowFunc system_clock_now_func_;
+
+  bool supervise_heartbeat_ = false;
 
   auto Connect() -> boost::outcome_v2::result<bool>;
   void StartTimer();

@@ -1,5 +1,6 @@
 target_sources(${ADAPTIO_APPLICATION}
     PRIVATE
+    enum_helpers.h
     json_helpers.h
 )
 

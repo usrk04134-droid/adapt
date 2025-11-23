@@ -33,7 +33,6 @@
 #include "controller/controller.h"
 #include "controller/controller_data.h"
 #include "controller/pn_driver/pn_driver_data.h"
-#include "controller/systems/heartbeat/heartbeat_system.h"
 #include "pn_driver_callbacks.h"
 #include "shared_src/pnd_pntrc.h"
 #include "version.h"
@@ -94,9 +93,6 @@ PnDriver::PnDriver(Configuration configuration, clock_functions::SteadyClockNowF
   }
 
   LOG_INFO("Using rema file: {}", configuration_.rema_path.string());
-
-  AddSystem(std::make_unique<HeartbeatSystem>([this]() -> bool { return Controller::ValidateHeartbeat(); },
-                                              [this]() { Controller::OnHeartbeatLost(); }, steady_clock_now_func_));
 }
 
 auto PnDriver::Connect() -> boost::outcome_v2::result<bool> {
@@ -182,8 +178,6 @@ auto PnDriver::RetrieveInputs() -> boost::outcome_v2::result<bool> {
     if (result != PNIO_OK) {
       return ControllerErrorCode::INPUT_ERROR;
     }
-
-    RunSystems();
 
   } else {
     return ControllerErrorCode::DISCONNECTED;

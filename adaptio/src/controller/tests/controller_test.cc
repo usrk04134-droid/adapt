@@ -53,7 +53,8 @@ struct Fixture {
     auto controller_ptr = std::make_unique<MockController>();
     controller          = controller_ptr.get();
     sut                 = std::make_unique<ControllerMessenger>(
-        std::move(controller_ptr), 100, []() { return std::chrono::system_clock::now(); }, "mock");
+        std::move(controller_ptr), 100, []() { return std::chrono::system_clock::now(); },
+        []() { return std::chrono::steady_clock::now(); }, "mock");
 
     sut->ThreadEntry("Controller messenger");
 

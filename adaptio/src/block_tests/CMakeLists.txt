@@ -20,7 +20,6 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     helpers/helpers.cc
     joint_tracking_test.cc
     coordination_test.cc
-    coordinate_systems_test.cc
     weld_data_set_test.cc
     weld_control_test.cc
     weld_program_test.cc
@@ -34,4 +33,5 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     scanner_basic_test.cc
     scanner/on_demand_file_image_provider.cc
     calibration_test.cc
+    heartbeat_test.cc
 )

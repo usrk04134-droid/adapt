@@ -162,7 +162,7 @@ inline auto NowTimeStamp(TestFixture& fixture) -> uint64_t {
 inline void ProvideScannerAndKinematicsData(TestFixture& fixture, deposition_simulator::ISimulator& simulator,
                                             const deposition_simulator::Point3d& point) {
   auto abws_lpcs  = helpers_simulator::ConvertFromOptionalAbwVector(simulator.GetAbwPoints(deposition_simulator::LPCS));
-  auto slice_data = helpers_simulator::GetSliceData(abws_lpcs, NowTimeStamp(fixture));
+  auto slice_data = helpers_simulator::GetSliceData(abws_lpcs, simulator, NowTimeStamp(fixture));
   fixture.Scanner()->Dispatch(slice_data);
 
   // Receive GetSlidesPosition
