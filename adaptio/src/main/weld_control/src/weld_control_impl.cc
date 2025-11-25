@@ -967,10 +967,14 @@ void WeldControlImpl::StoreGrooveInDelayBuffer() {
 auto WeldControlImpl::GetDelayedGrooveMCS() -> common::Groove {
   auto const current = cached_mcs_.groove.value();
 
+  if (!cached_linear_object_distance_.has_value()) {
+    return current;
+  }
+
   auto const delay = GetSampleToTorchDist(cached_lpcs_.time_stamp, cached_weld_axis_ang_velocity_,
                                           cached_distance_from_torch_to_scanner_);
 
-  auto const position = cached_linear_object_distance_.value_or(0.0);
+  auto const position = cached_linear_object_distance_.value();
   auto delayed_groove = delay_buffer_->Get(position, delay).value_or(current);
 
   return delayed_groove;
@@ -978,7 +982,12 @@ auto WeldControlImpl::GetDelayedGrooveMCS() -> common::Groove {
 
 auto WeldControlImpl::GetHybridGrooveMCS() const -> common::Groove {
   auto const current_groove = cached_mcs_.groove.value();
-  auto const position       = cached_linear_object_distance_.value_or(0.0);
+
+  if (!cached_linear_object_distance_.has_value()) {
+    return current_groove;
+  }
+
+  auto const position       = cached_linear_object_distance_.value();
   auto const delayed_groove =
       delay_buffer_->Get(position, cached_distance_from_torch_to_scanner_).value_or(current_groove);
 
@@ -1613,6 +1622,12 @@ void WeldControlImpl::ResetGrooveDataHomed() {
   bead_control_->ResetGrooveData();
   confident_slice_buffer_.Clear();
   ClearWeldSession();
+}
+
+void WeldControlImpl::SetLongitudinalWeldConstraints(std::optional<double> start_position,
+                                                     std::optional<double> stop_position) {
+  lgtw_start_position_ = start_position;
+  lgtw_stop_position_  = stop_position;
 }
 
 void WeldControlImpl::AddWeldStateObserver(WeldStateObserver* observer) { weld_state_observers_.push_back(observer); }
