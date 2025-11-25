@@ -76,6 +76,8 @@ class WeldControlImpl : public WeldControl,
   void SubscribeReady(std::function<void(const std::vector<std::pair<Mode, LayerType>>&)> on_ready_update) override;
   void ResetGrooveData() override;
   void AddWeldStateObserver(WeldStateObserver* observer) override;
+  void SetLongitudinalWeldConstraints(std::optional<double> start_position,
+                                      std::optional<double> stop_position) override;
 
   /* ScannerObserver */
   void OnScannerStarted(bool success) override;
@@ -168,6 +170,9 @@ class WeldControlImpl : public WeldControl,
   clock_functions::SteadyClockNowFunc steady_clock_now_func_;
   std::optional<kinematics::State> weld_axis_state_;
   std::optional<kinematics::EdgeState> edge_state_;
+
+  std::optional<double> lgtw_start_position_;
+  std::optional<double> lgtw_stop_position_;
 
   /* Metrics */
 

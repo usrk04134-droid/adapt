@@ -36,5 +36,7 @@ class WeldControl {
   virtual void SubscribeReady(std::function<void(const std::vector<std::pair<Mode, LayerType>>&)> on_update) = 0;
   virtual void ResetGrooveData()                                                                             = 0;
   virtual void AddWeldStateObserver(WeldStateObserver* observer)                                             = 0;
+  virtual void SetLongitudinalWeldConstraints(std::optional<double> start_position,
+                                              std::optional<double> stop_position)                           = 0;
 };
 }  // namespace weld_control
