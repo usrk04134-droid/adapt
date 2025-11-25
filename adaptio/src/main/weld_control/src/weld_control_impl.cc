@@ -935,12 +935,32 @@ void WeldControlImpl::ProcessInput() {
 
 void WeldControlImpl::StoreGrooveInDelayBuffer() {
   if (cached_linear_object_distance_.has_value()) {
-    delay_buffer_->Store(cached_linear_object_distance_.value(), cached_mcs_.groove.value());
+    bool should_store = true;
+    if (lgtw_start_position_ && lgtw_stop_position_) {
+      auto const pos = *cached_linear_object_distance_;
+      if (pos < *lgtw_start_position_ || pos > *lgtw_stop_position_) {
+        should_store = false;
+      }
+    }
+
+    if (should_store) {
+      delay_buffer_->Store(cached_linear_object_distance_.value(), cached_mcs_.groove.value());
+    }
   }
 
   if (cached_weld_axis_ang_velocity_ < 0.0) {
-    delay_buffer_->Clear();
-    cached_linear_object_distance_ = {};
+    bool should_clear = true;
+    if (lgtw_start_position_ && lgtw_stop_position_ && cached_linear_object_distance_) {
+      auto const pos = *cached_linear_object_distance_;
+      if (pos < *lgtw_start_position_ || pos > *lgtw_stop_position_) {
+        should_clear = false;
+      }
+    }
+
+    if (should_clear) {
+      delay_buffer_->Clear();
+      cached_linear_object_distance_ = {};
+    }
   }
 }
 
