@@ -24,7 +24,6 @@
 #include "scanner/image/image_builder.h"
 #include "scanner/image_logger/src/image_logger_impl.h"
 #include "scanner/image_provider/image_provider.h"
-#include "scanner/joint_buffer/src/single_joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/src/slice_provider_impl.h"
 
@@ -149,10 +148,8 @@ TEST_SUITE("Scanner") {
 
     auto camera = std::unique_ptr<image::CameraModel>(new CameraMock());
 
-    auto joint_buffer          = std::make_unique<joint_buffer::SingleJointBuffer>();
     auto steady_clock_now_func = []() { return std::chrono::steady_clock::now(); };
-    auto slice_provider =
-        std::make_unique<slice_provider::SliceProviderImpl>(std::move(joint_buffer), steady_clock_now_func);
+    auto slice_provider        = std::make_unique<slice_provider::SliceProviderImpl>(steady_clock_now_func);
     auto properties = joint_model::JointProperties();
 
     auto joint_model = joint_model::JointModelPtr(new JointModelMock(properties, std::move(camera)));
