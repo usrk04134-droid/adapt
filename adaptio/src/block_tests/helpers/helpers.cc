@@ -258,6 +258,7 @@ void TestFixture::SetupDefaultConfiguration() {
   joint_geometry.right_joint_angle_rad       = 0.1396;
   joint_geometry.left_max_surface_angle_rad  = 0.34906585;
   joint_geometry.right_max_surface_angle_rad = 0.34906585;
+  joint_geometry.welding_type                = joint_geometry::WeldingType::LONGITUDINAL;
   mock->SetCalibrationFixtureJointGeometry(joint_geometry);
 
   //  NOLINTEND(*-magic-numbers)

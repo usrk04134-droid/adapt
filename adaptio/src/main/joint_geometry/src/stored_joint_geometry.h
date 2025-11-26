@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include "joint_geometry/joint_geometry.h"
+
 namespace joint_geometry {
 
 class StoredJointGeometry {
@@ -24,6 +26,7 @@ class StoredJointGeometry {
   auto RightJointAngle() const -> double;
   auto LeftMaxSurfaceAngle() const -> double;
   auto RightMaxSurfaceAngle() const -> double;
+  auto WeldingType() const -> joint_geometry::WeldingType;
 
   void SetId(int);
   void SetName(std::string);
@@ -33,6 +36,7 @@ class StoredJointGeometry {
   void SetRightJointAngle(double);
   void SetLeftMaxSurfaceAngle(double);
   void SetRightMaxSurfaceAngle(double);
+  void SetWeldingType(joint_geometry::WeldingType);
 
   auto IsValid() const -> bool;
   auto ToJson() const -> nlohmann::json;
@@ -53,6 +57,7 @@ class StoredJointGeometry {
   double right_joint_angle_rad_{};
   double left_max_surface_angle_rad_{};
   double right_max_surface_angle_rad_{};
+  joint_geometry::WeldingType welding_type_{joint_geometry::WeldingType::LONGITUDINAL};
 };
 
 };  // namespace joint_geometry

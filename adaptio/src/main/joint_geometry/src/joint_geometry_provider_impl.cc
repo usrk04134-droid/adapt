@@ -56,6 +56,7 @@ auto JointGeometryProviderImpl::GetJointGeometry() const -> std::optional<joint_
     jg.right_joint_angle_rad       = stored.RightJointAngle();
     jg.left_max_surface_angle_rad  = stored.LeftMaxSurfaceAngle();
     jg.right_max_surface_angle_rad = stored.RightMaxSurfaceAngle();
+    jg.welding_type                = stored.WeldingType();
 
     return jg;
   }
@@ -103,6 +104,12 @@ auto JointGeometryProviderImpl::ConvertToDbJointGeometryFormat(const nlohmann::j
     stored_jg["right_joint_angle_rad"]       = payload.at("rightJointAngleRad");
     stored_jg["left_max_surface_angle_rad"]  = payload.at("leftMaxSurfaceAngleRad");
     stored_jg["right_max_surface_angle_rad"] = payload.at("rightMaxSurfaceAngleRad");
+    
+    if (payload.contains("weldingType")) {
+      stored_jg["welding_type"] = payload.at("weldingType");
+    } else {
+      stored_jg["welding_type"] = "longitudinal";  // Default
+    }
   }
   return stored_jg;
 }
@@ -118,6 +125,12 @@ auto JointGeometryProviderImpl::ConvertToWebJointGeometryFormat(const nlohmann::
       web_jg["rightJointAngleRad"]      = item.at("right_joint_angle_rad");
       web_jg["leftMaxSurfaceAngleRad"]  = item.at("left_max_surface_angle_rad");
       web_jg["rightMaxSurfaceAngleRad"] = item.at("right_max_surface_angle_rad");
+      
+      if (item.contains("welding_type")) {
+        web_jg["weldingType"] = item.at("welding_type");
+      } else {
+        web_jg["weldingType"] = "longitudinal";  // Default
+      }
     }
   }
   return web_jg;
