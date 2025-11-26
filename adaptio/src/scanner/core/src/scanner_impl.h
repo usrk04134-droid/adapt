@@ -75,7 +75,7 @@ class ScannerImpl : public Scanner {
   std::optional<std::tuple<double, double>> maybe_abw0_abw6_horizontal_;
 
   boost::asio::thread_pool m_threadpool;
-  std::mutex m_buffer_mutex;  // Protects joint_buffer_
+  std::mutex m_buffer_mutex;  // Protects slice_provider_ access
   std::mutex m_config_mutex;  // Protects all other members
 
   size_t num_received   = 0;
