@@ -4,6 +4,8 @@
 #include <cmath>
 #include <iostream>
 #include <optional>
+
+#include "common/logging/application_log.h"
 namespace common::containers {
 
 template <typename T>
@@ -30,34 +32,23 @@ class RelativePositionBuffer {
     }
   }
 
-  auto Get(double position) -> std::optional<T> {
+  auto Get(double position, double distance) -> std::optional<T> {
     if (data_.empty()) {
       return {};
     }
+    auto const target_position = position - distance;
 
-    auto sum           = 0.0;
-    auto last_position = data_[0].position;
-
-    for (int i = 0; i < data_.size(); i++) {
-      auto cur_position = data_[i].position;
-
-      if (wrap_value_.has_value()) {
-        sum += last_position < cur_position ? last_position + wrap_value_.value() - cur_position
-                                            : last_position - cur_position;
-      } else {
-        sum += last_position - cur_position;
+    auto closest_it = data_.begin();
+    auto min_diff   = std::abs(closest_it->position - target_position);
+    for (auto it = data_.begin() + 1; it != data_.end(); ++it) {
+      auto const diff = std::abs(it->position - target_position);
+      if (diff >= min_diff) {
+        break;
       }
-
-      auto dist = position - sum;
-
-      if (dist < 0.0) {
-        return i > 0 ? std::optional<T>{data_[i - 1].data} : std::nullopt;
-      }
-
-      last_position = cur_position;
+      min_diff   = diff;
+      closest_it = it;
     }
-
-    return data_.back().data;
+    return closest_it->data;
   }
 
  private:

@@ -34,4 +34,5 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     scanner/on_demand_file_image_provider.cc
     calibration_test.cc
     heartbeat_test.cc
+    controller_block_tests.cc
 )

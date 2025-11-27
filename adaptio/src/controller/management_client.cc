@@ -154,6 +154,8 @@ void ManagementClient::Update() {
 
   track_output.set_status_active(general_state.active);
   track_output.set_status_error(general_state.error);
+  // The feedback of the active tracking_mode and offset from main thread to controller is not implemented.
+  // It is also not used by the plc. For that reason, the active_joint_tracking_mode is not set.
 
   // ReadyState::NOT_READY_AUTO_CAL_MOVE is a late addition to handle a case where
   // a calibration sequence is started from the WebHMI and the PLC must be informed

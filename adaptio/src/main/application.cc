@@ -33,6 +33,7 @@
 #include "weld_control/src/delay_buffer.h"
 #include "weld_control/src/settings_provider.h"
 #include "weld_control/src/weld_control_impl.h"
+#include "weld_control/src/weld_control_metrics_impl.h"
 #include "weld_control/src/weld_sequence_config_impl.h"
 #include "weld_system_client/src/weld_system_client_impl.h"
 
@@ -146,12 +147,16 @@ auto Application::Run(const std::string& event_loop_name, const std::string& end
 
   weld_sequence_config_ = std::make_unique<weld_control::WeldSequenceConfigImpl>(database_, web_hmi_server_.get());
   settings_provider_    = std::make_unique<weld_control::SettingsProvider>(database_, web_hmi_server_.get());
-  weld_control_         = std::make_unique<weld_control::WeldControlImpl>(
+
+  // Weld control metrics
+  metrics_ = std::make_unique<weld_control::WeldControlMetricsImpl>(registry_);
+
+  weld_control_ = std::make_unique<weld_control::WeldControlImpl>(
       configuration_->GetWeldControlConfiguration(), weld_sequence_config_.get(), settings_provider_.get(),
       web_hmi_server_.get(), kinematics_client_.get(), path_logs_, weld_system_client_.get(), tracking_manager_.get(),
       scanner_client_.get(), timer_.get(), event_handler_.get(), bead_control_.get(), delay_buffer_.get(),
-      system_clock_now_func_, steady_clock_now_func_, registry_, image_logging_manager_.get(), model_impl_.get(),
-      database_);
+      system_clock_now_func_, steady_clock_now_func_, image_logging_manager_.get(), model_impl_.get(), database_,
+      metrics_.get());
 
   auto shutdown_handler = [this]() {
     in_shutdown_ = true;

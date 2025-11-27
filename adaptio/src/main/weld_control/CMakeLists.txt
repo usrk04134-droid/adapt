@@ -19,6 +19,8 @@ target_sources(${ADAPTIO_APPLICATION}
     src/settings.h
     src/settings_provider.h
     src/confident_slice_buffer.h
+    src/weld_control_metrics.h
+    src/weld_control_metrics_impl.h
 
     src/weld_control_impl.cc
     src/weld_data_set.cc
@@ -28,4 +30,5 @@ target_sources(${ADAPTIO_APPLICATION}
     src/weld_sequence_config_impl.cc
     src/settings.cc
     src/settings_provider.cc
+    src/weld_control_metrics_impl.cc
   )

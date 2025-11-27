@@ -68,7 +68,7 @@ TEST_SUITE("AdaptiveWeldingTest") {
                         .weld_speed{.min = 80., .max = 95.},
                         .bead_switch_angle = 15.,
                         .cap_corner_offset = 5.0,
-                        .cap_beads         = 6,
+                        .cap_beads         = 5,
                         .cap_init_depth    = 7.0},
         .welding_parameters{
                         .weld_object_diameter_m       = 2.,
@@ -91,7 +91,7 @@ TEST_SUITE("AdaptiveWeldingTest") {
                         .use_edge_sensor = true},
         .test_joint_geometry{help_sim::TEST_JOINT_GEOMETRY_WIDE},
 
-        .testcase_parameters{.expected_beads_in_layer{{1, 3}, {2, 4}, {3, 4}, {4, 5}, {5, 6}}}
+        .testcase_parameters{.expected_beads_in_layer{{1, 3}, {2, 4}, {3, 4}, {4, 4}, {5, 5}}}
     };
     AdaptiveWeldingTest(test_parameters);
   }
@@ -131,7 +131,7 @@ TEST_SUITE("AdaptiveWeldingTest") {
         .test_joint_geometry{help_sim::TEST_JOINT_GEOMETRY_WIDE},
 
         .testcase_parameters{
-                        .expected_beads_in_layer{{1, 3}, {2, 3}, {3, 4}, {4, 4}, {5, 5}, {6, 5}}}  // Number of test layers
+                        .expected_beads_in_layer{{1, 3}, {2, 3}, {3, 4}, {4, 4}, {5, 4}, {6, 5}}}  // Number of test layers
     };
     // Set a misaligned joint
     test_parameters.test_joint_geometry.simulator_joint_geometry.left.radial_offset_m       = 2e-3;
@@ -176,7 +176,7 @@ TEST_SUITE("AdaptiveWeldingTest") {
         .test_joint_geometry{help_sim::TEST_JOINT_GEOMETRY_WIDE},
 
         .testcase_parameters{.expected_beads_in_layer{
-            {1, 2}, {2, 2}, {3, 3}, {4, 3}, {5, 4}, {6, 4}, {7, 5}, {8, 5}}}  // Number of test layers
+            {1, 2}, {2, 2}, {3, 3}, {4, 3}, {5, 4}, {6, 4}, {7, 4}, {8, 5}}}  // Number of test layers
     };
     // Set a misaligned joint
     test_parameters.test_joint_geometry.simulator_joint_geometry.left.radial_offset_m       = 2e-3;
@@ -228,7 +228,7 @@ TEST_SUITE("AdaptiveWeldingTest") {
         .test_joint_geometry{help_sim::TEST_JOINT_GEOMETRY_NARROW_WITH_GROOVE_ANGLE_DEV},
 
         .testcase_parameters{
-                        .expected_beads_in_layer{{1, 2}, {2, 3}, {3, 3}, {4, 4}, {5, 4}, {6, 5}}}  // Number of test layers
+                        .expected_beads_in_layer{{1, 2}, {2, 3}, {3, 3}, {4, 3}, {5, 4}, {6, 5}}}  // Number of test layers
     };
     // Set a misaligned joint
     test_parameters.test_joint_geometry.simulator_joint_geometry.left.radial_offset_m       = 0.0;
@@ -249,7 +249,7 @@ TEST_SUITE("AdaptiveWeldingTest") {
                         .weld_speed{.min = 80., .max = 95.},
                         .bead_switch_angle = 15.,
                         .cap_corner_offset = 0.0,
-                        .cap_beads         = 6,
+                        .cap_beads         = 5,
                         .cap_init_depth    = 7.0},
         .welding_parameters{
                         .weld_object_diameter_m       = 2.,
@@ -272,24 +272,22 @@ TEST_SUITE("AdaptiveWeldingTest") {
                         .use_edge_sensor = true},
         .test_joint_geometry{help_sim::TEST_JOINT_GEOMETRY_DEEP},
 
-        .testcase_parameters{.expected_beads_in_layer{
-            {1, 2},
-            {2, 2},
-            {3, 2},
-            {4, 2},
-            {5, 2},
-            {6, 3},
-            {7, 3},
-            {8, 3},
-            {9, 3},
-            {10, 3},
-            {11, 4},
-            {12, 4},
-            {13, 4},
-            {14, 4},
-            {15, 5},
-            {16, 6},
-        }}
+        .testcase_parameters{.expected_beads_in_layer{{1, 2},
+                                                      {2, 2},
+                                                      {3, 2},
+                                                      {4, 2},
+                                                      {5, 2},
+                                                      {6, 2},
+                                                      {7, 3},
+                                                      {8, 3},
+                                                      {9, 3},
+                                                      {10, 3},
+                                                      {11, 3},
+                                                      {12, 4},
+                                                      {13, 4},
+                                                      {14, 4},
+                                                      {15, 4},
+                                                      {16, 5}}}
     };
 
     SUBCASE("Basic") { AdaptiveWeldingTest(test_parameters); }
@@ -298,12 +296,8 @@ TEST_SUITE("AdaptiveWeldingTest") {
           32.1, /* required top groove width for 3 beads */
           42.0, /* required top groove width for 4 beads */
       };
-      test_parameters.testcase_parameters.expected_beads_in_layer[6]  = 2; /* 3 -> 2 */
-      test_parameters.testcase_parameters.expected_beads_in_layer[7]  = 2; /* 3 -> 2 */
-      test_parameters.testcase_parameters.expected_beads_in_layer[11] = 3; /* 4 -> 3 */
-      test_parameters.testcase_parameters.expected_beads_in_layer[15] = 5; /* 5 -> 4 */
-      test_parameters.testcase_parameters.expected_beads_in_layer[16] = 5; /* 4 -> 5 */
-      test_parameters.testcase_parameters.expected_beads_in_layer[17] = 6; /* additional layer */
+      test_parameters.testcase_parameters.expected_beads_in_layer[6] = 2; /* 3 -> 2 */
+
       AdaptiveWeldingTest(test_parameters);
     }
   }
@@ -342,7 +336,7 @@ TEST_SUITE("AdaptiveWeldingTest") {
                         .use_edge_sensor = false},
         .test_joint_geometry{help_sim::TEST_JOINT_GEOMETRY_WIDE},
 
-        .testcase_parameters{.expected_beads_in_layer{{1, 4}, {2, 4}, {3, 5}, {4, 5}}}
+        .testcase_parameters{.expected_beads_in_layer{{1, 3}, {2, 4}, {3, 4}, {4, 5}}}
     };
     AdaptiveWeldingTest(test_parameters);
   }

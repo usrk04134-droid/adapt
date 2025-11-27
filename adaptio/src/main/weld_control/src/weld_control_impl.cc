@@ -1,12 +1,6 @@
 
 #include "weld_control_impl.h"
 
-#include <prometheus/counter.h>
-#include <prometheus/gauge.h>
-#include <prometheus/histogram.h>
-#include <prometheus/registry.h>
-#include <SQLiteCpp/Database.h>
-
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -115,9 +109,9 @@ WeldControlImpl::WeldControlImpl(
     scanner_client::ScannerClient* scanner_client, zevs::Timer* timer, event::EventHandler* event_handler,
     bead_control::BeadControl* bead_control, DelayBuffer* delay_buffer,
     clock_functions::SystemClockNowFunc system_clock_now_func,
-    clock_functions::SteadyClockNowFunc steady_clock_now_func, prometheus::Registry* registry,
+    clock_functions::SteadyClockNowFunc steady_clock_now_func,
     image_logging::ImageLoggingManager* image_logging_manager,
-    slice_translator::SliceTranslatorServiceV2* slice_translator_v2, SQLite::Database* db)
+    slice_translator::SliceTranslatorServiceV2* slice_translator_v2, SQLite::Database* db, WeldControlMetrics* metrics)
     : config_(config),
       weld_sequence_config_(weld_sequence_config),
       settings_provider_(settings_provider),
@@ -140,7 +134,8 @@ WeldControlImpl::WeldControlImpl(
       system_clock_now_func_(system_clock_now_func),
       steady_clock_now_func_(steady_clock_now_func),
       smooth_weld_speed_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma),
-      smooth_ws2_current_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma) {
+      smooth_ws2_current_(config.adaptivity.gaussian_filter.kernel_size, config.adaptivity.gaussian_filter.sigma),
+      metrics_(metrics) {
   weld_sequence_config_->SubscribeToUpdates([this] {
     UpdateBeadControlParameters();
     CheckReady();
@@ -148,7 +143,7 @@ WeldControlImpl::WeldControlImpl(
 
   LOG_INFO("config: {{{}}}", ConfigurationToString(config_));
 
-  SetupMetrics(registry);
+  metrics_->Setup(confident_slice_buffer_);
 
   settings_provider_->SubscribeToUpdates([this] {
     auto const settings = settings_provider_->GetSettings();
@@ -265,99 +260,6 @@ WeldControlImpl::WeldControlImpl(
   };
 
   weld_logger_ = common::logging::ComponentLogger(wcl_config);
-}
-
-void WeldControlImpl::SetupMetrics(prometheus::Registry* registry) {
-  {
-    auto& counter = prometheus::BuildCounter()
-                        .Name("weld_control_input_slice_confidences_total")
-                        .Help("Confidence level for scanner input slices.")
-                        .Register(*registry);
-
-    metrics_.slice_confidence.emplace(lpcs::SliceConfidence::NO, &counter.Add({
-                                                                     {"confidence", "no"}
-    }));
-    metrics_.slice_confidence.emplace(lpcs::SliceConfidence::LOW, &counter.Add({
-                                                                      {"confidence", "low"}
-    }));
-    metrics_.slice_confidence.emplace(lpcs::SliceConfidence::MEDIUM, &counter.Add({
-                                                                         {"confidence", "medium"}
-    }));
-    metrics_.slice_confidence.emplace(lpcs::SliceConfidence::HIGH, &counter.Add({
-                                                                       {"confidence", "high"}
-    }));
-  }
-
-  {
-    auto& counter = prometheus::BuildCounter()
-                        .Name("weld_control_confident_slice_results_total")
-                        .Help("Confident slice handling results.")
-                        .Register(*registry);
-
-    metrics_.confident_slice.ok                 = &counter.Add({
-        {"result", "ok"}
-    });
-    metrics_.confident_slice.no_data            = &counter.Add({
-        {"result", "no_data"}
-    });
-    metrics_.confident_slice.translation_failed = &counter.Add({
-        {"result", "translation_failed"}
-    });
-  }
-
-  {
-    metrics_.confident_slice_buffer_fill_ratio = &prometheus::BuildGauge()
-                                                      .Name("weld_control_confident_slice_buffer_fill_ratio")
-                                                      .Help("Confident slice buffer ratio of number of filled slots.")
-                                                      .Register(*registry)
-                                                      .Add({});
-  }
-
-  metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
-                                                  static_cast<double>(confident_slice_buffer_.Slots()));
-
-  {
-    const std::vector<double> buckets = {
-        0.030,  // 30 ms
-        0.040,  // 40 ms
-        0.050,  // 50 ms
-        0.060,  // 60 ms
-        0.070,  // 70 ms
-        0.080,  // 80 ms
-        0.090,  // 90 ms
-        0.100,  // 100 ms
-        0.150,  // 150 ms
-        0.200,  // 200 ms
-        0.300,  // 300 ms
-        0.400,  // 400 ms
-    };
-
-    auto& histogram = prometheus::BuildHistogram()
-                          .Name("adaptio_abw_latency_lpcs_seconds")
-                          .Help("ABW data latency from image taken")
-                          .Register(*registry);
-    metrics_.abw_latency_lpcs_seconds = &histogram.Add({}, buckets);
-  }
-
-  {
-    metrics_.groove.top_width_mm = &prometheus::BuildGauge()
-                                        .Name("weld_control_groove_top_width")
-                                        .Help("Joint Top Width.")
-                                        .Register(*registry)
-                                        .Add({});
-    metrics_.groove.bottom_width_mm = &prometheus::BuildGauge()
-                                           .Name("weld_control_groove_bottom_width")
-                                           .Help("Joint Bottom Width.")
-                                           .Register(*registry)
-                                           .Add({});
-    metrics_.groove.area_mm =
-        &prometheus::BuildGauge().Name("weld_control_groove_area").Help("Joint area.").Register(*registry).Add({});
-    metrics_.groove.top_height_diff_mm = &prometheus::BuildGauge()
-                                              .Name("weld_control_groove_top_height_diff")
-                                              .Help("Joint Top Height Diff.")
-                                              .Register(*registry)
-                                              .Add({});
-  }
 }
 
 void WeldControlImpl::UpdateBeadControlParameters() {
@@ -794,8 +696,7 @@ void WeldControlImpl::UpdateConfidentSlice() {
     return;
   }
 
-  metrics_.confident_slice_buffer_fill_ratio->Set(static_cast<double>(confident_slice_buffer_.FilledSlots()) /
-                                                  static_cast<double>(confident_slice_buffer_.Slots()));
+  metrics_->SetConfidentSliceBuffer(confident_slice_buffer_);
 
   auto const use_edge_sensor = settings_.UseEdgeSensor();
   if (cached_lpcs_.confidence == lpcs::SliceConfidence::HIGH && use_edge_sensor) {
@@ -809,7 +710,7 @@ void WeldControlImpl::UpdateConfidentSlice() {
 
   auto const data = confident_slice_buffer_.Get(cached_weld_axis_position_);
   if (!data) {
-    metrics_.confident_slice.no_data->Increment();
+    metrics_->IncConfidentSliceNoData();
     return;
   }
 
@@ -848,9 +749,9 @@ void WeldControlImpl::UpdateConfidentSlice() {
   });
 
   if (lpcs_groove.has_value()) {
-    metrics_.confident_slice.ok->Increment();
+    metrics_->IncConfidentSliceOk();
   } else {
-    metrics_.confident_slice.translation_failed->Increment();
+    metrics_->IncConfidentSliceTranslationFailed();
   }
 }
 
@@ -946,18 +847,25 @@ void WeldControlImpl::StoreGrooveInDelayBuffer() {
 
 auto WeldControlImpl::GetDelayedGrooveMCS() -> common::Groove {
   auto const current = cached_mcs_.groove.value();
-
+  if (!cached_linear_object_distance_.has_value()) {
+    return current;
+  }
   auto const delay = GetSampleToTorchDist(cached_lpcs_.time_stamp, cached_weld_axis_ang_velocity_,
                                           cached_distance_from_torch_to_scanner_);
 
-  auto delayed_groove = delay_buffer_->Get(delay).value_or(current);
+  auto delayed_groove = delay_buffer_->Get(cached_linear_object_distance_.value(), delay).value_or(current);
 
   return delayed_groove;
 }
 
 auto WeldControlImpl::GetHybridGrooveMCS() const -> common::Groove {
   auto const current_groove = cached_mcs_.groove.value();
-  auto const delayed_groove = delay_buffer_->Get(cached_distance_from_torch_to_scanner_).value_or(current_groove);
+  if (!cached_linear_object_distance_.has_value()) {
+    return current_groove;
+  }
+  auto const delayed_groove =
+      delay_buffer_->Get(cached_linear_object_distance_.value(), cached_distance_from_torch_to_scanner_)
+          .value_or(current_groove);
 
   // Use ABW0,6 from current groove
   // Attempt to update the y values for the bottom of the groove.
@@ -1202,7 +1110,7 @@ auto WeldControlImpl::CheckHandover() -> bool {
 auto WeldControlImpl::UpdateSliceConfidence() -> bool {
   auto const now = steady_clock_now_func_();
 
-  metrics_.slice_confidence[cached_lpcs_.confidence]->Increment();
+  metrics_->IncSliceConfidence(cached_lpcs_.confidence);
 
   switch (cached_lpcs_.confidence) {
     case lpcs::SliceConfidence::NO:
@@ -1279,9 +1187,7 @@ void WeldControlImpl::Receive(const macs::Slice& machine_data, const lpcs::Slice
     auto const now        = system_clock_now_func_();
     auto const tp_scanner = std::chrono::system_clock::time_point{std::chrono::nanoseconds{scanner_data.time_stamp}};
     std::chrono::duration<double> const latency = now - tp_scanner;
-    if (metrics_.abw_latency_lpcs_seconds) {
-      metrics_.abw_latency_lpcs_seconds->Observe(latency.count());
-    }
+    metrics_->ObserveLatency(latency.count());
   }
 
   slides_actual_ = slides_actual;
@@ -1297,24 +1203,8 @@ void WeldControlImpl::Receive(const macs::Slice& machine_data, const lpcs::Slice
   cached_distance_from_torch_to_scanner_ = distance_from_torch_to_scanner;
   cached_groove_area_                    = scanner_data.groove_area;
 
-  const auto& groove         = machine_data.groove.value();
-  auto const top_width       = groove.TopWidth();
-  auto const bottom_width    = groove.BottomWidth();
-  auto const area            = groove.Area();
-  auto const top_height_diff = groove[common::ABW_UPPER_LEFT].vertical - groove[common::ABW_UPPER_RIGHT].vertical;
-
-  if (metrics_.groove.top_width_mm) {
-    metrics_.groove.top_width_mm->Set(top_width);
-  }
-  if (metrics_.groove.bottom_width_mm) {
-    metrics_.groove.bottom_width_mm->Set(bottom_width);
-  }
-  if (metrics_.groove.area_mm) {
-    metrics_.groove.area_mm->Set(area);
-  }
-  if (metrics_.groove.top_height_diff_mm) {
-    metrics_.groove.top_height_diff_mm->Set(top_height_diff);
-  }
+  const auto& groove = machine_data.groove.value();
+  metrics_->SetGroove(groove);
 
   auto on_weld_axis_response = [this](std::uint64_t /*time_stamp*/, double position, double ang_velocity, double radius,
                                       double linear_object_distance) {
@@ -1553,6 +1443,7 @@ void WeldControlImpl::Stop() {
   handover_to_abp_cap_timestamp_                                      = {};
   handover_to_manual_timestamp_                                       = {};
   bead_control_->UnregisterCapNotification();
+  metrics_->ResetGroove();
 
   scanner_no_confidence_timestamp_  = {};
   scanner_low_confidence_timestamp_ = {};

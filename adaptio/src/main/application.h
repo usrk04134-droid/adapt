@@ -29,6 +29,7 @@
 #include "weld_control/src/delay_buffer.h"
 #include "weld_control/src/settings_provider.h"
 #include "weld_control/src/weld_control_impl.h"
+#include "weld_control/src/weld_control_metrics_impl.h"
 #include "weld_control/src/weld_sequence_config_impl.h"
 #include "weld_system_client/src/weld_system_client_impl.h"
 
@@ -81,6 +82,7 @@ class Application {
   std::unique_ptr<weld_system::WeldSystemClientImpl> weld_system_client_;
   std::unique_ptr<joint_geometry::JointGeometryProviderImpl> joint_geometry_provider_;
   std::unique_ptr<image_logging::ImageLoggingManagerImpl> image_logging_manager_;
+  std::unique_ptr<weld_control::WeldControlMetricsImpl> metrics_;
 
   configuration::ConfigManager* configuration_;
   std::filesystem::path path_logs_;

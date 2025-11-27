@@ -1,7 +1,5 @@
 #pragma once
 
-#include <prometheus/histogram.h>
-#include <prometheus/registry.h>
 #include <SQLiteCpp/Database.h>
 
 #include <boost/log/detail/event.hpp>
@@ -31,6 +29,7 @@
 #include "weld_control/src/confident_slice_buffer.h"
 #include "weld_control/src/settings.h"
 #include "weld_control/src/settings_provider.h"
+#include "weld_control/src/weld_control_metrics.h"
 #include "weld_control/weld_control.h"
 #include "weld_control/weld_control_types.h"
 #include "weld_control/weld_state_observer.h"
@@ -58,9 +57,10 @@ class WeldControlImpl : public WeldControl,
                            zevs::Timer* timer, event::EventHandler* event_handler,
                            bead_control::BeadControl* bead_control, DelayBuffer* delay_buffer,
                            clock_functions::SystemClockNowFunc system_clock_now_func,
-                           clock_functions::SteadyClockNowFunc steady_clock_now_func, prometheus::Registry* registry,
+                           clock_functions::SteadyClockNowFunc steady_clock_now_func,
                            image_logging::ImageLoggingManager* image_logging_manager,
-                           slice_translator::SliceTranslatorServiceV2* slice_translator_v2, SQLite::Database* db);
+                           slice_translator::SliceTranslatorServiceV2* slice_translator_v2, SQLite::Database* db,
+                           WeldControlMetrics* metrics);
 
   /* WeldControl */
   void JointTrackingStart(const joint_geometry::JointGeometry& joint_geometry,
@@ -174,22 +174,7 @@ class WeldControlImpl : public WeldControl,
   common::filters::GaussianFilter smooth_weld_speed_;
   common::filters::GaussianFilter smooth_ws2_current_;
 
-  struct {
-    std::map<lpcs::SliceConfidence, prometheus::Counter*> slice_confidence;
-    struct {
-      prometheus::Counter* ok;
-      prometheus::Counter* no_data;
-      prometheus::Counter* translation_failed;
-    } confident_slice;
-    prometheus::Gauge* confident_slice_buffer_fill_ratio;
-    prometheus::Histogram* abw_latency_lpcs_seconds;
-    struct {
-      prometheus::Gauge* top_width_mm;
-      prometheus::Gauge* bottom_width_mm;
-      prometheus::Gauge* area_mm;
-      prometheus::Gauge* top_height_diff_mm;
-    } groove;
-  } metrics_;
+  WeldControlMetrics* metrics_;
 
   struct {
     bool active{false};
@@ -213,7 +198,6 @@ class WeldControlImpl : public WeldControl,
   auto GetSampleToTorchDist(uint64_t ts_sample, double ang_velocity, double torch_to_scanner_dist) -> double;
   auto GetSmoothMCS(double smooth_ang_distance) -> std::optional<common::Groove>;
   void UpdateTrackingPosition();
-  void SetupMetrics(prometheus::Registry* registry);
   void UpdateBeadControlParameters();
   void CheckReady();
   auto JTReady() const -> bool;

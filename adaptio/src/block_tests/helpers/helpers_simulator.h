@@ -152,7 +152,7 @@ const TestJointGeometry TEST_JOINT_GEOMETRY_WIDE{
                                     .root_gap_m                 = 1e-3,
                                     .joint_depth_percentage     = 40,
                                     .joint_bottom_curv_radius_m = 1.0,
-                                    .bead_radians_m             = 16e-3}
+                                    .bead_radians_m             = 22e-3}
 };
 /// TEST_JOINT_GEOMETRY_NARROW
 /// The joint_angle has been calculated to give a groove width of 44mm according to the formula
@@ -186,7 +186,7 @@ const TestJointGeometry TEST_JOINT_GEOMETRY_NARROW{
                                     .root_gap_m                 = 1e-3,
                                     .joint_depth_percentage     = 40,
                                     .joint_bottom_curv_radius_m = 1.0,
-                                    .bead_radians_m             = 8e-3}
+                                    .bead_radians_m             = 22e-3}
 };
 /// const TestJointGeometry TEST_JOINT_GEOMETRY_DEEP{
 
@@ -219,7 +219,7 @@ const TestJointGeometry TEST_JOINT_GEOMETRY_DEEP{
                                     .root_gap_m                 = 5e-3,
                                     .joint_depth_percentage     = 80,
                                     .joint_bottom_curv_radius_m = 1.0,
-                                    .bead_radians_m             = 10e-3}
+                                    .bead_radians_m             = 22e-3}
 };
 /// TEST_JOINT_GEOMETRY_U_BEVEL
 ///  Upper joint width: 23 (mm)
@@ -251,7 +251,7 @@ const TestJointGeometry TEST_JOINT_GEOMETRY_U_BEVEL{
                                     .root_gap_m                 = 1e-3,
                                     .joint_depth_percentage     = 42,
                                     .joint_bottom_curv_radius_m = 1.0,
-                                    .bead_radians_m             = 8e-3}
+                                    .bead_radians_m             = 22e-3}
 };
 /// TEST_JOINT_GEOMETRY_U_BEVEL
 ///  Upper joint width: 23 (mm)
@@ -287,7 +287,7 @@ const TestJointGeometry TEST_JOINT_GEOMETRY_NARROW_WITH_GROOVE_ANGLE_DEV{
                                     .root_gap_m                 = 1e-3,
                                     .joint_depth_percentage     = 40,
                                     .joint_bottom_curv_radius_m = 1.0,
-                                    .bead_radians_m             = 16e-3},
+                                    .bead_radians_m             = 22e-3},
     .joint_deviations            = {
                                     {.position = 10,  // All deviations set to zero at position 10 deg. Increase starts here
                     .deltas_left =
@@ -378,7 +378,7 @@ inline auto CalculateWireSpeedMmPerSec(weld_system::WeldSystemSettings::Method m
     return 0.03707 * current;
   }
   if (method == weld_system::WeldSystemSettings::Method::AC) {
-    return 0.04632 * current;
+    return 0.0665 * current - 8.3186;
   }
   return 0.0;
 }
