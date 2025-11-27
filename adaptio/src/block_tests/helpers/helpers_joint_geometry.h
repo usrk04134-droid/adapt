@@ -31,7 +31,8 @@ inline auto StoreDefaultJointGeometryParams(TestFixture& fixture) {
       {"leftJointAngleRad",       0.5236},
       {"rightJointAngleRad",      0.5236},
       {"leftMaxSurfaceAngleRad",  0.3491},
-      {"rightMaxSurfaceAngleRad", 0.3491}
+      {"rightMaxSurfaceAngleRad", 0.3491},
+      {"weldingType",             "longitudinal"}
   });
   StoreJointGeometryParams(fixture, payload, true);
 }

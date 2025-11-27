@@ -27,6 +27,7 @@ auto StoredJointGeometry::LeftJointAngle() const -> double { return left_joint_a
 auto StoredJointGeometry::RightJointAngle() const -> double { return right_joint_angle_rad_; }
 auto StoredJointGeometry::LeftMaxSurfaceAngle() const -> double { return left_max_surface_angle_rad_; }
 auto StoredJointGeometry::RightMaxSurfaceAngle() const -> double { return right_max_surface_angle_rad_; }
+auto StoredJointGeometry::WeldingType() const -> joint_geometry::WeldingType { return welding_type_; }
 
 void StoredJointGeometry::SetId(int value) { id_ = value; }
 void StoredJointGeometry::SetName(std::string value) { name_ = std::move(value); }
@@ -36,6 +37,7 @@ void StoredJointGeometry::SetLeftJointAngle(double value) { left_joint_angle_rad
 void StoredJointGeometry::SetRightJointAngle(double value) { right_joint_angle_rad_ = value; }
 void StoredJointGeometry::SetLeftMaxSurfaceAngle(double value) { left_max_surface_angle_rad_ = value; }
 void StoredJointGeometry::SetRightMaxSurfaceAngle(double value) { right_max_surface_angle_rad_ = value; }
+void StoredJointGeometry::SetWeldingType(joint_geometry::WeldingType value) { welding_type_ = value; }
 
 auto StoredJointGeometry::IsValid() const -> bool {
   auto ok = true;
@@ -59,7 +61,8 @@ auto StoredJointGeometry::ToJson() const -> nlohmann::json {
       {"left_joint_angle_rad",        left_joint_angle_rad_       },
       {"right_joint_angle_rad",       right_joint_angle_rad_      },
       {"left_max_surface_angle_rad",  left_max_surface_angle_rad_ },
-      {"right_max_surface_angle_rad", right_max_surface_angle_rad_}
+      {"right_max_surface_angle_rad", right_max_surface_angle_rad_},
+      {"welding_type",                WeldingTypeToString(welding_type_)}
   };
 }
 
@@ -74,6 +77,12 @@ auto StoredJointGeometry::FromJson(const nlohmann::json& json_obj) -> std::optio
     sjg.SetRightJointAngle(json_obj.at("right_joint_angle_rad").get<double>());
     sjg.SetLeftMaxSurfaceAngle(json_obj.at("left_max_surface_angle_rad").get<double>());
     sjg.SetRightMaxSurfaceAngle(json_obj.at("right_max_surface_angle_rad").get<double>());
+    
+    if (json_obj.contains("welding_type")) {
+      sjg.SetWeldingType(WeldingTypeFromString(json_obj.at("welding_type").get<std::string>()));
+    } else {
+      sjg.SetWeldingType(WeldingType::LONGITUDINAL);  // Default
+    }
 
   } catch (const nlohmann::json::exception& e) {
     LOG_ERROR("Failed to parse Joint Geometry  from JSON - exception: {}", e.what());
@@ -88,9 +97,9 @@ auto StoredJointGeometry::ToString() const -> std::string {
       "id: {} name: {} upper_joint_width_mm: {} groove_depth_mm: {} left_joint_angle_rad: {} "
       "right_joint_angle_rad: {}"
       "left_max_surface_angle_rad: {} "
-      "right_max_surface_angle_rad: {}",
+      "right_max_surface_angle_rad: {} welding_type: {}",
       id_, name_, upper_joint_width_mm_, groove_depth_mm_, left_joint_angle_rad_, right_joint_angle_rad_,
-      left_max_surface_angle_rad_, right_max_surface_angle_rad_);
+      left_max_surface_angle_rad_, right_max_surface_angle_rad_, WeldingTypeToString(welding_type_));
 }
 
 void StoredJointGeometry::CreateTable(SQLite::Database* db) {
@@ -107,7 +116,8 @@ void StoredJointGeometry::CreateTable(SQLite::Database* db) {
       "left_joint_angle REAL, "
       "right_joint_angle REAL, "
       "left_max_surface_angle REAL, "
-      "right_max_surface_angle REAL)",
+      "right_max_surface_angle REAL, "
+      "welding_type TEXT)",
       JOINT_GEOMETRY_TABLE_NAME);
 
   db->exec(cmd);
@@ -117,11 +127,12 @@ auto StoredJointGeometry::StoreFn() -> std::function<bool(SQLite::Database*, con
   return [](SQLite::Database* db, const StoredJointGeometry& sjg) -> bool {
     try {
       std::string cmd =
-          fmt::format("INSERT OR REPLACE INTO {} VALUES (1, ?, ?, ?, ?, ?, ?, ?)", JOINT_GEOMETRY_TABLE_NAME);
+          fmt::format("INSERT OR REPLACE INTO {} VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)", JOINT_GEOMETRY_TABLE_NAME);
 
       SQLite::Statement query(*db, cmd);
       SQLite::bind(query, sjg.name_, sjg.upper_joint_width_mm_, sjg.groove_depth_mm_, sjg.left_joint_angle_rad_,
-                   sjg.right_joint_angle_rad_, sjg.left_max_surface_angle_rad_, sjg.right_max_surface_angle_rad_);
+                   sjg.right_joint_angle_rad_, sjg.left_max_surface_angle_rad_, sjg.right_max_surface_angle_rad_,
+                   WeldingTypeToString(sjg.welding_type_));
 
       return query.exec() == 1;
     } catch (const std::exception& e) {
@@ -161,6 +172,12 @@ auto StoredJointGeometry::GetAllFn() -> std::function<std::vector<StoredJointGeo
       sjg.SetRightJointAngle(query.getColumn(5).getDouble());
       sjg.SetLeftMaxSurfaceAngle(query.getColumn(6).getDouble());
       sjg.SetRightMaxSurfaceAngle(query.getColumn(7).getDouble());
+      
+      if (query.getColumnCount() > 8) {
+        sjg.SetWeldingType(WeldingTypeFromString(query.getColumn(8).getString()));
+      } else {
+        sjg.SetWeldingType(WeldingType::LONGITUDINAL);  // Default for existing records
+      }
 
       result.push_back(sjg);
     }

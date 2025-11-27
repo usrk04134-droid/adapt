@@ -29,6 +29,13 @@ class CalibFixJointGeometryConverter {
       TryUpdate(map, tag + "/right_joint_angle", config.right_joint_angle_rad);
       TryUpdate(map, tag + "/left_max_surface_angle", config.left_max_surface_angle_rad);
       TryUpdate(map, tag + "/right_max_surface_angle", config.right_max_surface_angle_rad);
+      
+      // Default to LONGITUDINAL if not specified in config
+      config.welding_type = joint_geometry::WeldingType::LONGITUDINAL;
+      std::string welding_type_str;
+      if (TryUpdate(map, tag + "/welding_type", welding_type_str)) {
+        config.welding_type = joint_geometry::WeldingTypeFromString(welding_type_str);
+      }
     } catch (const std::exception& e) {
       LOG_ERROR("Format of configuration file is not supported: file: {} error: {}", yaml_file.string(), e.what());
       return boost::outcome_v2::failure(make_error_code(ConfigurationErrorCode::CONFIGURATION_READ_FILE_ERROR));

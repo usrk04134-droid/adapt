@@ -40,6 +40,7 @@ void ScannerClientImpl::Start(const Config& config, const joint_geometry::JointG
       .right_joint_angle_rad       = joint_geometry.right_joint_angle_rad,
       .left_max_surface_angle_rad  = joint_geometry.left_max_surface_angle_rad,
       .right_max_surface_angle_rad = joint_geometry.right_max_surface_angle_rad,
+      .welding_type                = static_cast<common::msg::scanner::WeldingType>(joint_geometry.welding_type),
       .tolerance                   = {.upper_width_mm    = joint_tolerance_upper_width_,
                                       .surface_angle_rad = joint_tolerance_surface_angle_,
                                       .wall_angle_rad    = joint_tolerance_wall_angle_}

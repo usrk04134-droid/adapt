@@ -437,6 +437,7 @@ inline auto SetJointGeometry(TestFixture& fixture, deposition_simulator::SimConf
       {"rightJointAngleRad",      test_joint_geometry.right_joint_angle_rad      },
       {"leftMaxSurfaceAngleRad",  test_joint_geometry.left_max_surface_angle_rad },
       {"rightMaxSurfaceAngleRad", test_joint_geometry.right_max_surface_angle_rad},
+      {"weldingType",             "longitudinal"},  // Default for tests
   });
 
   StoreJointGeometryParams(fixture, payload, true);

@@ -45,7 +45,8 @@ TEST_SUITE("Calibration Fixture Joint Geometry Converter") {
                                          .left_joint_angle_rad        = 0.1396,
                                          .right_joint_angle_rad       = 0.1396,
                                          .left_max_surface_angle_rad  = 0.34906585,
-                                         .right_max_surface_angle_rad = 0.34906585};
+                                         .right_max_surface_angle_rad = 0.34906585,
+                                         .welding_type                = joint_geometry::WeldingType::LONGITUDINAL};
     joint_geometry::JointGeometry data{};
     CHECK_EQ(CalibFixJointGeometryConverter::ToStruct(map, "/adaptio/config/configuration.yaml", data),
              boost::outcome_v2::success());

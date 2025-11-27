@@ -25,6 +25,11 @@ enum class ImageLoggerMode {
   ON_ERROR,
 };
 
+enum class WeldingType {
+  LONGITUDINAL = 0,
+  CIRCUMFERENTIAL = 1
+};
+
 struct JointGeometry {
   double upper_joint_width_mm;
   double groove_depth_mm;
@@ -32,6 +37,7 @@ struct JointGeometry {
   double right_joint_angle_rad;
   double left_max_surface_angle_rad;
   double right_max_surface_angle_rad;
+  enum WeldingType welding_type;
   struct {
     double upper_width_mm;
     double surface_angle_rad;
