@@ -31,7 +31,6 @@
 #include "scanner/image/image_types.h"  // IWYU pragma: keep
 #include "scanner/image_logger/image_logger.h"
 #include "scanner/image_provider/image_provider.h"
-#include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/slice_provider.h"
 
@@ -207,7 +206,7 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     if (result) {
       auto [profile, interpolated_snake, processing_time, num_walls_found] = *result;
       LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
-      joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
+      slice_provider::JointSlice slice = {.uuid                = image->GetUuid(),
                                         .timestamp           = image->GetTimestamp(),
                                         .image_name          = image->GetImageName(),
                                         .profile             = profile,

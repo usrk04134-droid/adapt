@@ -19,7 +19,6 @@
 #include "scanner/image_provider/image_provider_configuration.h"
 #include "scanner/image_provider/src/basler_camera.h"
 #include "scanner/image_provider/src/camera_simulation.h"
-#include "scanner/joint_buffer/circular_joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/joint_model/src/big_snake.h"
 #include "scanner/scanner_factory.h"
@@ -57,10 +56,9 @@ auto ScannerFactoryImpl::CreateScanner(image_provider::ImageProvider* image_prov
                                        const joint_model::JointProperties& joint_properties,
                                        ScannerOutputCB* scanner_output, image_logger::ImageLogger* logger,
                                        prometheus::Registry* registry) -> ScannerPtr {
-  auto joint_buffer          = std::make_unique<joint_buffer::CircularJointBuffer>();
   auto steady_clock_now_func = []() { return std::chrono::steady_clock::now(); };
   auto slice_provider =
-      std::make_unique<slice_provider::SliceProviderImpl>(std::move(joint_buffer), steady_clock_now_func);
+      std::make_unique<slice_provider::SliceProviderImpl>(steady_clock_now_func);
   image::TiltedPerspectiveCameraProperties camera_properties;
   camera_properties.config_calib = scanner_calibration;
   camera_properties.config_fov   = fov;

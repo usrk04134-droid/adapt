@@ -43,7 +43,6 @@
 #include "scanner/image_provider/image_provider_configuration.h"
 #include "scanner/image_provider/src/basler_camera.h"
 #include "scanner/image_provider/src/camera_simulation.h"
-#include "scanner/joint_buffer/circular_joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/joint_model/src/big_snake.h"
 #include "scanner/slice_provider/slice_provider.h"
@@ -60,7 +59,6 @@ using scanner::image::TiltedPerspectiveCameraProperties;
 using scanner::image::WorkspaceCoordinates;
 using scanner::image_provider::BaslerCamera;
 using scanner::image_provider::CameraSimulation;
-using scanner::joint_buffer::CircularJointBuffer;
 using scanner::joint_model::BigSnake;
 using scanner::joint_model::JointModelPtr;
 using scanner::joint_model::JointProperties;
@@ -266,10 +264,9 @@ auto main(int argc, char* argv[]) -> int {
   auto camera_model            = std::make_unique<TiltedPerspectiveCamera>(camera_properties);
   const auto* camera_model_raw = camera_model.get();
 
-  auto joint_buffer          = std::make_unique<CircularJointBuffer>();
   auto steady_clock_now_func = []() { return std::chrono::steady_clock::now(); };
   auto slice_provider =
-      std::make_unique<scanner::slice_provider::SliceProviderImpl>(std::move(joint_buffer), steady_clock_now_func);
+      std::make_unique<scanner::slice_provider::SliceProviderImpl>(steady_clock_now_func);
   auto* slice_provider_raw = slice_provider.get();
   auto joint_geo_map       = maybe_joint_geo.value()->AsUnorderedMap();
   // Properties for images in test/assets/v-joint
