@@ -3,7 +3,6 @@ add_subdirectory(image)
 add_subdirectory(test)
 add_subdirectory(image_provider)
 add_subdirectory(joint_model)
-add_subdirectory(joint_buffer)
 add_subdirectory(image_logger)
 add_subdirectory(slice_provider)
 
