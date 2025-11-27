@@ -7,8 +7,7 @@
 #include <memory>
 #include <utility>
 
-#include "scanner/joint_buffer/circular_joint_buffer.h"
-#include "scanner/joint_buffer/joint_buffer.h"
+#include "scanner/slice_provider/circular_joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/src/slice_provider_impl.h"
 
@@ -27,11 +26,10 @@ auto deep_joint = common::Groove{abw0, abw1, abw2, abw3, abw4, abw5, abw6};
 
 TEST_SUITE("Slice provider") {
   TEST_CASE("Add") {
-    auto joint_buffer          = std::make_unique<joint_buffer::CircularJointBuffer>();
     auto steady_clock_now_func = []() { return std::chrono::steady_clock::now(); };
-    auto slice_provider = scanner::slice_provider::SliceProviderImpl(std::move(joint_buffer), steady_clock_now_func);
+    auto slice_provider = scanner::slice_provider::SliceProviderImpl(steady_clock_now_func);
 
-    scanner::joint_buffer::JointSlice slice = {
+    scanner::slice_provider::JointSlice slice = {
         .timestamp          = std::chrono::high_resolution_clock::now(),
         .profile            = {.groove = deep_joint},
         .num_walls_found    = 2,
