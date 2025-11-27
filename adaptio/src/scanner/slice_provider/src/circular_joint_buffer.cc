@@ -1,13 +1,11 @@
-#include "scanner/joint_buffer/circular_joint_buffer.h"
+#include "scanner/slice_provider/circular_joint_buffer.h"
 
 #include <chrono>
 #include <cstdint>
 #include <optional>
 #include <vector>
 
-#include "scanner/joint_buffer/joint_buffer.h"
-
-namespace scanner::joint_buffer {
+namespace scanner::slice_provider {
 
 CircularJointBuffer::CircularJointBuffer() : m_buffer(7) {}
 
@@ -44,4 +42,4 @@ auto CircularJointBuffer::GetRecentSlices(long time_period_ms) const -> std::vec
 auto CircularJointBuffer::GetNumberOfSlices() const -> uint64_t { return m_buffer.size(); }
 
 void CircularJointBuffer::Reset() { m_buffer.clear(); }
-}  // namespace scanner::joint_buffer
+}  // namespace scanner::slice_provider
