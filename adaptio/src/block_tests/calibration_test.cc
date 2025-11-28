@@ -7,6 +7,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include "block_tests/helpers/helpers_calibration.h"
+#include "block_tests/helpers/helpers_tracking.h"
 #include "block_tests/helpers/helpers_web_hmi.h"
 #include "common/messages/scanner.h"
 #include "controller/controller_data.h"
@@ -26,9 +27,6 @@
 namespace depsim   = deposition_simulator;
 namespace help_sim = helpers_simulator;
 
-using controller::AdaptioInput;
-using controller::AxisInput;
-using controller::TrackInput;
 
 namespace {
 
@@ -41,9 +39,6 @@ const double WIRE_VELOCITY_MM_PER_SEC      = 23.0;
 const double SCANNER_MOUNT_ANGLE           = 6.0 * help_sim::PI / 180.0;
 const double TOUCH_POINT_DEPTH_M           = 10e-3;
 const double TOP_TOUCH_HORIZONTAL_OFFSET_M = 10e-3;
-
-const float JT_HORIZONTAL_OFFSET = 0.0;
-const float JT_VERTICAL_OFFSET   = STICKOUT_M * 1000 + 1.0;
 
 const nlohmann::json DEFAULT_LASER_TORCH_CONFIG = {
     {"distanceLaserTorch", 350.0},
@@ -58,46 +53,6 @@ const nlohmann::json DEFAULT_CAL_RESULT = {
     {"weldObjectRadius",       1000.0                                             },
     {"weldObjectRotationAxis", {{"c1", 1.0}, {"c2", 0.0}, {"c3", 0.0}}            }
 };
-
-void JointTracking(MultiFixture& mfx, depsim::ISimulator& simulator) {
-  auto torch_pos = simulator.GetTorchPosition(depsim::MACS);
-  TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
-
-  TrackInput tracking_data;
-  tracking_data.set_joint_tracking_mode(static_cast<uint32_t>(tracking::TrackingMode::TRACKING_CENTER_HEIGHT));
-  tracking_data.set_horizontal_offset(JT_HORIZONTAL_OFFSET);
-  tracking_data.set_vertical_offset(JT_VERTICAL_OFFSET);
-  tracking_data.set_linear_object_distance(0);
-  tracking_data.set_weld_object_radius(3500);
-  tracking_data.set_edge_tracker_value(0.0);
-  mfx.Ctrl().Sut()->OnTrackingInputUpdate(tracking_data);
-
-  AxisInput axis_data;
-  axis_data.set_position(1.23);
-  axis_data.set_velocity(2.55);
-  mfx.Ctrl().Sut()->OnWeldAxisInputUpdate(axis_data);
-
-  AdaptioInput adaptio_input;
-  adaptio_input.set_commands_start(true);
-  adaptio_input.set_sequence_type(1);
-  mfx.Ctrl().Sut()->OnAdaptioInputUpdate(adaptio_input);
-
-  mfx.PlcDataUpdate();
-  CHECK_EQ(mfx.Ctrl().Mock()->adaptio_output.get_active_sequence_type(), 1);
-
-  ProvideScannerAndKinematicsData(mfx, simulator, torch_pos);
-
-  auto horizontal_pos_m =
-      helpers_simulator::ConvertMm2M(static_cast<double>(mfx.Ctrl().Mock()->axis_x_output.get_position()));
-  auto vertical_pos_m =
-      helpers_simulator::ConvertMm2M(static_cast<double>(mfx.Ctrl().Mock()->axis_y_output.get_position()));
-
-  // Update the torch position according to the request
-  depsim::Point3d torch_pos_macs(horizontal_pos_m, 0, vertical_pos_m, depsim::MACS);
-  simulator.UpdateTorchPosition(torch_pos_macs);
-
-  TESTLOG(">>>>> Tracking, moved to torch position: {}", ToString(torch_pos_macs));
-}
 
 }  // namespace
 
