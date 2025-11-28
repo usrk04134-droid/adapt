@@ -132,5 +132,25 @@ TEST_SUITE("PositionBuffer") {
       CHECK(buf.Get(pos).value() == (samples + i - offset) % samples);
     }
   }
+
+  TEST_CASE("NO_WRAP") {
+    common::containers::PositionBuffer<int> buf(1.0, common::containers::WrapMode::NO_WRAP);
+
+    buf.Store(0.0, 1);
+    buf.Store(0.1, 2);
+    buf.Store(0.2, 3);
+
+    CHECK_EQ(buf.Get(0.9).value(), 3);
+  }
+
+  TEST_CASE("WRAP") {
+    common::containers::PositionBuffer<int> buf(1.0, common::containers::WrapMode::WRAP);
+
+    buf.Store(0.0, 1);
+    buf.Store(0.1, 2);
+    buf.Store(0.2, 3);
+
+    CHECK_EQ(buf.Get(0.9).value(), 1);
+  }
 }
 // NOLINTEND(*-magic-numbers, misc-include-cleaner)
