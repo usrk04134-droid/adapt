@@ -10,19 +10,15 @@
 #include "test_utils/testlog.h"
 #include "tracking/tracking_manager.h"
 
-namespace {
-const float JT_HORIZONTAL_OFFSET = 0.0;
-const float JT_VERTICAL_OFFSET   = 25e-3 * 1000 + 1.0;  // STICKOUT_M * 1000 + 1.0
-}  // namespace
-
-inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& simulator) {
+inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& simulator, float horizontal_offset,
+                           float vertical_offset) {
   auto torch_pos = simulator.GetTorchPosition(deposition_simulator::MACS);
   TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
 
   controller::TrackInput tracking_data;
   tracking_data.set_joint_tracking_mode(static_cast<uint32_t>(tracking::TrackingMode::TRACKING_CENTER_HEIGHT));
-  tracking_data.set_horizontal_offset(JT_HORIZONTAL_OFFSET);
-  tracking_data.set_vertical_offset(JT_VERTICAL_OFFSET);
+  tracking_data.set_horizontal_offset(horizontal_offset);
+  tracking_data.set_vertical_offset(vertical_offset);
   tracking_data.set_linear_object_distance(0);
   tracking_data.set_weld_object_radius(3500);
   tracking_data.set_edge_tracker_value(0.0);

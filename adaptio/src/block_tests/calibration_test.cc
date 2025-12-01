@@ -82,7 +82,9 @@ TEST_SUITE("MultiblockCalibration") {
 
     CHECK(Calibrate(mfx, sim_config, *simulator, conf));
 
-    JointTracking(mfx, *simulator);
+    const float jt_horizontal_offset = 0.0;
+    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
   }
 
   TEST_CASE("basic_calibration_touch_top") {
@@ -111,7 +113,9 @@ TEST_SUITE("MultiblockCalibration") {
 
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
-    JointTracking(mfx, *simulator);
+    const float jt_horizontal_offset = 0.0;
+    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
   }
 
   TEST_CASE("basic_calibration_touch_top_u_bevel") {
@@ -140,7 +144,9 @@ TEST_SUITE("MultiblockCalibration") {
 
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
-    JointTracking(mfx, *simulator);
+    const float jt_horizontal_offset = 0.0;
+    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
   }
 
   TEST_CASE("cal_set_get_ltc") {

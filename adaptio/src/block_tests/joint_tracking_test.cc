@@ -55,7 +55,9 @@ TEST_SUITE("Joint_tracking") {
     }
 
     // Perform joint tracking
-    JointTracking(mfx, *simulator);
+    const float jt_horizontal_offset = 0.0;
+    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
 
     // Check that status is TRACKING after starting joint tracking
     {
