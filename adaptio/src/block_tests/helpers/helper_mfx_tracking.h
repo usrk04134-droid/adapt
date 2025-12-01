@@ -1,9 +1,11 @@
 #pragma once
 
+#include <cmath>
+
 #include <doctest/doctest.h>
 #include <fmt/core.h>
 
-#include "block_tests/helpers/helpers_mfx_calibration.h"
+#include "block_tests/helpers/helpers_mfx.h"
 #include "controller/controller_data.h"
 #include "helpers.h"
 #include "helpers_simulator.h"
@@ -14,18 +16,19 @@
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
 
 namespace depsim = deposition_simulator;
+using controller::AdaptioInput;
+using controller::AxisInput;
+using controller::TrackInput;
 
-const float JT_HORIZONTAL_OFFSET = 0.0;
-const float JT_VERTICAL_OFFSET   = 25e-3 * 1000 + 1.0;  // STICKOUT_M * 1000 + 1.0
-
-inline void JointTracking(MultiFixture& mfx, depsim::ISimulator& simulator) {
+inline void JointTracking(MultiFixture& mfx, depsim::ISimulator& simulator, float horizontal_offset = 0.0f,
+                          float vertical_offset = 25e-3f * 1000.0f + 1.0f) {  // STICKOUT_M * 1000 + 1.0
   auto torch_pos = simulator.GetTorchPosition(depsim::MACS);
   TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
 
   TrackInput tracking_data;
   tracking_data.set_joint_tracking_mode(static_cast<uint32_t>(tracking::TrackingMode::TRACKING_CENTER_HEIGHT));
-  tracking_data.set_horizontal_offset(JT_HORIZONTAL_OFFSET);
-  tracking_data.set_vertical_offset(JT_VERTICAL_OFFSET);
+  tracking_data.set_horizontal_offset(horizontal_offset);
+  tracking_data.set_vertical_offset(vertical_offset);
   tracking_data.set_linear_object_distance(0);
   tracking_data.set_weld_object_radius(3500);
   tracking_data.set_edge_tracker_value(0.0);
@@ -56,6 +59,12 @@ inline void JointTracking(MultiFixture& mfx, depsim::ISimulator& simulator) {
   simulator.UpdateTorchPosition(torch_pos_macs);
 
   TESTLOG(">>>>> Tracking, moved to torch position: {}", ToString(torch_pos_macs));
+
+  // Check that the torch is roughly at the correct position
+  auto final_torch_pos = simulator.GetTorchPosition(depsim::MACS);
+  const double tolerance_m = 0.001;  // 1mm tolerance
+  CHECK(std::abs(final_torch_pos.GetX() - torch_pos_macs.GetX()) < tolerance_m);
+  CHECK(std::abs(final_torch_pos.GetZ() - torch_pos_macs.GetZ()) < tolerance_m);
 }
 
 // NOLINTEND(*-magic-numbers, *-optional-access)

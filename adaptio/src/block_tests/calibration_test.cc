@@ -7,7 +7,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include "block_tests/helpers/helpers_calibration.h"
-#include "block_tests/helpers/helpers_tracking.h"
+#include "block_tests/helpers/helper_mfx_tracking.h"
 #include "block_tests/helpers/helpers_web_hmi.h"
 #include "common/messages/scanner.h"
 #include "controller/controller_data.h"
