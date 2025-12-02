@@ -90,17 +90,11 @@ TEST_SUITE("MultiblockCalibration") {
     // Calculate expected position from the groove
     auto abw_in_torch_plane =
         help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    const double expected_horizontal_m =
-        std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX()) +
-        help_sim::ConvertMm2M(jt_horizontal_offset);
-
-    // For TRACKING_CENTER_HEIGHT, the torch height is regulated to be at the metal surface (bottom of groove)
-    // plus the stickout (vertical_offset). Find the Z coordinate of the metal surface at the center.
-    const double metal_surface_z =
-        std::min_element(abw_in_torch_plane.begin(), abw_in_torch_plane.end(),
-                         [](const auto& a, const auto& b) { return a.GetZ() < b.GetZ(); })
-            ->GetZ();
-    const double expected_vertical_m = metal_surface_z + help_sim::ConvertMm2M(jt_vertical_offset);
+    // For center tracking, use ABW3 (center point)
+    REQUIRE(abw_in_torch_plane.size() >= 4);  // Ensure we have at least ABW0-ABW3
+    const auto& abw3 = abw_in_torch_plane[3];
+    const double expected_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_vertical_m   = abw3.GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
 
     // Check final torch position
     auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
@@ -142,17 +136,11 @@ TEST_SUITE("MultiblockCalibration") {
     // Calculate expected position from the groove
     auto abw_in_torch_plane =
         help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    const double expected_horizontal_m =
-        std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX()) +
-        help_sim::ConvertMm2M(jt_horizontal_offset);
-
-    // For TRACKING_CENTER_HEIGHT, the torch height is regulated to be at the metal surface (bottom of groove)
-    // plus the stickout (vertical_offset). Find the Z coordinate of the metal surface at the center.
-    const double metal_surface_z =
-        std::min_element(abw_in_torch_plane.begin(), abw_in_torch_plane.end(),
-                         [](const auto& a, const auto& b) { return a.GetZ() < b.GetZ(); })
-            ->GetZ();
-    const double expected_vertical_m = metal_surface_z + help_sim::ConvertMm2M(jt_vertical_offset);
+    // For center tracking, use ABW3 (center point)
+    REQUIRE(abw_in_torch_plane.size() >= 4);  // Ensure we have at least ABW0-ABW3
+    const auto& abw3 = abw_in_torch_plane[3];
+    const double expected_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_vertical_m   = abw3.GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
 
     // Check final torch position
     auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
@@ -194,17 +182,11 @@ TEST_SUITE("MultiblockCalibration") {
     // Calculate expected position from the groove
     auto abw_in_torch_plane =
         help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    const double expected_horizontal_m =
-        std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX()) +
-        help_sim::ConvertMm2M(jt_horizontal_offset);
-
-    // For TRACKING_CENTER_HEIGHT, the torch height is regulated to be at the metal surface (bottom of groove)
-    // plus the stickout (vertical_offset). Find the Z coordinate of the metal surface at the center.
-    const double metal_surface_z =
-        std::min_element(abw_in_torch_plane.begin(), abw_in_torch_plane.end(),
-                         [](const auto& a, const auto& b) { return a.GetZ() < b.GetZ(); })
-            ->GetZ();
-    const double expected_vertical_m = metal_surface_z + help_sim::ConvertMm2M(jt_vertical_offset);
+    // For center tracking, use ABW3 (center point)
+    REQUIRE(abw_in_torch_plane.size() >= 4);  // Ensure we have at least ABW0-ABW3
+    const auto& abw3 = abw_in_torch_plane[3];
+    const double expected_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_vertical_m   = abw3.GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
 
     // Check final torch position
     auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
