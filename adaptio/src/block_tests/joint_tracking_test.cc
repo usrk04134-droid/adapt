@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cmath>
 #include <doctest/doctest.h>
 
 #include "block_tests/helpers/helpers_tracking.h"
@@ -67,6 +69,21 @@ TEST_SUITE("Joint_tracking") {
       CHECK(status_payload != nullptr);
       CHECK_EQ(status_payload.at("payload").at("value"), ACTIVITY_STATUS_TRACKING);
     }
+
+    // Calculate expected position from the groove
+    auto abw_in_torch_plane =
+        helpers_simulator::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(deposition_simulator::MACS));
+    const double expected_horizontal_m =
+        std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX()) +
+        helpers_simulator::ConvertMm2M(jt_horizontal_offset);
+    const double expected_vertical_m =
+        abw_in_torch_plane.front().GetZ() + helpers_simulator::ConvertMm2M(jt_vertical_offset);
+
+    // Check final torch position
+    auto final_torch_pos = simulator->GetTorchPosition(deposition_simulator::MACS);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
   }
 }
 

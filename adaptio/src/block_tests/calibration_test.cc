@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <fmt/core.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -85,6 +86,21 @@ TEST_SUITE("MultiblockCalibration") {
     const float jt_horizontal_offset = 0.0;
     const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
     JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
+
+    // Calculate expected position from the groove
+    auto abw_in_torch_plane =
+        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    const double expected_horizontal_m =
+        std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX()) +
+        help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_vertical_m =
+        abw_in_torch_plane.front().GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
+
+    // Check final torch position
+    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top") {
@@ -116,6 +132,21 @@ TEST_SUITE("MultiblockCalibration") {
     const float jt_horizontal_offset = 0.0;
     const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
     JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
+
+    // Calculate expected position from the groove
+    auto abw_in_torch_plane =
+        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    const double expected_horizontal_m =
+        std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX()) +
+        help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_vertical_m =
+        abw_in_torch_plane.front().GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
+
+    // Check final torch position
+    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top_u_bevel") {
@@ -147,6 +178,21 @@ TEST_SUITE("MultiblockCalibration") {
     const float jt_horizontal_offset = 0.0;
     const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
     JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
+
+    // Calculate expected position from the groove
+    auto abw_in_torch_plane =
+        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    const double expected_horizontal_m =
+        std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX()) +
+        help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_vertical_m =
+        abw_in_torch_plane.front().GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
+
+    // Check final torch position
+    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
   }
 
   TEST_CASE("cal_set_get_ltc") {
