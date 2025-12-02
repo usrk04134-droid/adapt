@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -66,10 +67,18 @@ TEST_SUITE("Joint_tracking") {
     JointTracking(mfx, *simulator);
 
     // Check that the torch is roughly at the correct position based on the groove geometry
+    // For TRACKING_CENTER_HEIGHT, the torch should be at the groove center
     auto abw_in_torch_plane =
         help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
-    auto expected_z = abw_in_torch_plane.front().GetZ();
+    
+    // Calculate groove center depth: find the deepest point (minimum Z, since Z is negative downward)
+    auto min_z_it = std::min_element(abw_in_torch_plane.begin(), abw_in_torch_plane.end(),
+                                      [](const auto& a, const auto& b) { return a.GetZ() < b.GetZ(); });
+    auto max_z_it = std::max_element(abw_in_torch_plane.begin(), abw_in_torch_plane.end(),
+                                     [](const auto& a, const auto& b) { return a.GetZ() < b.GetZ(); });
+    // Groove center depth is the midpoint between top and bottom of groove
+    auto expected_z = std::midpoint(max_z_it->GetZ(), min_z_it->GetZ());
 
     auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
     const double tolerance_x_m = 0.001;  // 1mm tolerance for X
