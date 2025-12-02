@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <memory>
 #include <nlohmann/json_fwd.hpp>
+#include <numeric>
 
 #include "block_tests/helpers/helpers_calibration.h"
 #include "block_tests/helpers/helper_mfx_tracking.h"
@@ -84,6 +85,17 @@ TEST_SUITE("MultiblockCalibration") {
     CHECK(Calibrate(mfx, sim_config, *simulator, conf));
 
     JointTracking(mfx, *simulator);
+
+    // Check that the torch is roughly at the correct position based on the groove geometry
+    auto abw_in_torch_plane =
+        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    auto expected_x = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
+    auto expected_z = abw_in_torch_plane.front().GetZ();
+
+    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top") {
@@ -113,6 +125,17 @@ TEST_SUITE("MultiblockCalibration") {
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
     JointTracking(mfx, *simulator);
+
+    // Check that the torch is roughly at the correct position based on the groove geometry
+    auto abw_in_torch_plane =
+        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    auto expected_x = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
+    auto expected_z = abw_in_torch_plane.front().GetZ();
+
+    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top_u_bevel") {
@@ -142,6 +165,17 @@ TEST_SUITE("MultiblockCalibration") {
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
     JointTracking(mfx, *simulator);
+
+    // Check that the torch is roughly at the correct position based on the groove geometry
+    auto abw_in_torch_plane =
+        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    auto expected_x = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
+    auto expected_z = abw_in_torch_plane.front().GetZ();
+
+    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("cal_set_get_ltc") {

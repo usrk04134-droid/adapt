@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cmath>
-
 #include <doctest/doctest.h>
 #include <fmt/core.h>
 
@@ -59,12 +57,6 @@ inline void JointTracking(MultiFixture& mfx, depsim::ISimulator& simulator, floa
   simulator.UpdateTorchPosition(torch_pos_macs);
 
   TESTLOG(">>>>> Tracking, moved to torch position: {}", ToString(torch_pos_macs));
-
-  // Check that the torch is roughly at the correct position
-  auto final_torch_pos = simulator.GetTorchPosition(depsim::MACS);
-  const double tolerance_m = 0.001;  // 1mm tolerance
-  CHECK(std::abs(final_torch_pos.GetX() - torch_pos_macs.GetX()) < tolerance_m);
-  CHECK(std::abs(final_torch_pos.GetZ() - torch_pos_macs.GetZ()) < tolerance_m);
 }
 
 // NOLINTEND(*-magic-numbers, *-optional-access)
