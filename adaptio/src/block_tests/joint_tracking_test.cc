@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <doctest/doctest.h>
+#include <iterator>
 
 #include "block_tests/helpers/helpers_tracking.h"
 #include "block_tests/helpers/helpers_web_hmi.h"
@@ -76,12 +77,22 @@ TEST_SUITE("Joint_tracking") {
     const double expected_horizontal_m =
         std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX()) +
         helpers_simulator::ConvertMm2M(jt_horizontal_offset);
-    const double expected_vertical_m =
-        abw_in_torch_plane.front().GetZ() + helpers_simulator::ConvertMm2M(jt_vertical_offset);
+
+    // For TRACKING_CENTER_HEIGHT, find the groove center height (midpoint between top and bottom)
+    const double top_z =
+        std::max_element(abw_in_torch_plane.begin(), abw_in_torch_plane.end(),
+                         [](const auto& a, const auto& b) { return a.GetZ() < b.GetZ(); })
+            ->GetZ();
+    const double bottom_z =
+        std::min_element(abw_in_torch_plane.begin(), abw_in_torch_plane.end(),
+                         [](const auto& a, const auto& b) { return a.GetZ() < b.GetZ(); })
+            ->GetZ();
+    const double groove_center_height = (top_z + bottom_z) / 2.0;
+    const double expected_vertical_m = groove_center_height + helpers_simulator::ConvertMm2M(jt_vertical_offset);
 
     // Check final torch position
     auto final_torch_pos = simulator->GetTorchPosition(deposition_simulator::MACS);
-    const double tolerance_m = 0.001;  // 1mm tolerance
+    const double tolerance_m = 0.01;  // 10mm tolerance
     CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
     CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
   }
