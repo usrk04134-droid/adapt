@@ -1,9 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <doctest/doctest.h>
 #include <utility>
+#include <vector>
 
 #include "block_tests/helpers/helpers_mfx_calibration.h"
+#include "common/groove/point.h"
 #include "controller/controller_data.h"
 #include "helpers.h"
 #include "helpers/helpers_simulator.h"
@@ -15,6 +18,8 @@
 // For center tracking with BOTTOM reference:
 // - Horizontal: midpoint of ABW1 and ABW5 (lower left/right) minus horizontal_offset
 // - Vertical: interpolated groove height at calculated horizontal position plus vertical_offset
+// Note: Uses ABW points in MACS coordinates (from GetSliceInTorchPlane) which should match
+// the groove after LPCS->MCS conversion that the tracking system uses
 inline auto CalculateExpectedCenterTrackingPosition(
     const std::vector<deposition_simulator::Point3d>& abw_points, float horizontal_offset_mm,
     float vertical_offset_mm) -> std::pair<double, double> {
@@ -26,21 +31,41 @@ inline auto CalculateExpectedCenterTrackingPosition(
   const double expected_x = center_horizontal - helpers_simulator::ConvertMm2M(horizontal_offset_mm);
 
   // Vertical tracker interpolates from the groove line at the calculated horizontal position
-  // Find the two ABW points that bracket the expected horizontal position and interpolate
-  double interpolated_z = abw_points[3].GetZ();  // Default to ABW3's Z
-  for (size_t i = 0; i < abw_points.size() - 1; ++i) {
-    const double x1 = abw_points[i].GetX();
-    const double x2 = abw_points[i + 1].GetX();
-    if ((expected_x >= x1 && expected_x <= x2) || (expected_x >= x2 && expected_x <= x1)) {
-      if (x2 != x1) {
-        const double t = (expected_x - x1) / (x2 - x1);
-        interpolated_z =
-            abw_points[i].GetZ() + t * (abw_points[i + 1].GetZ() - abw_points[i].GetZ());
-      }
-      break;
+  // Use the same algorithm as VerticalTracker::GetVerticalMove - std::lower_bound with descending order comparison
+  // The groove points are expected to be in descending horizontal order (right to left: ABW0->ABW6)
+  // Convert ABW points to common::Point format for compatibility with tracking algorithm
+  std::vector<common::Point> groove_points;
+  groove_points.reserve(abw_points.size());
+  for (const auto& abw : abw_points) {
+    groove_points.push_back({.horizontal = abw.GetX(), .vertical = abw.GetZ()});
+  }
+
+  // Use the same lower_bound logic as vertical_tracker.cc
+  // This finds the first point where coord.horizontal <= target_horizontal
+  // (i.e., the rightmost point that is at or to the left of the target)
+  auto iter = std::lower_bound(
+      groove_points.begin(), groove_points.end(), expected_x,
+      [](const common::Point& coord, double target_horizontal) { return coord.horizontal > target_horizontal; });
+
+  double joint_height{};
+  if (iter == groove_points.begin()) {
+    joint_height = iter->vertical;
+  } else if (iter == groove_points.end()) {
+    joint_height = (iter - 1)->vertical;
+  } else {
+    // Linear interpolation between the two coordinates (same as vertical_tracker.cc)
+    const common::Point& first  = *(iter - 1);
+    const common::Point& second = *iter;
+
+    if (second.horizontal == first.horizontal) {
+      joint_height = first.vertical;  // Fallback if points are at same X
+    } else {
+      auto slope   = (second.vertical - first.vertical) / (second.horizontal - first.horizontal);
+      joint_height = first.vertical + slope * (expected_x - first.horizontal);
     }
   }
-  const double expected_z = interpolated_z + helpers_simulator::ConvertMm2M(vertical_offset_mm);
+
+  const double expected_z = joint_height + helpers_simulator::ConvertMm2M(vertical_offset_mm);
 
   return {expected_x, expected_z};
 }
