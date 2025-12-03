@@ -9,6 +9,8 @@ namespace deposition_simulator {
 const double RAD_PER_POS_STEP = std::numbers::pi / 180.0;
 const double DEFAULT_STICKOUT = 25.0e-3;
 
+enum WeldMovementType { LONGITUDINAL = 0, CIRCUMFERENTIAL = 1 };
+
 struct JointDef {
   double basemetal_thickness{0.0};
   double groove_ang{0.0};
@@ -72,6 +74,7 @@ struct OpcsConfig {
 class SimConfig {
  public:
   SimConfig();
+  WeldMovementType weld_movement_type{CIRCUMFERENTIAL};
   double target_stickout{DEFAULT_STICKOUT};
   bool use_process_dependent_deposition{false};
   int nbr_abw_points{};

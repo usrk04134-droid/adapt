@@ -142,7 +142,7 @@ void ScannerClientImpl::OnSliceData(common::msg::scanner::SliceData slice_data) 
     }
 
     for (auto& line : slice_data.profile) {
-      scanner_data_in_process_.profile.push_back({line.horizontal, line.vertical});
+      scanner_data_in_process_.profile.push_back({line.x, line.y});
     }
 
     scanner_data_in_process_.time_stamp  = slice_data.time_stamp;

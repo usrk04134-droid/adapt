@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <format>
 #include <map>
 #include <memory>
@@ -56,7 +57,7 @@ auto AdaptiveWeldingTest(help_sim::TestParameters &test_parameters) -> void;
 auto AdaptiveWeldingTest(TestFixture &fixture, help_sim::TestParameters &test_parameters) -> void;
 }  // namespace
 
-TEST_SUITE("AdaptiveWeldingTest") {
+TEST_SUITE("AdaptiveWeldingTest" * doctest::skip([]() { return std::getenv("QUICK_BLOCK_TESTS"); }())) {
   TEST_CASE("adaptive_welding_wide_joint_test") {
     help_sim::TestParameters test_parameters{
         .abp_parameters{.wall_offset_mm = 4.,

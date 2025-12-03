@@ -26,6 +26,7 @@ class ISimulator {
   virtual auto GetAbwPoints(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>>         = 0;
   virtual auto GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> = 0;
   virtual auto GetLatestDepositedSlice(CoordinateSystem ref_system) const -> std::vector<Point3d>             = 0;
+  virtual auto GetLatestObservedSlice(CoordinateSystem ref_system) const -> std::vector<Point3d>              = 0;
   virtual auto RunWithRotation(double delta_angle, double bead_radius) -> void                                = 0;
   virtual auto Rotate(double delta_angle) -> void                                                             = 0;
   virtual auto AddSingleWireTorch(double wire_diam, double initial_wire_feed_speed)

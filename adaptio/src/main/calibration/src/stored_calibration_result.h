@@ -19,18 +19,22 @@ class StoredCalibrationResult {
   auto TorchToLpcsTranslation() const -> common::Vector3D;
   auto ResidualStandardError() const -> double;
   auto WeldObjectRadius() const -> double;
+  auto WireDiameter() const -> double;
+  auto Stickout() const -> double;
 
   void SetWeldObjectRotationAxis(const common::Vector3D& value);
   void SetRotationCenter(const common::Vector3D& value);
   void SetTorchToLpcsTranslation(const common::Vector3D& value);
   void SetResidualStandardError(double value);
   void SetWeldObjectRadius(double value);
+  void SetWireDiameter(double value);
+  void SetStickout(double value);
 
   auto ToString() const -> std::string;
   auto ToJson() const -> nlohmann::json;
   static auto FromJson(const nlohmann::json& json_obj) -> std::optional<StoredCalibrationResult>;
-  static auto FromCalibrationResult(const CalibrationResult& data, double weld_object_radius)
-      -> StoredCalibrationResult;
+  static auto FromCalibrationResult(const CalibrationResult& data, double weld_object_radius, double wire_diameter,
+                                    double stickout) -> StoredCalibrationResult;
 
   static void CreateTable(SQLite::Database* db);
   static auto StoreFn() -> std::function<bool(SQLite::Database*, const StoredCalibrationResult&)>;
@@ -47,6 +51,8 @@ class StoredCalibrationResult {
   common::Vector3D torch_to_lpcs_translation_{};
   double residual_standard_error_{};
   double weld_object_radius_{};
+  double wire_diameter_{};
+  double stickout_{};
 };
 
 }  // namespace calibration

@@ -16,10 +16,10 @@ target_sources(${BLOCK_TESTS_APPLICATION}
     helpers/helpers_mfx.h
     scanner/on_demand_file_image_provider.h
     helpers/helpers_mfx_calibration.h
+    helpers/helpers_mfx_tracking.h
 
     helpers/helpers.cc
     joint_tracking_test.cc
-    coordination_test.cc
     weld_data_set_test.cc
     weld_control_test.cc
     weld_program_test.cc

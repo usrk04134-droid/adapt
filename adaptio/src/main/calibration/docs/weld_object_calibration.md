@@ -28,7 +28,7 @@ participant "Scanner" as Scanner
   == Phase 1 ==
   note over WebHMI : Start Weld Object \nCalibration button pressed
 
-  WebHMI -> CalibrationMgr : WeldObjectCalStart(ScannerMountAngle, WeldObjectRadius)
+  WebHMI -> CalibrationMgr : WeldObjectCalStart(wireDiameter, stickout, weldObjectRadius)
 
   note over CalibrationMgr : Check that weld axis velocity = 0
   CalibrationMgr -> Kinematics : GetWeldAxisData

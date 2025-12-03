@@ -466,10 +466,10 @@ void WeldControlImpl::LogData(std::optional<std::string> annotation = std::nullo
   for (auto const& point : cached_mcs_.profile) {
     mcs_profile.push_back({
         {"x", floor(point.horizontal, LOG_3_DECIMALS)},
-        {"y", floor(point.vertical,   LOG_3_DECIMALS)},
+        {"z", floor(point.vertical,   LOG_3_DECIMALS)},
     });
   }
-  logdata["profile"] = mcs_profile;
+  logdata["mcsProfile"] = mcs_profile;
 
   weld_logger_.Log(logdata.dump());
 
@@ -698,8 +698,7 @@ void WeldControlImpl::UpdateConfidentSlice() {
 
   metrics_->SetConfidentSliceBuffer(confident_slice_buffer_);
 
-  auto const use_edge_sensor = settings_.UseEdgeSensor();
-  if (cached_lpcs_.confidence == lpcs::SliceConfidence::HIGH && use_edge_sensor) {
+  if (cached_lpcs_.confidence == lpcs::SliceConfidence::HIGH) {
     if (!confident_slice_buffer_.Available()) {
       confident_slice_buffer_.Init(cached_weld_object_radius_, config_.storage_resolution);
     }
@@ -725,6 +724,8 @@ void WeldControlImpl::UpdateConfidentSlice() {
                         ? -edge_sensor_adjustment
                         : edge_sensor_adjustment,
   });
+
+  auto const use_edge_sensor = settings_.UseEdgeSensor();
 
   auto const upper_width           = groove.TopWidth();
   auto const left_wall_angle       = groove.LeftWallAngle();
@@ -759,7 +760,7 @@ void WeldControlImpl::UpdateReadyForABPCap() {
   /* this function handles ready-for-ABP-CAP when in JT mode - once ready_for_jt_to_auto_cap_ is set we do not allow it
    * to go back to avoid toggling the value back and forth */
 
-  if (weld_axis_state_ != kinematics::State::HOMED) {
+  if (weld_axis_state_ != kinematics::State::HOMED || !settings_.UseEdgeSensor()) {
     return;
   }
 
@@ -1351,16 +1352,16 @@ void WeldControlImpl::AutoBeadPlacementStart(LayerType layer_type) {
     auto const fill_ratio = confident_slice_buffer_.FillRatio();
     LOG_INFO("CAP notification - fill-ratio: {:.1f}%", fill_ratio * 100);
 
-    if (fill_ratio < READY_FOR_CAP_CONFIDENT_BUFFER_FILL_RATIO) {
-      LOG_INFO("Handover to manual");
-      handover_to_manual_timestamp_ = steady_clock_now_func_();
-      observer_->OnNotifyHandoverToManual();
-      weld_session_.resume_blocked = true;
-    } else {
+    if (settings_.UseEdgeSensor() && fill_ratio >= READY_FOR_CAP_CONFIDENT_BUFFER_FILL_RATIO) {
       LOG_INFO("Handover to ABP-CAP");
       handover_to_abp_cap_timestamp_ = steady_clock_now_func_();
       weld_session_.ready_for_cap    = true;
       UpdateReady();
+    } else {
+      LOG_INFO("Handover to manual");
+      handover_to_manual_timestamp_ = steady_clock_now_func_();
+      observer_->OnNotifyHandoverToManual();
+      weld_session_.resume_blocked = true;
     }
   };
 

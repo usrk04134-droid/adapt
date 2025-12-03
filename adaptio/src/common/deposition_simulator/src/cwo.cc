@@ -171,15 +171,15 @@ auto CircularWeldObject::GetAbwPointsInPlane(const Plane3d &plane_rocs, const Po
   return result;
 }
 
-auto CircularWeldObject::GetLatestDepositedSlice(double wire_tip_angle) const -> std::vector<Point3d> {
+auto CircularWeldObject::GetFirstSliceAfterAngle(double desired_slice_angle) const -> std::vector<Point3d> {
   double slice_angle = 0.0;
   double curr_delta_cos{NAN};
   double max_delta_cos{-INFINITY};
   double curr_determinant{NAN};
 
   // Normalized torch direction in ROCS yz plane
-  double t_y = -std::sin(wire_tip_angle);
-  double t_z = std::cos(wire_tip_angle);
+  double t_y = -std::sin(desired_slice_angle);
+  double t_z = std::cos(desired_slice_angle);
 
   // Normalized slice direction in ROCS yz plane
   double s_y{NAN};

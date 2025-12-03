@@ -77,7 +77,7 @@ struct Stop {
 struct SliceData {
   enum class Metadata : uint32_t { MESSAGE_ID = SCANNER_BASE_ID + 6 };
   Coordinate groove[GROOVE_ARRAY_SIZE];
-  std::array<common::Point, PROFILE_ARRAY_SIZE> profile;
+  std::array<Coordinate, PROFILE_ARRAY_SIZE> profile;
   enum SliceConfidence confidence;
   std::uint64_t time_stamp;  // Milliseconds since Epoch
   double groove_area{0.};

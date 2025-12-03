@@ -14,9 +14,9 @@
 
 #include "common/clock_functions.h"
 #include "common/logging/application_log.h"
-#include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/slice_provider.h"
+#include "scanner/slice_provider/src/circular_joint_buffer.h"
 
 namespace scanner::slice_provider {
 
@@ -27,14 +27,13 @@ using std::chrono::high_resolution_clock;
 const std::chrono::milliseconds NO_SLICE_DATA_TMO_MS(3000);
 const uint32_t MIN_SLICES_FOR_MEDIAN = 3;
 
-SliceProviderImpl::SliceProviderImpl(joint_buffer::JointBufferPtr joint_buffer,
-                                     clock_functions::SteadyClockNowFunc steady_clock_now_func)
-    : joint_buffer_(std::move(joint_buffer)), steady_clock_now_func_(steady_clock_now_func) {}
+SliceProviderImpl::SliceProviderImpl(clock_functions::SteadyClockNowFunc steady_clock_now_func)
+    : steady_clock_now_func_(steady_clock_now_func) {}
 
-void SliceProviderImpl::AddSlice(const scanner::joint_buffer::JointSlice& slice) {
+void SliceProviderImpl::AddSlice(const JointSlice& slice) {
   // If this is older than the last item in the buffer, don't add it.
-  if (joint_buffer_->GetNumberOfSlices() == 0 || slice.timestamp >= joint_buffer_->GetLatestTimestamp()) {
-    joint_buffer_->AddSlice(slice);
+  if (joint_buffer_.GetNumberOfSlices() == 0 || slice.timestamp >= joint_buffer_.GetLatestTimestamp()) {
+    joint_buffer_.AddSlice(slice);
   } else {
     LOG_WARNING("Processed image is too old, discarding it.");
   }
@@ -67,7 +66,7 @@ auto SliceProviderImpl::GetTrackingSlice()
     }
 
     auto confidence = GetConfidence(slice);
-    line            = joint_buffer_->GetSlice()
+    line            = joint_buffer_.GetSlice()
                .transform([](const auto& latest_slice) { return latest_slice.snake_points; })
                .value_or(slice.snake_points);
     latest_slice_ = {groove, SliceConfidence::NO};
@@ -97,22 +96,22 @@ auto SliceProviderImpl::GetTrackingSlice()
 }
 
 void SliceProviderImpl::Reset() {
-  joint_buffer_->Reset();
+  joint_buffer_.Reset();
   latest_slice_   = {};
   slice_degraded_ = false;
   last_sent_ts_   = {};
 }
 
-auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::JointSlice> {
+auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<JointSlice> {
   // WARNING: only the points, and the confidence is copied
-  auto recent = joint_buffer_->GetRecentSlices(RECENT_SLICES_MS);
+  auto recent = joint_buffer_.GetRecentSlices(RECENT_SLICES_MS);
 
   if (recent.size() < MIN_SLICES_FOR_MEDIAN) {
     return std::nullopt;
   }
   std::vector<double> x;
   std::transform(recent.begin(), recent.end(), std::back_inserter(x),
-                 [](joint_buffer::JointSlice* slice) { return slice->profile.groove[0].horizontal; });
+                 [](JointSlice* slice) { return slice->profile.groove[0].horizontal; });
 
   const auto middle    = recent.size() / 2;
   double median_abw0_x = NAN;
@@ -126,7 +125,7 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
     auto x2       = x[middle + 1];
     median_abw0_x = 0.5 * (x1 + x2);
   }
-  joint_buffer::JointSlice slice;
+  JointSlice slice;
   slice.approximation_used = false;
 
   int included = 0;
@@ -160,7 +159,7 @@ auto SliceProviderImpl::MedianOfRecentSlices() -> std::optional<joint_buffer::Jo
   return slice;
 }
 
-auto SliceProviderImpl::GetConfidence(joint_buffer::JointSlice slice) -> SliceConfidence {
+auto SliceProviderImpl::GetConfidence(JointSlice slice) -> SliceConfidence {
   auto left_depth  = slice.profile.groove[0].vertical - slice.profile.groove[1].vertical;
   auto right_depth = slice.profile.groove[6].vertical - slice.profile.groove[5].vertical;
   auto confidence  = SliceConfidence::LOW;

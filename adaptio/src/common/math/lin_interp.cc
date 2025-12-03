@@ -14,6 +14,7 @@ auto get_slope(const std::tuple<double, double> &p1, const std::tuple<double, do
 
 auto calc_interp_2d(double x1, double y1, double m, double x) -> double { return y1 + m * (x - x1); }
 
+// Segment vector must be sorted ascending
 auto get_segment(double x_value, const std::vector<std::tuple<double, double>> &segments) -> unsigned long {
   assert(segments.size() >= 2);
 

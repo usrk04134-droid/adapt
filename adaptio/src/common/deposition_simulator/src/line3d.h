@@ -4,12 +4,13 @@
 #include <memory>
 
 #include "../point3d.h"
-#include "plane3d.h"
 
 namespace deposition_simulator {
 
 using Eigen::AngleAxisd;
 using Eigen::Vector3d;
+
+class Plane3d;
 
 class Line3d {
  private:
@@ -20,6 +21,7 @@ class Line3d {
 
  public:
   Line3d();
+  Line3d(const Eigen::Vector3d &dir, const Point3d &start, double length);
   ~Line3d() = default;
   auto Reverse() -> void;
   auto Translate(const Vector3d &translation) -> void;
@@ -27,6 +29,7 @@ class Line3d {
   auto GetRefSystem() const -> CoordinateSystem;
   auto GetEnd() const -> Point3d;
   auto GetStart() const -> Point3d;
+  auto GetDirection() const -> Eigen::Vector3d;
   auto Length() const -> double;
   auto Intersect(const Plane3d &plane, bool consider_line_len) -> std::unique_ptr<Point3d>;
   static auto FromPoints(const Point3d &start, const Point3d &end) -> Line3d;

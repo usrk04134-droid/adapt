@@ -10,14 +10,19 @@
 
 namespace common::containers {
 
+enum class WrapMode { WRAP, NO_WRAP };
+
 template <typename T>
 class PositionBuffer {
  public:
-  explicit PositionBuffer(double wrap_value) : wrap_value_(wrap_value) {}
+  explicit PositionBuffer(double wrap_value, WrapMode mode = WrapMode::WRAP)
+      : wrap_value_(wrap_value), wrap_enabled_(mode == WrapMode::WRAP) {}
   ~PositionBuffer() = default;
 
-  PositionBuffer(const PositionBuffer &obj) : data_(obj.data_), wrap_value_(obj.wrap_value_), offset_(obj.offset_) {};
-  PositionBuffer(PositionBuffer &obj) : data_(obj.data_), wrap_value_(obj.wrap_value_), offset_(obj.offset_) {};
+  PositionBuffer(const PositionBuffer &obj)
+      : data_(obj.data_), wrap_value_(obj.wrap_value_), offset_(obj.offset_), wrap_enabled_(obj.wrap_enabled_) {};
+  PositionBuffer(PositionBuffer &obj)
+      : data_(obj.data_), wrap_value_(obj.wrap_value_), offset_(obj.offset_), wrap_enabled_(obj.wrap_enabled_) {};
 
   auto operator=(const PositionBuffer<T> &other) -> PositionBuffer<T> & {
     if (this != &other)  // not a self-assignment
@@ -68,6 +73,10 @@ class PositionBuffer {
       e2 = *(it - 1);
     }
 
+    if (!wrap_enabled_) {
+      return e1.first < e2.first ? e2.second : e1.second;
+    }
+
     auto const dist_e1 = std::fabs(common::math::WrappedDist(pos_rel_offset, e1.first, wrap_value_));
     auto const dist_e2 = std::fabs(common::math::WrappedDist(pos_rel_offset, e2.first, wrap_value_));
 
@@ -87,6 +96,7 @@ class PositionBuffer {
   std::vector<std::pair<double, T>> data_;
   double wrap_value_{};
   double offset_{};
+  bool wrap_enabled_{true};
 };
 
 }  // namespace common::containers

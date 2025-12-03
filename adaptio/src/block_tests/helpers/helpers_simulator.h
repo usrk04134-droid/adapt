@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "common/math/lin_interp.h"
+#include "common/messages/scanner.h"
 #include "helpers.h"
 #include "helpers_abp_parameters.h"
 #include "helpers_joint_geometry.h"
@@ -31,6 +32,7 @@ const double SCALE_SEC_PER_MS{1000.};
 const double SCALE_CM_PER_M{100.};
 const double SCALE_SEC_PER_MIN{60.};
 const double WELD_OBJECT_CAL_X_ADJUSTMENT{0.0};  // To be set in the simconfig later?
+const int NBR_BOTTOM_SIDE_POINTS{4};
 
 ///
 /// Test structs
@@ -538,28 +540,29 @@ inline auto ConvertFromOptionalAbwVector(const std::vector<std::optional<deposit
   return converted;
 }
 
-inline auto ConvertPoint3dVectorToCommonPoints(const std::vector<deposition_simulator::Point3d>& full_res)
-    -> std::vector<common::Point> {
-  std::vector<common::Point> out;
+inline auto ConvertPoint3dVectorToLpcsCoordinates(const std::vector<deposition_simulator::Point3d>& full_res)
+    -> std::vector<common::msg::scanner::Coordinate> {
+  std::vector<common::msg::scanner::Coordinate> out;
   out.reserve(full_res.size());
-  for (const auto& p : full_res) {
-    // Map X -> horizontal, Z -> vertical
-    out.push_back(common::Point{p.GetX(), p.GetZ()});
+
+  const int nbr_top_side_points = full_res.size() - NBR_BOTTOM_SIDE_POINTS;
+  for (int i = 0; i < nbr_top_side_points; i++) {
+    out.push_back(common::msg::scanner::Coordinate{full_res[i].GetX(), full_res[i].GetY()});
   }
   return out;
 }
 
-inline auto BuildInterpolatedSnake(const std::vector<common::Point>& full_profile,
+inline auto BuildInterpolatedSnake(const std::vector<common::msg::scanner::Coordinate>& full_profile,
                                    std::vector<deposition_simulator::Point3d>& abws_lpcs)
-    -> std::array<common::Point, scanner::joint_model::INTERPOLATED_SNAKE_SIZE> {
-  std::array<common::Point, scanner::joint_model::INTERPOLATED_SNAKE_SIZE> line{};
+    -> std::array<common::msg::scanner::Coordinate, scanner::joint_model::INTERPOLATED_SNAKE_SIZE> {
+  std::array<common::msg::scanner::Coordinate, scanner::joint_model::INTERPOLATED_SNAKE_SIZE> line{};
   std::vector<std::tuple<double, double>> segments;
   segments.reserve(full_profile.size());
   constexpr double DUPLICATE_EPSILON = 1e-9;
   std::optional<double> previous_x;
   for (const auto& pt : full_profile) {
-    const double x = pt.horizontal;
-    const double y = pt.vertical;
+    const double x = pt.x;
+    const double y = pt.y;
     if (!std::isfinite(x) || !std::isfinite(y)) {
       continue;
     }
@@ -571,15 +574,15 @@ inline auto BuildInterpolatedSnake(const std::vector<common::Point>& full_profil
   }
 
   constexpr double INTERPOLATION_MARGIN_METERS = 20.0e-3;
-  const double start                           = ConvertM2Mm(abws_lpcs[0].GetX()) - INTERPOLATION_MARGIN_METERS;
-  const double stop                            = ConvertM2Mm(abws_lpcs[6].GetX()) + INTERPOLATION_MARGIN_METERS;
+  const double start                           = abws_lpcs[0].GetX() - INTERPOLATION_MARGIN_METERS;
+  const double stop                            = abws_lpcs[6].GetX() + INTERPOLATION_MARGIN_METERS;
 
   // Generate x_samples and interpolate y_samples
   auto x_samples = common::math::lin_interp::linspace(start, stop, scanner::joint_model::INTERPOLATED_SNAKE_SIZE);
   auto y_samples = common::math::lin_interp::lin_interp_2d(x_samples, segments);
 
   for (std::size_t i = 0; i < x_samples.size(); ++i) {
-    line[i] = common::Point{x_samples[i], y_samples[i]};
+    line[i] = common::msg::scanner::Coordinate{ConvertM2Mm(x_samples[i]), ConvertM2Mm(y_samples[i])};
   }
 
   return line;
@@ -588,8 +591,8 @@ inline auto BuildInterpolatedSnake(const std::vector<common::Point>& full_profil
 inline auto GetSliceData(std::vector<deposition_simulator::Point3d>& abws_lpcs,
                          deposition_simulator::ISimulator& simulator, const std::uint64_t time_stamp)
     -> common::msg::scanner::SliceData {
-  auto full_res_p3d        = simulator.GetLatestDepositedSlice(deposition_simulator::MACS);
-  auto full_profile_common = helpers_simulator::ConvertPoint3dVectorToCommonPoints(full_res_p3d);
+  auto full_res_p3d        = simulator.GetLatestObservedSlice(deposition_simulator::LPCS);
+  auto full_profile_common = helpers_simulator::ConvertPoint3dVectorToLpcsCoordinates(full_res_p3d);
   auto interp_snake        = helpers_simulator::BuildInterpolatedSnake(full_profile_common, abws_lpcs);
   common::msg::scanner::SliceData slice_data{
       .groove{{.x = ConvertM2Mm(abws_lpcs[0].GetX()), .y = ConvertM2Mm(abws_lpcs[0].GetY())},

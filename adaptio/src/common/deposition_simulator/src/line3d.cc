@@ -22,6 +22,11 @@ Line3d::Line3d(const Point3d &start, const Point3d &end) : start_(start), direct
   // this->start_     = start;
 }
 
+Line3d::Line3d(const Eigen::Vector3d &dir, const Point3d &start, double length)
+    : start_(start), direction_(dir), length_(length) {
+  this->direction_.normalize();
+}
+
 Line3d::Line3d() : length_(0) {}
 
 auto Line3d::Reverse() -> void {
@@ -72,6 +77,8 @@ auto Line3d::GetEnd() const -> Point3d {
 }
 
 auto Line3d::GetStart() const -> Point3d { return this->start_; }
+
+auto Line3d::GetDirection() const -> Eigen::Vector3d { return this->direction_; }
 
 auto Line3d::FromPoints(const Point3d &start, const Point3d &end) -> Line3d { return {start, end}; }
 

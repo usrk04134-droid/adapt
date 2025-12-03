@@ -31,7 +31,6 @@
 #include "scanner/image/image_types.h"  // IWYU pragma: keep
 #include "scanner/image_logger/image_logger.h"
 #include "scanner/image_provider/image_provider.h"
-#include "scanner/joint_buffer/joint_buffer.h"
 #include "scanner/joint_model/joint_model.h"
 #include "scanner/slice_provider/slice_provider.h"
 
@@ -207,15 +206,15 @@ void ScannerImpl::ImageGrabbed(std::unique_ptr<image::Image> image) {
     if (result) {
       auto [profile, interpolated_snake, processing_time, num_walls_found] = *result;
       LOG_TRACE("Processed image {} in {} ms.", image->GetImageName(), processing_time);
-      joint_buffer::JointSlice slice = {.uuid                = image->GetUuid(),
-                                        .timestamp           = image->GetTimestamp(),
-                                        .image_name          = image->GetImageName(),
-                                        .profile             = profile,
-                                        .num_walls_found     = num_walls_found,
-                                        .processing_time     = processing_time,
-                                        .vertical_crop_start = image->GetVerticalCropStart(),
-                                        .approximation_used  = profile.approximation_used,
-                                        .snake_points        = interpolated_snake};
+      slice_provider::JointSlice slice = {.uuid                = image->GetUuid(),
+                                          .timestamp           = image->GetTimestamp(),
+                                          .image_name          = image->GetImageName(),
+                                          .profile             = profile,
+                                          .num_walls_found     = num_walls_found,
+                                          .processing_time     = processing_time,
+                                          .vertical_crop_start = image->GetVerticalCropStart(),
+                                          .approximation_used  = profile.approximation_used,
+                                          .snake_points        = interpolated_snake};
       if (store_image_data_) {
         // Store image data only if necessary. Not needed when running Adaptio
         slice.image_data = image->Data();

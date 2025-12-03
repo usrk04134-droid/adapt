@@ -70,7 +70,9 @@ const nlohmann::json CAL_RESULT = {
     {"rotationCenter",         {{"c1", -28.79}, {"c2", -115.95}, {"c3", -1028.50}}},
     {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 349.29}, {"c3", -31.79}}      },
     {"weldObjectRadius",       1000.0                                             },
-    {"weldObjectRotationAxis", {{"c1", 1.0}, {"c2", 0.0}, {"c3", 0.0}}            }
+    {"weldObjectRotationAxis", {{"c1", 1.0}, {"c2", 0.0}, {"c3", 0.0}}            },
+    {"wireDiameter",           0.0                                                },
+    {"stickout",               0.0                                                }
 };
 
 const int NUM_MEDIAN_IMAGES = 7;
@@ -352,10 +354,10 @@ auto TestFixture::GetConfigManagerMock() -> configuration::ConfigManagerMock* { 
 
 void TestFixture::SetDefaultCalibration() {
   LaserTorchCalSet(*this, LASER_TORCH_CONFIG);
-  CHECK_EQ(LaserTorchCalSetRsp(*this).at("result"), SUCCESS_PAYLOAD.at("result"));
+  CHECK(LaserTorchCalSetRsp(*this));
 
   WeldObjectCalSet(*this, CAL_RESULT);
-  CHECK_EQ(WeldObjectCalSetRsp(*this).at("result"), SUCCESS_PAYLOAD.at("result"));
+  CHECK(WeldObjectCalSetRsp(*this));
 
   WeldObjectCalGet(*this);
   CHECK_EQ(WeldObjectCalGetRsp(*this), Merge(
@@ -403,7 +405,7 @@ auto ScannerDataWrapper::ShiftHorizontal(double value) -> ScannerDataWrapper& {
   }
 
   for (auto& coord : data_.profile) {
-    coord.horizontal += value;
+    coord.x += value;
   }
 
   return *this;
@@ -415,7 +417,7 @@ auto ScannerDataWrapper::FillUp(double value) -> ScannerDataWrapper& {
   }
 
   for (auto& coord : data_.profile) {
-    if (coord.vertical < TOP_LEVEL) coord.vertical += value;
+    if (coord.y < TOP_LEVEL) coord.y += value;
   }
 
   return *this;

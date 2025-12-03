@@ -2,11 +2,28 @@
 #include "plane3d.h"
 
 #include "../point3d.h"
+#include "line3d.h"
 namespace deposition_simulator {
 
 Plane3d::Plane3d(Eigen::Vector3d normal, const Point3d &point_in_plane)
     : normal_(normal), point_in_plane_(point_in_plane) {
   normal.normalize();
+}
+
+auto Plane3d::Intersect(const Plane3d &other) const -> Line3d {
+  const Eigen::Vector3d n1 = this->normal_;
+  const Eigen::Vector3d n2 = other.GetNormal();
+  const double h1          = n1.dot(this->point_in_plane_.ToVec());
+  const double h2          = n2.dot(other.GetPointInPlane().ToVec());
+  const double c1          = (h1 - h2 * n1.dot(n2)) / (1 - n1.dot(n2) * n1.dot(n2));
+  const double c2          = (h2 - h1 * n1.dot(n2)) / (1 - n1.dot(n2) * n1.dot(n2));
+
+  Eigen::Vector3d point_on_line     = c1 * n1 + c2 * n2;
+  Eigen::Vector3d direction_of_line = n1.cross(n2);
+
+  Line3d intersection_line{direction_of_line, Point3d::FromVector(point_on_line), 1.0};
+
+  return intersection_line;
 }
 
 auto Plane3d::GetNormal() const -> Eigen::Vector3d { return this->normal_; }

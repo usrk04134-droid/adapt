@@ -17,6 +17,11 @@
 
 namespace deposition_simulator {
 
+const Plane3d LASER_PLANE_LPCS{
+    {0.0, 0.0, 1.0},
+    {0.0, 0.0, 0.0, LPCS}
+};
+
 enum HorizontalDirection { LEFT_SIDE = 0, RIGHT_SIDE = 1 };
 
 struct SliceDefinition {
@@ -60,6 +65,7 @@ class Simulator : public ISimulator {
   auto GetAbwPoints(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> override;
   auto GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> override;
   auto GetLatestDepositedSlice(CoordinateSystem ref_system) const -> std::vector<Point3d> override;
+  auto GetLatestObservedSlice(CoordinateSystem ref_system) const -> std::vector<Point3d> override;
   auto AddSingleWireTorch(double wire_diam, double initial_wire_feed_speed)
       -> std::shared_ptr<ISingleWireTorch> override;
   auto AddTwinTorch(double wire_diam, double initial_wire_feed_speed) -> std::shared_ptr<ITwinTorch> override;

@@ -2,7 +2,7 @@
 
 ```plantuml
 
-title Module Architecture: Calibration and Slice Translation
+title Calibration and Slice Translation
 
 skinparam backgroundColor #DCE8F7
 skinparam rectangle {
@@ -23,15 +23,23 @@ package "weld-control\n<NS>" {
 
 package "calibration\n<NS>" {
     rectangle "CalibrationManagerImpl" as CalibrationManagerImpl
+    rectangle "CWCalibrationHandler" as CWCalibrationHandler
+    rectangle "LWCalibrationHandler" as LWCalibrationHandler
     rectangle "CalibrationSolver\n<IF>" as CalibrationSolver
     rectangle "CalibrationSolverImpl" as CalibrationSolverImpl
-    rectangle "Storage" as Storage
+    rectangle "WOCalStorage" as WOCalStorage
+    rectangle "LTCalStorage" as LTCalStorage
+    rectangle "LWCalStorage" as LWCalStorage
+}
+
+package "scanner-client\n<NS>" {
+    rectangle "ScannerObserver\n<IF>" as ScannerObserver
 }
 
 package "slice-translator\n<NS>" {
     rectangle "SliceObserver\n<IF>" as SliceObserver
-    rectangle "CoordinateTranslatorV2" as CoordinateTranslator
-    rectangle "SliceTranslatorServiceV2\n<IF>" as SliceTranslatorServiceV2
+    rectangle "CoordinatesTranslator" as CoordinatesTranslator
+    rectangle "SliceTranslatorService\n<IF>" as SliceTranslatorService
     rectangle "ModelImpl" as ModelImpl
     rectangle "ModelConfig\n<IF>" as ModelConfig
     rectangle "ModelExtract\n<IF>" as ModelExtract
@@ -40,15 +48,24 @@ package "slice-translator\n<NS>" {
 ' Relationships
 WeldControlImpl -down-|> SliceObserver
 
-CalibrationManagerImpl --> CalibrationSolver
-CalibrationManagerImpl --> Storage
-CalibrationManagerImpl --> ModelConfig
+CalibrationManagerImpl -up-|> ScannerObserver
+CalibrationManagerImpl --> CWCalibrationHandler
+CalibrationManagerImpl --> LWCalibrationHandler
+
+CWCalibrationHandler --> CalibrationSolver
+CWCalibrationHandler --> WOCalStorage
+CWCalibrationHandler --> LTCalStorage
+CWCalibrationHandler --> ModelConfig
+LWCalibrationHandler --> CalibrationSolver
+LWCalibrationHandler --> LWCalStorage
+LWCalibrationHandler --> ModelConfig
 CalibrationSolverImpl -up-|> CalibrationSolver
 CalibrationSolverImpl -up-> ModelExtract
 
-CoordinateTranslator -up-> SliceObserver
-CoordinateTranslator --> SliceTranslatorServiceV2
-ModelImpl -up-|> SliceTranslatorServiceV2
+CoordinatesTranslator -up-|> ScannerObserver
+CoordinatesTranslator -up-> SliceObserver
+CoordinatesTranslator --> SliceTranslatorService
+ModelImpl -up-|> SliceTranslatorService
 ModelImpl -up-|> ModelConfig
 ModelImpl -up-|> ModelExtract
 
@@ -56,7 +73,7 @@ ModelImpl -up-|> ModelExtract
 note right of WeldControlImpl
 Description of Interfaces
 
-- SliceTranslatorServiceV2: similar to existing interface with LPCSToMCS method
+- SliceTranslatorService: Used to translate coordinates from LPCS to MCS
 
 - ModelConfig: Interface used to set model parameters after calibration procedure
 is completed or after reading parameters from database after a restart
@@ -64,10 +81,13 @@ is completed or after reading parameters from database after a restart
 - ModelExtract: Called by the Solver implementation class during the solve phase
 when extracting the model parameters
 
-- CalibrationSolver: Called once when the automatic movement/measurement phase
-has been completed. The call contains data for LeftPosition, RightPosition,
-GridPositions, ScannerBracketAngle, WeldObjectRadius, ABW points. It returns
-the model parameters which will be stored to database and set using the ModelConfig interface.
+- CalibrationSolver: Called when the calibration sequence has been completed. 
+The call contains ABW points, ScannerBracketAngle, WeldObjectRadius, and returns
+model parameters for storage and use in the ModelConfig interface.
+
+- CalibrationHandlers: Handlers implement
+specific calibration procedures (CW or LW) and subscribe to their own WebHMI messages.
+
 end note
 
 

@@ -168,6 +168,12 @@ inline auto ToJsonLog(const calibration::CalibrationResult& data) -> nlohmann::j
   return obj;
 }
 
+inline auto ToJsonLog(const calibration::LWCalibrationResult& data) -> nlohmann::json {
+  return {
+      {"torchToLpcsTranslation", common::ToJson(data.torch_to_lpcs_translation)},
+  };
+}
+
 inline auto ToJsonLog(const common::Point& data) -> nlohmann::json {
   nlohmann::json obj = {
       {"horizontal", Floor(data.horizontal, LOG_4_DECIMALS)},

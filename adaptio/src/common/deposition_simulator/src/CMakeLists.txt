@@ -5,6 +5,7 @@ target_sources(depsim
   line3d.h
   plane3d.h
   circle2d.h
+  circle3d.h
   line2d.h
   slice-line.h
   point2d.h
@@ -41,6 +42,7 @@ target_sources(depsim
   point3d.cc
   point2d.cc
   plane3d.cc
+  circle3d.cc
   intersection-point.cc
   bead.cc
   coordinate-transformer.cc

@@ -1,21 +1,25 @@
 
 #include "coordinate-transformer.h"
 
+#include <boost/proto/traits.hpp>
 #include <cerrno>
 #include <cmath>
 #include <Eigen/Eigen>
 #include <numbers>
+#include <optional>
 #include <stdexcept>
 
 #include "../point3d.h"
 #include "../sim-config.h"
+#include "circle3d.h"
 #include "plane3d.h"
 #include "point2d.h"
 
 namespace deposition_simulator {
 
-CoordinateTransformer::CoordinateTransformer(LpcsConfig &lpcs_config, OpcsConfig &opcs_config)
-    : lpcs_config_(lpcs_config), opcs_config_(opcs_config) {
+CoordinateTransformer::CoordinateTransformer(LpcsConfig &lpcs_config, OpcsConfig &opcs_config,
+                                             WeldMovementType weld_movement_type)
+    : weld_movement_type_(weld_movement_type), lpcs_config_(lpcs_config), opcs_config_(opcs_config) {
   this->opcs_rel_to_rocs_ = Eigen::Matrix4d::Zero();
 }
 
@@ -27,21 +31,52 @@ auto CoordinateTransformer::SetWeldObjectOrientation(Matrix4d &opcs_rel_to_rocs)
   this->opcs_rel_to_rocs_ = Eigen::Matrix4d(opcs_rel_to_rocs);
 }
 
-// auto CoordinateTransformer::GetWeldObjectRotationAngle() const -> double{
-//   return this->cwo_rotation_angle_;
-// }
-// auto CoordinateTransformer::IncrWeldObjectRotation(double delta_angle) -> double {
-//   return this->weld_object_rotation_ += delta_angle;
-// }
-
 auto CoordinateTransformer::ProjectToSlicePlane(const Point3d &point_any) const -> Point2d {
   // This transformation is independent of how the slice is rotated around ROCS x-axis.
   const Point3d point_rocs = this->Transform(point_any, ROCS);
+
   // Change to cylindrical coordinates. Drop the angle --> project to slice plane.
   const double radius  = sqrt(pow(point_rocs.GetZ(), 2) + pow(point_rocs.GetY(), 2));
   const double x_coord = point_rocs.GetX();
 
   return {x_coord, radius};
+}
+
+// Project a point on a plane with the projection given by the current weld movement mode (longitudinal or
+// circumferential)
+auto CoordinateTransformer::DoWeldMovementProjectionToPlane(const Point3d &point_any, const Plane3d &plane_any,
+                                                            CoordinateSystem ref_system) -> std::optional<Point3d> {
+  auto point_rocs = this->Transform(point_any, ROCS);
+  auto plane_rocs = this->Transform(plane_any, ROCS);
+
+  if (weld_movement_type_ == CIRCUMFERENTIAL) {
+    // Do projection by converting to cylindrical coordinates in ROCS
+    double dist_to_axis = std::sqrt(point_rocs.GetY() * point_rocs.GetY() + point_rocs.GetZ() * point_rocs.GetZ());
+    Point3d center_point_rocs = Point3d::FromVector(ORIGIN, ROCS);
+    center_point_rocs.SetX(point_rocs.GetX());
+    auto projection_circle_rocs   = Circle3d(ROTATION_AXIS_ROCS, dist_to_axis, center_point_rocs);
+    auto intersection_points_rocs = projection_circle_rocs.Intersect(plane_rocs);
+
+    // Return intersection point closest to original (non-projected) point
+    if (intersection_points_rocs.size() == 2) {
+      size_t point_idx = 0;
+      if (intersection_points_rocs.at(0).DistanceTo(point_rocs) >
+          intersection_points_rocs.at(1).DistanceTo(point_rocs)) {
+        point_idx = 1;
+      }
+
+      return Transform(intersection_points_rocs.at(point_idx), ref_system);
+    }
+
+  } else if (weld_movement_type_ == LONGITUDINAL) {
+    // TODO(zachjz): Implement for linear motion. ==> project along movement direction.
+    // Movement should always be in MACS y.
+    // OPCS rel. to MACS can be configured as for circumferential.
+    // ROCS rel. to OPCS determined by object positioner.
+    // Misaligned joint modelled by OPCS-MACS relationship,
+  }
+
+  return std::nullopt;  // No intersection, projection undefined.
 }
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)

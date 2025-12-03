@@ -4,13 +4,12 @@
 
 #include <nlohmann/json_fwd.hpp>
 #include <optional>
-#include <sstream>
 
 #include "common/messages/kinematics.h"
 #include "helpers.h"
+#include "helpers_mfx.h"
 #include "helpers_simulator.h"
 #include "helpers_web_hmi.h"
-#include "sim-config.h"
 #include "simulator_interface.h"
 #include "test_utils/testlog.h"
 #include "web_hmi/web_hmi_json_helpers.h"
@@ -22,13 +21,20 @@ inline auto Merge(const nlohmann::json& payload1, const nlohmann::json& payload2
   return result;
 }
 
+[[nodiscard]] inline auto CheckResponseOk(TestFixture& fixture, const std::string& message_name) -> bool {
+  auto const response_payload = ReceiveJsonByName(fixture, message_name);
+  CHECK(response_payload != nullptr);
+
+  return response_payload.at("result") == "ok";
+}
+
 inline void LaserTorchCalSet(TestFixture& fixture, const nlohmann::json& payload) {
   auto msg = web_hmi::CreateMessage("LaserTorchCalSet", std::nullopt, payload);
   fixture.WebHmiIn()->DispatchMessage(std::move(msg));
 }
 
-[[nodiscard]] inline auto LaserTorchCalSetRsp(TestFixture& fixture) -> nlohmann::json {
-  return ReceiveJsonByName(fixture, "LaserTorchCalSetRsp");
+[[nodiscard]] inline auto LaserTorchCalSetRsp(TestFixture& fixture) -> bool {
+  return CheckResponseOk(fixture, "LaserTorchCalSetRsp");
 }
 
 inline void LaserTorchCalGet(TestFixture& fixture) {
@@ -45,8 +51,8 @@ inline void WeldObjectCalSet(TestFixture& fixture, const nlohmann::json& payload
   fixture.WebHmiIn()->DispatchMessage(std::move(msg));
 }
 
-[[nodiscard]] inline auto WeldObjectCalSetRsp(TestFixture& fixture) -> nlohmann::json {
-  return ReceiveJsonByName(fixture, "WeldObjectCalSetRsp");
+[[nodiscard]] inline auto WeldObjectCalSetRsp(TestFixture& fixture) -> bool {
+  return CheckResponseOk(fixture, "WeldObjectCalSetRsp");
 }
 
 inline void WeldObjectCalGet(TestFixture& fixture) {
@@ -70,14 +76,7 @@ inline void WeldObjectCalStart(TestFixture& fixture, double wire_diameter, doubl
 }
 
 [[nodiscard]] inline auto WeldObjectCalStartRsp(TestFixture& fixture) -> bool {
-  auto const response_payload = ReceiveJsonByName(fixture, "WeldObjectCalStartRsp");
-  CHECK(response_payload != nullptr);
-
-  auto const expect_ok = nlohmann::json{
-      {"result", "ok"}
-  };
-
-  return response_payload.at("result") == expect_ok.at("result");
+  return CheckResponseOk(fixture, "WeldObjectCalStartRsp");
 }
 
 inline void WeldObjectCalStop(TestFixture& fixture) {
@@ -86,14 +85,7 @@ inline void WeldObjectCalStop(TestFixture& fixture) {
 }
 
 [[nodiscard]] inline auto WeldObjectCalStopRsp(TestFixture& fixture) -> bool {
-  auto const response_payload = ReceiveJsonByName(fixture, "WeldObjectCalStopRsp");
-  CHECK(response_payload != nullptr);
-
-  auto const expect_ok = nlohmann::json{
-      {"result", "ok"}
-  };
-
-  return response_payload.at("result") == expect_ok.at("result");
+  return CheckResponseOk(fixture, "WeldObjectCalStopRsp");
 }
 
 inline void WeldObjectCalTopPos(TestFixture& fixture) {
@@ -102,14 +94,7 @@ inline void WeldObjectCalTopPos(TestFixture& fixture) {
 }
 
 [[nodiscard]] inline auto WeldObjectCalTopPosRsp(TestFixture& fixture) -> bool {
-  auto const response_payload = ReceiveJsonByName(fixture, "WeldObjectCalTopPosRsp");
-  CHECK(response_payload != nullptr);
-
-  auto const expect_ok = nlohmann::json{
-      {"result", "ok"}
-  };
-
-  return response_payload.at("result") == expect_ok.at("result");
+  return CheckResponseOk(fixture, "WeldObjectCalTopPosRsp");
 }
 
 inline void WeldObjectCalLeftPos(TestFixture& fixture) {
@@ -118,14 +103,7 @@ inline void WeldObjectCalLeftPos(TestFixture& fixture) {
 }
 
 [[nodiscard]] inline auto WeldObjectCalLeftPosRsp(TestFixture& fixture) -> bool {
-  auto const response_payload = ReceiveJsonByName(fixture, "WeldObjectCalLeftPosRsp");
-  CHECK(response_payload != nullptr);
-
-  auto const expect_ok = nlohmann::json{
-      {"result", "ok"}
-  };
-
-  return response_payload.at("result") == expect_ok.at("result");
+  return CheckResponseOk(fixture, "WeldObjectCalLeftPosRsp");
 }
 
 inline void WeldObjectCalRightPos(TestFixture& fixture) {
@@ -134,29 +112,88 @@ inline void WeldObjectCalRightPos(TestFixture& fixture) {
 }
 
 [[nodiscard]] inline auto WeldObjectCalRightPosRsp(TestFixture& fixture) -> bool {
-  auto const response_payload = ReceiveJsonByName(fixture, "WeldObjectCalRightPosRsp");
-  CHECK(response_payload != nullptr);
-
-  auto const expect_ok = nlohmann::json{
-      {"result", "ok"}
-  };
-
-  return response_payload.at("result") == expect_ok.at("result");
+  return CheckResponseOk(fixture, "WeldObjectCalRightPosRsp");
 }
 
-inline auto WeldObjectCalResult(TestFixture& fixture, deposition_simulator::SimConfig& sim_config) -> nlohmann::json {
+inline auto WeldObjectCalResult(TestFixture& fixture) -> nlohmann::json {
   auto const response_payload = ReceiveJsonByName(fixture, "WeldObjectCalResult");
   CHECK(response_payload != nullptr);
 
   return response_payload;
 }
 
-[[maybe_unused]] inline auto ToString(const deposition_simulator::Point3d& point) -> std::string {
-  return fmt::format("x: {:.5f} y: {:.5f} z: {:.5f}", point.GetX(), point.GetY(), point.GetZ());
+inline void LWCalGet(TestFixture& fixture) {
+  auto msg = web_hmi::CreateMessage("LWCalGet", std::nullopt, {});
+  fixture.WebHmiIn()->DispatchMessage(std::move(msg));
 }
 
-inline auto NowTimeStamp(TestFixture& fixture) -> uint64_t {
-  return fixture.GetClockNowFuncWrapper()->GetSystemClock().time_since_epoch().count();
+[[nodiscard]] inline auto LWCalGetRsp(TestFixture& fixture) -> nlohmann::json {
+  return ReceiveJsonByName(fixture, "LWCalGetRsp");
+}
+
+inline void LWCalSet(TestFixture& fixture, const nlohmann::json& payload) {
+  auto msg = web_hmi::CreateMessage("LWCalSet", std::nullopt, payload);
+  fixture.WebHmiIn()->DispatchMessage(std::move(msg));
+}
+
+[[nodiscard]] inline auto LWCalSetRsp(TestFixture& fixture) -> bool { return CheckResponseOk(fixture, "LWCalSetRsp"); }
+
+inline void LWCalStart(TestFixture& fixture, double distance_laser_torch, double stickout, double scanner_mount_angle) {
+  auto const payload = nlohmann::json({
+      {"distanceLaserTorch", distance_laser_torch},
+      {"stickout",           stickout            },
+      {"scannerMountAngle",  scanner_mount_angle },
+  });
+
+  auto msg = web_hmi::CreateMessage("LWCalStart", std::nullopt, payload);
+  fixture.WebHmiIn()->DispatchMessage(std::move(msg));
+}
+
+[[nodiscard]] inline auto LWCalStartRsp(TestFixture& fixture) -> bool {
+  return CheckResponseOk(fixture, "LWCalStartRsp");
+}
+
+inline void LWCalStop(TestFixture& fixture) {
+  auto msg = web_hmi::CreateMessage("LWCalStop", std::nullopt, {});
+  fixture.WebHmiIn()->DispatchMessage(std::move(msg));
+}
+
+[[nodiscard]] inline auto LWCalStopRsp(TestFixture& fixture) -> bool {
+  return CheckResponseOk(fixture, "LWCalStopRsp");
+}
+
+inline void LWCalTopPos(TestFixture& fixture) {
+  auto msg = web_hmi::CreateMessage("LWCalTopPos", std::nullopt, {});
+  fixture.WebHmiIn()->DispatchMessage(std::move(msg));
+}
+
+[[nodiscard]] inline auto LWCalTopPosRsp(TestFixture& fixture) -> bool {
+  return CheckResponseOk(fixture, "LWCalTopPosRsp");
+}
+
+inline void LWCalLeftPos(TestFixture& fixture) {
+  auto msg = web_hmi::CreateMessage("LWCalLeftPos", std::nullopt, {});
+  fixture.WebHmiIn()->DispatchMessage(std::move(msg));
+}
+
+[[nodiscard]] inline auto LWCalLeftPosRsp(TestFixture& fixture) -> bool {
+  return CheckResponseOk(fixture, "LWCalLeftPosRsp");
+}
+
+inline void LWCalRightPos(TestFixture& fixture) {
+  auto msg = web_hmi::CreateMessage("LWCalRightPos", std::nullopt, {});
+  fixture.WebHmiIn()->DispatchMessage(std::move(msg));
+}
+
+[[nodiscard]] inline auto LWCalRightPosRsp(TestFixture& fixture) -> bool {
+  return CheckResponseOk(fixture, "LWCalRightPosRsp");
+}
+
+inline auto LWCalResult(TestFixture& fixture) -> nlohmann::json {
+  auto const response_payload = ReceiveJsonByName(fixture, "LWCalResult");
+  CHECK(response_payload != nullptr);
+
+  return response_payload;
 }
 
 inline void ProvideScannerAndKinematicsData(TestFixture& fixture, deposition_simulator::ISimulator& simulator,
@@ -240,140 +277,6 @@ inline void PositionTorchAtTopLeftTouchPoint(deposition_simulator::ISimulator& s
                                                        deposition_simulator::MACS);
 
   simulator.UpdateTorchPosition(torch_pos_initial_macs);
-}
-
-struct CalibrateConfig {
-  double stickout_m{};
-  double touch_point_depth_m{};
-  double scanner_mount_angle_rad{};
-  double wire_diameter_mm{};
-  double weld_object_diameter_m{};
-};
-
-[[nodiscard]] inline auto Calibrate(TestFixture& fixture, deposition_simulator::SimConfig& sim_config,
-                                    deposition_simulator::ISimulator& simulator, const CalibrateConfig& conf,
-                                    bool touch_top = false, double abw0_horizontal_touch_offset_m = 0.0) -> bool {
-  // Calculate LTC parameters from sim_config
-  double ltc_stickout = 0.025;  // m
-  double ltc_torch_to_laser_plane_dist =
-      helpers_simulator::ComputeLtcTorchToLaserPlaneDistance(sim_config.lpcs_config, ltc_stickout);
-  ltc_stickout                  = helpers_simulator::ConvertM2Mm(ltc_stickout);
-  ltc_torch_to_laser_plane_dist = helpers_simulator::ConvertM2Mm(ltc_torch_to_laser_plane_dist);
-
-  // ---------- Test sequence starts here --------------
-
-  // Position the torch with the wire at a suitable depth in the groove
-  PositionTorchInGroove(simulator, conf.stickout_m, conf.touch_point_depth_m);
-
-  // Subscribe Ready State (checking this later)
-  fixture.Management()->Dispatch(common::msg::management::SubscribeReadyState{});
-  auto ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-  CHECK(ready_msg.has_value());
-  CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::NOT_READY);
-
-  // Set laser to torch calibration
-  LaserTorchCalSet(fixture, {
-                                {"distanceLaserTorch", ltc_torch_to_laser_plane_dist},
-                                {"stickout",           ltc_stickout                 },
-                                {"scannerMountAngle",  conf.scanner_mount_angle_rad }
-  });
-
-  auto const expect_ok = nlohmann::json{
-      {"result", "ok"}
-  };
-  CHECK_EQ(LaserTorchCalSetRsp(fixture).at("result"), expect_ok.at("result"));
-
-  // Operator starts the calibration procedure
-
-  WeldObjectCalStart(fixture, conf.wire_diameter_mm, helpers_simulator::ConvertM2Mm(conf.stickout_m),
-                     helpers_simulator::ConvertM2Mm(conf.weld_object_diameter_m) / 2.0);
-
-  // Receive StartScanner
-  REQUIRE_MESSAGE(fixture.Scanner()->Receive<common::msg::scanner::Start>(), "No Start msg received");
-  fixture.Scanner()->Dispatch(common::msg::scanner::StartRsp{.success = true});
-
-  // This Rsp triggers the WebHmi to display the instruction to
-  // touch the left wall
-  CHECK(WeldObjectCalStartRsp(fixture));
-
-  if (touch_top) {
-    // position torch with wire tip at top of groove
-    // Possibly add a simulator function to touch the top?
-    PositionTorchAtTopLeftTouchPoint(simulator, conf.stickout_m, abw0_horizontal_touch_offset_m);
-
-    auto torch_pos = simulator.GetTorchPosition(deposition_simulator::MACS);
-    TESTLOG(">>>>> torch at top touch position: {}", ToString(torch_pos));
-
-    // Operator presses the left position button
-    WeldObjectCalTopPos(fixture);
-    ProvideScannerAndKinematicsData(fixture, simulator, torch_pos);
-
-    CHECK(WeldObjectCalTopPosRsp(fixture));
-
-    // restore torch to touch_point_depth
-    PositionTorchInGroove(simulator, conf.stickout_m, conf.touch_point_depth_m);
-  }
-
-  // Simulate that the operator moves the torch to touch the left wall
-  simulator.TouchLeftWall(conf.stickout_m);
-  auto torch_pos = simulator.GetTorchPosition(deposition_simulator::MACS);
-  TESTLOG(">>>>> deposition_simulator moved torch to left touch position: {}", ToString(torch_pos));
-
-  // Operator presses the left position button
-  WeldObjectCalLeftPos(fixture);
-  ProvideScannerAndKinematicsData(fixture, simulator, torch_pos);
-
-  CHECK(WeldObjectCalLeftPosRsp(fixture));
-
-  // Simulate that the operator moves the torch to touch the right wall
-  simulator.TouchRightWall(conf.stickout_m);
-  torch_pos = simulator.GetTorchPosition(deposition_simulator::MACS);
-  TESTLOG(">>>>> deposition_simulator moved torch to right touch position: {}", ToString(torch_pos));
-
-  // Operator presses the right position button
-  WeldObjectCalRightPos(fixture);
-  ProvideScannerAndKinematicsData(fixture, simulator, torch_pos);
-
-  // Check Ready state
-  ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-  CHECK(ready_msg);
-  CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::NOT_READY_AUTO_CAL_MOVE);
-
-  CHECK(WeldObjectCalRightPosRsp(fixture));
-
-  TESTLOG(">>>>> Automatic grid measurement sequence started");
-
-  while (GridMeasurementAttempt(fixture, simulator)) {
-    // Loop while new grid positions are requested
-  }
-
-  // The procedure is complete here
-  auto calibration_result = WeldObjectCalResult(fixture, sim_config);
-  CHECK(calibration_result.at("result") == SUCCESS_PAYLOAD.at("result"));
-  auto calibration_result_payload = calibration_result.at("payload");
-  TESTLOG(">>>>> WeldObjectCalResult: {}", calibration_result_payload.dump());
-  auto torch_to_lpcs_translation_c2 =
-      calibration_result_payload.at("torchToLpcsTranslation").at("c2").get<double>() / 1000.0;
-  auto const tolerance = sim_config.lpcs_config.y * 0.01;
-  REQUIRE(torch_to_lpcs_translation_c2 == doctest::Approx(sim_config.lpcs_config.y).epsilon(tolerance));
-
-  // Check Ready state
-  ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-  CHECK(ready_msg);
-  CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::NOT_READY);
-  CHECK_EQ(fixture.Management()->Queued(), 0);
-
-  // Now apply this calibration result
-  WeldObjectCalSet(fixture, calibration_result_payload);
-
-  CHECK_EQ(WeldObjectCalSetRsp(fixture).at("result"), expect_ok.at("result"));
-
-  ready_msg = fixture.Management()->Receive<common::msg::management::ReadyState>();
-  CHECK(ready_msg);
-  CHECK_EQ(ready_msg->state, common::msg::management::ReadyState::State::TRACKING_READY);
-  CHECK_EQ(fixture.Management()->Queued(), 0);
-
-  return true;
 }
 
 // NOLINTEND(*-magic-numbers, *-optional-access, hicpp-signed-bitwise)

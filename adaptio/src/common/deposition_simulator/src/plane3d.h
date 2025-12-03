@@ -4,6 +4,7 @@
 #include <string>
 
 #include "../point3d.h"
+#include "line3d.h"
 
 namespace deposition_simulator {
 class Plane3d {
@@ -18,6 +19,7 @@ class Plane3d {
   auto GetHomNormal() const -> Eigen::Vector4d;
   auto GetPointInPlane() const -> Point3d;
   auto GetRefSystem() const -> CoordinateSystem;
+  auto Intersect(const Plane3d &other) const -> Line3d;
 };
 
 }  // namespace deposition_simulator

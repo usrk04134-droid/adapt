@@ -6,7 +6,7 @@
 
 #include <exception>
 #include <functional>
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 
@@ -14,7 +14,7 @@
 
 namespace calibration {
 
-const std::string LASER_TORCH_CONFIGURATION_TABLE_NAME = "laser_torch_configuration";
+const std::string LASER_TORCH_CONFIGURATION_TABLE_NAME = "laser_torch_configuration_2";
 
 auto StoredLaserTorchConfiguration::DistanceLaserTorch() const -> double { return distance_laser_torch_; }
 auto StoredLaserTorchConfiguration::Stickout() const -> double { return stickout_; }
@@ -71,9 +71,7 @@ void StoredLaserTorchConfiguration::CreateTable(SQLite::Database* db) {
   std::string cmd = fmt::format(
       "CREATE TABLE {} ("
       "id INTEGER PRIMARY KEY, "
-      "distance_laser_torch REAL, "
-      "stickout REAL, "
-      "scanner_mount_angle REAL)",
+      "data TEXT)",
       LASER_TORCH_CONFIGURATION_TABLE_NAME);
 
   db->exec(cmd);
@@ -85,11 +83,10 @@ auto StoredLaserTorchConfiguration::StoreFn()
     LOG_TRACE("Store StoredLaserTorchConfiguration {}", config.ToString());
 
     try {
-      std::string cmd =
-          fmt::format("INSERT OR REPLACE INTO {} VALUES (1, ?, ?, ?)", LASER_TORCH_CONFIGURATION_TABLE_NAME);
+      std::string cmd = fmt::format("INSERT OR REPLACE INTO {} VALUES (1, ?)", LASER_TORCH_CONFIGURATION_TABLE_NAME);
 
       SQLite::Statement query(*db, cmd);
-      SQLite::bind(query, config.distance_laser_torch_, config.stickout_, config.scanner_mount_angle_);
+      SQLite::bind(query, config.ToJson().dump());
 
       return query.exec() == 1;
     } catch (const std::exception& e) {
@@ -102,19 +99,24 @@ auto StoredLaserTorchConfiguration::StoreFn()
 auto StoredLaserTorchConfiguration::GetFn()
     -> std::function<std::optional<StoredLaserTorchConfiguration>(SQLite::Database*)> {
   return [](SQLite::Database* db) -> std::optional<StoredLaserTorchConfiguration> {
-    std::string cmd = fmt::format("SELECT * FROM {}", LASER_TORCH_CONFIGURATION_TABLE_NAME);
+    std::string cmd = fmt::format("SELECT data FROM {}", LASER_TORCH_CONFIGURATION_TABLE_NAME);
     SQLite::Statement query(*db, cmd);
 
     if (!query.executeStep()) {
       return std::nullopt;
     }
 
-    StoredLaserTorchConfiguration config;
-    config.distance_laser_torch_ = query.getColumn(1).getDouble();
-    config.stickout_             = query.getColumn(2).getDouble();
-    config.scanner_mount_angle_  = query.getColumn(3).getDouble();
-
-    return config;
+    try {
+      auto json_str = query.getColumn(0).getString();
+      auto json_obj = nlohmann::json::parse(json_str);
+      return FromJson(json_obj);
+    } catch (const nlohmann::json::exception& e) {
+      LOG_ERROR("Failed to parse StoredLaserTorchConfiguration from database JSON - exception: {}", e.what());
+      return std::nullopt;
+    } catch (const std::exception& e) {
+      LOG_ERROR("Failed to read StoredLaserTorchConfiguration from database - exception: {}", e.what());
+      return std::nullopt;
+    }
   };
 }
 

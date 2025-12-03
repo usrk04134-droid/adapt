@@ -46,6 +46,10 @@ struct CalibrationResult {
   double adjusted_r_squared;
 };
 
+struct LWCalibrationResult {
+  common::Vector3D torch_to_lpcs_translation;
+};
+
 class CalibrationSolver {
  public:
   virtual ~CalibrationSolver() = default;

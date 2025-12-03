@@ -117,7 +117,7 @@ Response:
 Request:
 {"name":"WeldObjectCalRightPos","payload":{}}
 Response:
-{"name":"WeldObjectCalRightPos","payload":{},"result":"ok"}
+{"name":"WeldObjectCalRightPosRsp","payload":{},"result":"ok"}
 
 ------------------
 Push:
@@ -130,11 +130,11 @@ Push:
 Request:
 {"name":"WeldObjectCalGet","payload":{}}
 Response:
-{"name":"WeldObjectCalGetRsp","payload":{"residualStandardError":0.0015,"rotationCenter":{"c1":-28.8,"c2":-88.7,"c3":-970.9},"torchToLpcsTranslation":{"c1":0.0,"c2":355.1,"c3":23.1},"weldObjectRadius":1000.0,"weldObjectRotationAxis":{"c1":0.0,"c2":0.0,"c3":1.0}},"result":"ok"}
+{"name":"WeldObjectCalGetRsp","payload":{"residualStandardError":0.0015,"rotationCenter":{"c1":-28.8,"c2":-88.7,"c3":-970.9},"torchToLpcsTranslation":{"c1":0.0,"c2":355.1,"c3":23.1},"weldObjectRadius":1000.0,"weldObjectRotationAxis":{"c1":0.0,"c2":0.0,"c3":1.0},"wireDiameter":4.0,"stickout":25.0},"result":"ok"}
 
 ------------------
 Request:
-{"name":"WeldObjectCalSet","payload":{"residualStandardError":0.0015,"rotationCenter":{"c1":-28.8,"c2":-88.7,"c3":-970.9},"torchToLpcsTranslation":{"c1":0.0,"c2":355.1,"c3":23.1},"weldObjectRadius":1000.0,"weldObjectRotationAxis":{"c1":0.0,"c2":0.0,"c3":1.0}}}
+{"name":"WeldObjectCalSet","payload":{"residualStandardError":0.0015,"rotationCenter":{"c1":-28.8,"c2":-88.7,"c3":-970.9},"torchToLpcsTranslation":{"c1":0.0,"c2":355.1,"c3":23.1},"weldObjectRadius":1000.0,"weldObjectRotationAxis":{"c1":0.0,"c2":0.0,"c3":1.0},"wireDiameter":4.0,"stickout":25.0}}
 Response:
 {"name":"WeldObjectCalSetRsp","payload":{},"result":"ok"}
 
@@ -149,6 +149,54 @@ Request:
 {"name":"LaserTorchCalSet","payload":{"distanceLaserTorch":150.0,"stickout":25.0, "scannerMountAngle":0.26},"result":"ok"}
 Response:
 {"name":"LaserTorchCalSetRsp","payload":{},"result":"ok"}
+
+------------------
+LW Calibration Messages
+------------------
+Request:
+{"name":"LWCalGet","payload":{}}
+Response:
+{"name":"LWCalGetRsp","payload":{"torchToLpcsTranslation":{"c1":0.0,"c2":355.1,"c3":23.1},"distanceLaserTorch":150.0,"stickout":25.0,"scannerMountAngle":0.26},"result":"ok"}
+
+------------------
+Request:
+{"name":"LWCalSet","payload":{"torchToLpcsTranslation":{"c1":0.0,"c2":355.1,"c3":23.1},"distanceLaserTorch":150.0,"stickout":25.0,"scannerMountAngle":0.26}}
+Response:
+{"name":"LWCalSetRsp","payload":{},"result":"ok"}
+
+------------------
+Request:
+{"name":"LWCalStart","payload":{"distanceLaserTorch":150.0,"stickout":25.0,"scannerMountAngle":0.26}}
+Response:
+{"name":"LWCalStartRsp","payload":{},"result":"ok"}
+
+------------------
+Request:
+{"name":"LWCalTopPos","payload":{}}
+Response:
+{"name":"LWCalTopPosRsp","payload":{},"result":"ok"}
+
+------------------
+Request:
+{"name":"LWCalLeftPos","payload":{}}
+Response:
+{"name":"LWCalLeftPosRsp","payload":{},"result":"ok"}
+
+------------------
+Request:
+{"name":"LWCalRightPos","payload":{}}
+Response:
+{"name":"LWCalRightPosRsp","payload":{},"result":"ok"}
+
+------------------
+Push:
+{"name":"LWCalResult","payload":{"torchToLpcsTranslation":{"c1":0.0,"c2":355.1,"c3":23.1},"distanceLaserTorch":150.0,"stickout":25.0,"scannerMountAngle":0.26},"result":"ok"}
+
+------------------
+Request:
+{"name":"LWCalStop","payload":{}}
+Response:
+{"name":"LWCalStopRsp","payload":{},"result":"ok"}
 
 ------------------
 Request:
@@ -170,7 +218,7 @@ Response:
 
 ------------------
 Request:
-{"name":"SetLogLevel","payload":{}}
+{"name":"SetLogLevel","payload":{"logLevel":"trace"}}
 Response:
 {"name":"SetLogLevelRsp","payload":{},"result":"ok"}
 --------------------

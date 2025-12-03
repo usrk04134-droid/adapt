@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <numbers>
@@ -164,7 +165,8 @@ auto Simulator::Initialize(SimConfig config) -> void {
   // TODO(zachjz): Check that jointdefs are internally consistent
   this->sim_config_  = config;
   this->weld_object_ = std::make_shared<CircularWeldObject>(config);
-  this->transformer_ = std::make_shared<CoordinateTransformer>(sim_config_.lpcs_config, sim_config_.opcs_config);
+  this->transformer_ = std::make_shared<CoordinateTransformer>(sim_config_.lpcs_config, sim_config_.opcs_config,
+                                                               config.weld_movement_type);
 
   if (this->object_positioner_ == nullptr) {
     const std::shared_ptr<RollerChuck> chuck_norris =
@@ -331,7 +333,7 @@ auto Simulator::GetLatestDepositedSlice(CoordinateSystem ref_system) const -> st
   Point3d wire_tip_rocs           = this->transformer_->Transform(wire_tip_macs, ROCS);
   const double wire_tip_angle     = std::atan2(-wire_tip_rocs.GetY(), wire_tip_rocs.GetZ());
   wire_tip_macs                   = this->transformer_->Transform(wire_tip_rocs, MACS);
-  std::vector<Point3d> slice_rocs = this->weld_object_->GetLatestDepositedSlice(wire_tip_angle);
+  std::vector<Point3d> slice_rocs = this->weld_object_->GetFirstSliceAfterAngle(wire_tip_angle);
 
   // Change basis of points to ref_system
   std::vector<Point3d> slice_in_ref_sys;
@@ -339,6 +341,32 @@ auto Simulator::GetLatestDepositedSlice(CoordinateSystem ref_system) const -> st
   for (const auto &slice_point : slice_rocs) {
     tmp_ref = this->transformer_->Transform(slice_point, ref_system);
     slice_in_ref_sys.push_back(tmp_ref);
+  }
+
+  return slice_in_ref_sys;
+}
+
+auto Simulator::GetLatestObservedSlice(CoordinateSystem ref_system) const -> std::vector<Point3d> {
+  if (!CheckReadiness()) {
+    throw std::runtime_error("Simulator has not been initilized.");
+  }
+  // Find out where the laser plane intersects the object surface
+  // i.e. get ABW points. Get them in ROCS to facilitate angle calculation. Use ABW0
+  // NOTE: THIS AN APPROXIMATION. TO GET SLICE FROM EXACTLY THE SAME PLANE AS ABW POINTS
+  // INTERPOLATION BETWEEN SLICES IS REQUIRED (IN CWO.CC)
+  auto abw_points                      = this->GetAbwPoints(ROCS);
+  const double laser_plane_slice_angle = std::atan2(-abw_points.at(0)->GetY(), abw_points.at(0)->GetZ());
+  std::vector<Point3d> slice_rocs      = this->weld_object_->GetFirstSliceAfterAngle(laser_plane_slice_angle);
+
+  // Project onto laserplane along weld movement path (i.e. plane of observation)
+  Plane3d laser_plane_rocs = this->transformer_->Transform(LASER_PLANE_LPCS, ROCS);
+  std::optional<Point3d> p_lpcs;
+  std::vector<Point3d> slice_in_ref_sys;
+  for (const auto &p_rocs : slice_rocs) {
+    p_lpcs = this->transformer_->DoWeldMovementProjectionToPlane(p_rocs, laser_plane_rocs, ref_system);
+    if (p_lpcs) {
+      slice_in_ref_sys.push_back(p_lpcs.value());
+    }
   }
 
   return slice_in_ref_sys;
@@ -382,20 +410,6 @@ auto Simulator::RunWithRotation(double delta_angle, double bead_radius) -> void 
     throw std::runtime_error("Simulator has not been initilized.");
   }
   InternalRun(delta_angle, bead_radius);
-
-  // const Point3d torchpos_clcs = transformer_.GetTorchPos(CLCS);
-  //  Project torch position to slice planes.
-  // const Point2d torchpos_slice = transformer_.ProjectToSlicePlane(torchpos_clcs);
-  //  Positive rotation from CLCS z-axis
-  // const double torch_clock_angle = (2 * PI) - atan2(torchpos_clcs.GetY(), torchpos_clcs.GetZ());
-  //  const double vol_dep_rate      = ComputeVolumeDepositionRate();  // m3/s, sum for all torches
-  //  const double bead_area         = vol_dep_rate / sim_config_.travel_speed;
-  //  sim_config_.wire_feed_speed * std::numbers::pi * pow(sim_config_.wire_diameter / 2, 2) / sim_config_.travel_speed;
-  //  TODO(zachjz): Determine if this is to be set or calculated.
-  // const double stickout = this->sim_config_.target_stickout;  // 20e-3;
-
-  // this->weld_object_.AddDeposit(torchpos_slice, torch_clock_angle, delta_angle, bead_area, bead_radius, stickout);
-  // this->transformer_.IncrWeldObjectRotation(delta_angle); //Move into object_positioner
 }
 
 auto Simulator::Rotate(double delta_angle) -> void {
@@ -425,9 +439,6 @@ auto Simulator::InternalRun(double delta_angle, double bead_radius) -> void {  /
   if (target_torch_plane_angle < 0) {
     target_torch_plane_angle = (2 * PI) + target_torch_plane_angle;
   }
-  // std::cout << "Initial:" << initial_torch_plane_angle << "\n";
-  // std::cout << "Delta:" << delta_angle << "\n";
-  // std::cout << "Target:" << target_torch_plane_angle << "\n";
 
   // Determine wire tip in slice CS
   Point3d torchpos_macs = transformer_->GetTorchPos(MACS);
@@ -446,9 +457,6 @@ auto Simulator::InternalRun(double delta_angle, double bead_radius) -> void {  /
                                                                                     maybe_next_slice->GetSliceAngle());
   // double angle_incr = maybe_next_slice->GetSliceAngle() - initial_torch_plane_angle;
   accum_rotation += std::abs(angle_incr);
-  // std::cout << "Increment:" << angle_incr << "\n";
-  // std::cout << "Next slice:" << maybe_next_slice->GetSliceAngle() << "\n";
-  // std::cout << "Accum:" << accum_rotation << "\n";
 
   // Iterate over all slices affected by the delta_angle rotation and add deposit to slices
   while (accum_rotation <= delta_angle) {
@@ -465,8 +473,6 @@ auto Simulator::InternalRun(double delta_angle, double bead_radius) -> void {  /
     // Move to next slice
     maybe_next_slice  = this->weld_object_->MoveToPrevSlice();
     accum_rotation   += slice_to_slice_angle;
-    //   std::cout << "Next slice:" << maybe_next_slice->GetSliceAngle() << "\n";
-    //   std::cout << "Accum:" << accum_rotation << "\n";
   }
 
   // Move one slice back since if we moved to far. Is usually the case but sometimes
@@ -480,8 +486,6 @@ auto Simulator::InternalRun(double delta_angle, double bead_radius) -> void {  /
   }
   // Store curr torch plane angle to know where to start next time.
   this->weld_object_->SetTorchPlaneAngle(target_torch_plane_angle);
-
-  // std::cout << "New torch plane angle:" << this->weld_object_->GetTorchPlaneAngle() << "\n";
 }
 
 auto Simulator::GetSliceInTorchPlane(CoordinateSystem ref_system) const -> std::vector<std::optional<Point3d>> {

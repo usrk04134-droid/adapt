@@ -12,6 +12,7 @@ enum class ActivityStatusE : uint32_t {
   WELD_OBJECT_CALIBRATION = 2,
   CALIBRATION_AUTO_MOVE   = 3,
   TRACKING                = 4,
+  LW_CALIBRATION          = 5,
 };
 
 inline auto ActivityStatusToString(ActivityStatusE status) -> std::string {
@@ -26,6 +27,8 @@ inline auto ActivityStatusToString(ActivityStatusE status) -> std::string {
       return "calibration-auto-move";
     case ActivityStatusE::TRACKING:
       return "tracking";
+    case ActivityStatusE::LW_CALIBRATION:
+      return "lw-calibration";
     default:
       break;
   }
