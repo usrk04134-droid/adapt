@@ -93,9 +93,9 @@ TEST_SUITE("MultiblockCalibration") {
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top_u_bevel") {
@@ -128,9 +128,9 @@ TEST_SUITE("MultiblockCalibration") {
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("lw_calibration") {
@@ -163,9 +163,9 @@ TEST_SUITE("MultiblockCalibration") {
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;  // 1mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("cal_set_get_ltc") {
