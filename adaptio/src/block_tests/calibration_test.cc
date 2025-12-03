@@ -86,32 +86,12 @@ TEST_SUITE("MultiblockCalibration") {
 
     // Get ABW points before JointTracking moves the torch
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    REQUIRE(abw_in_torch_plane.size() >= 7);  // Ensure we have ABW0-ABW6
 
     const float JT_HORIZONTAL_OFFSET = 0.0;
     const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
 
-    // For center tracking with BOTTOM reference, horizontal uses midpoint of ABW1 and ABW5 (lower left/right)
-    // Then subtracts horizontal_offset
-    const double center_horizontal =
-        (abw_in_torch_plane[1].GetX() + abw_in_torch_plane[5].GetX()) / 2.0;  // ABW1 and ABW5
-    const double expected_x = center_horizontal - help_sim::ConvertMm2M(JT_HORIZONTAL_OFFSET);
-
-    // Vertical tracker interpolates from the groove line at the calculated horizontal position
-    // Find the two ABW points that bracket the expected horizontal position and interpolate
-    double interpolated_z = abw_in_torch_plane[3].GetZ();  // Default to ABW3's Z
-    for (size_t i = 0; i < abw_in_torch_plane.size() - 1; ++i) {
-      const double x1 = abw_in_torch_plane[i].GetX();
-      const double x2 = abw_in_torch_plane[i + 1].GetX();
-      if ((expected_x >= x1 && expected_x <= x2) || (expected_x >= x2 && expected_x <= x1)) {
-        if (x2 != x1) {
-          const double t = (expected_x - x1) / (x2 - x1);
-          interpolated_z = abw_in_torch_plane[i].GetZ() + t * (abw_in_torch_plane[i + 1].GetZ() - abw_in_torch_plane[i].GetZ());
-        }
-        break;
-      }
-    }
-    const double expected_z = interpolated_z + help_sim::ConvertMm2M(JT_VERTICAL_OFFSET);
+    auto [expected_x, expected_z] =
+        CalculateExpectedCenterTrackingPosition(abw_in_torch_plane, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
 
     JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
 
@@ -149,12 +129,16 @@ TEST_SUITE("MultiblockCalibration") {
 
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
+    // Get ABW points before JointTracking moves the torch
+    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+
     const float JT_HORIZONTAL_OFFSET = 0.0;
     const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+
+    auto [expected_x, expected_z] =
+        CalculateExpectedCenterTrackingPosition(abw_in_torch_plane, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+
     JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
-    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
-    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
     const double tolerance_m = 0.001;
@@ -190,12 +174,16 @@ TEST_SUITE("MultiblockCalibration") {
 
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
+    // Get ABW points before JointTracking moves the torch
+    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+
     const float JT_HORIZONTAL_OFFSET = 0.0;
     const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+
+    auto [expected_x, expected_z] =
+        CalculateExpectedCenterTrackingPosition(abw_in_torch_plane, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+
     JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
-    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
-    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
     const double tolerance_m = 0.001;
@@ -229,12 +217,17 @@ TEST_SUITE("MultiblockCalibration") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM};
 
     CHECK(LWCalibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
+
+    // Get ABW points before JointTracking moves the torch
+    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+
     const float JT_HORIZONTAL_OFFSET = 0.0;
     const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+
+    auto [expected_x, expected_z] =
+        CalculateExpectedCenterTrackingPosition(abw_in_torch_plane, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+
     JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
-    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
-    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
     const double tolerance_m = 0.001;
