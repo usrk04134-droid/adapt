@@ -8,6 +8,8 @@
 
 #include "block_tests/helpers/helpers_calibration.h"
 #include "block_tests/helpers/helpers_web_hmi.h"
+#include "common/groove/groove.h"
+#include "common/groove/point.h"
 #include "common/messages/scanner.h"
 #include "controller/controller_data.h"
 #include "helpers/helpers.h"
@@ -45,6 +47,43 @@ const double TOP_TOUCH_HORIZONTAL_OFFSET_M = 10e-3;
 
 const float JT_HORIZONTAL_OFFSET = 0.0;
 const float JT_VERTICAL_OFFSET   = STICKOUT_M * 1000 + 1.0;
+
+// Helper function to interpolate groove vertical position at a given horizontal position
+// This matches the logic in vertical_tracker.cc
+inline auto InterpolateGrooveVertical(const std::vector<deposition_simulator::Point3d>& abw_points, double horizontal_pos)
+    -> double {
+  // Convert ABW points to groove format (common::Point with horizontal=X, vertical=Z)
+  std::vector<common::Point> groove_points;
+  groove_points.reserve(abw_points.size());
+  for (const auto& abw : abw_points) {
+    groove_points.push_back({.horizontal = abw.GetX(), .vertical = abw.GetZ()});
+  }
+
+  // Find the two points between which the horizontal value lies (same logic as vertical_tracker.cc)
+  auto iter = std::lower_bound(
+      groove_points.begin(), groove_points.end(), horizontal_pos,
+      [](const common::Point& coord, double target_horizontal) { return coord.horizontal > target_horizontal; });
+
+  double joint_height{};
+  if (iter == groove_points.begin()) {
+    joint_height = iter->vertical;
+  } else if (iter == groove_points.end()) {
+    joint_height = (iter - 1)->vertical;
+  } else {
+    // Linear interpolation between the two coordinates
+    const common::Point& first  = *(iter - 1);
+    const common::Point& second = *iter;
+
+    if (second.horizontal == first.horizontal) {
+      return first.vertical;  // Fallback if points are at same horizontal
+    }
+
+    auto slope   = (second.vertical - first.vertical) / (second.horizontal - first.horizontal);
+    joint_height = first.vertical + slope * (horizontal_pos - first.horizontal);
+  }
+
+  return joint_height;
+}
 
 const nlohmann::json DEFAULT_LASER_TORCH_CONFIG = {
     {"distanceLaserTorch", 350.0},
@@ -90,7 +129,10 @@ TEST_SUITE("MultiblockCalibration") {
     JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
-    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+    // Calculate expected vertical position using the same interpolation logic as the tracking algorithm
+    // Interpolate groove at center horizontal position and add vertical offset (in meters)
+    auto interpolated_groove_vertical = InterpolateGrooveVertical(abw_in_torch_plane, expected_x);
+    auto expected_z                   = interpolated_groove_vertical + (JT_VERTICAL_OFFSET / 1000.0);  // Convert mm to m
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
     const double tolerance_m = 0.001;  // 1mm tolerance
@@ -125,7 +167,10 @@ TEST_SUITE("MultiblockCalibration") {
     JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
-    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+    // Calculate expected vertical position using the same interpolation logic as the tracking algorithm
+    // Interpolate groove at center horizontal position and add vertical offset (in meters)
+    auto interpolated_groove_vertical = InterpolateGrooveVertical(abw_in_torch_plane, expected_x);
+    auto expected_z                   = interpolated_groove_vertical + (JT_VERTICAL_OFFSET / 1000.0);  // Convert mm to m
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
     const double tolerance_m = 0.001;  // 1mm tolerance
@@ -160,7 +205,10 @@ TEST_SUITE("MultiblockCalibration") {
     JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
-    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+    // Calculate expected vertical position using the same interpolation logic as the tracking algorithm
+    // Interpolate groove at center horizontal position and add vertical offset (in meters)
+    auto interpolated_groove_vertical = InterpolateGrooveVertical(abw_in_torch_plane, expected_x);
+    auto expected_z                   = interpolated_groove_vertical + (JT_VERTICAL_OFFSET / 1000.0);  // Convert mm to m
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
     const double tolerance_m = 0.001;  // 1mm tolerance
