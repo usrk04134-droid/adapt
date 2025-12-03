@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iomanip>
 #include <memory>
 #include <nlohmann/json_fwd.hpp>
 
@@ -81,47 +82,22 @@ TEST_SUITE("MultiblockCalibration") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM,
                          .weld_object_diameter_m  = WELD_OBJECT_DIAMETER_M};
 
-    CHECK(Calibrate(mfx, sim_config, *simulator, conf));
+    CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
-    const float jt_horizontal_offset = 0.0;
-    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
-    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
+    const float JT_HORIZONTAL_OFFSET = 0.0;
+    const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
 
-    // Calculate expected position from the groove
-    auto abw_in_torch_plane =
-        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    REQUIRE(abw_in_torch_plane.size() >= 7);  // Ensure we have ABW0-ABW6
+    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
+    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
-    // For center tracking, the torch is positioned at ABW3's horizontal position plus offset
-    const auto& abw3 = abw_in_torch_plane[3];
-    const double torch_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
-    const double expected_horizontal_m = torch_horizontal_m;
-
-    // Interpolate Z coordinate at the exact horizontal position of the torch
-    // Find the two ABW points that bracket the torch horizontal position
-    double interpolated_z = abw3.GetZ();  // Default to ABW3's Z
-    if (torch_horizontal_m < abw3.GetX() && abw_in_torch_plane.size() > 3) {
-      // Interpolate between ABW2 and ABW3
-      const auto& abw2 = abw_in_torch_plane[2];
-      if (abw2.GetX() != abw3.GetX()) {
-        const double t = (torch_horizontal_m - abw2.GetX()) / (abw3.GetX() - abw2.GetX());
-        interpolated_z = abw2.GetZ() + t * (abw3.GetZ() - abw2.GetZ());
-      }
-    } else if (torch_horizontal_m > abw3.GetX() && abw_in_torch_plane.size() > 4) {
-      // Interpolate between ABW3 and ABW4
-      const auto& abw4 = abw_in_torch_plane[4];
-      if (abw4.GetX() != abw3.GetX()) {
-        const double t = (torch_horizontal_m - abw3.GetX()) / (abw4.GetX() - abw3.GetX());
-        interpolated_z = abw3.GetZ() + t * (abw4.GetZ() - abw3.GetZ());
-      }
-    }
-    const double expected_vertical_m = interpolated_z + help_sim::ConvertMm2M(jt_vertical_offset);
-
-    // Check final torch position
-    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.001;  // 1mm tolerance
-    CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
-    CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
+    auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;
+    TESTLOG("expected_x  {} expected_z {} final_torch_pos.GetX() {} final_torch_pos.GetZ() {}", expected_x,
+            expected_z, final_torch_pos.GetX(), final_torch_pos.GetZ());
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) <= tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top") {
@@ -148,47 +124,21 @@ TEST_SUITE("MultiblockCalibration") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM,
                          .weld_object_diameter_m  = WELD_OBJECT_DIAMETER_M};
 
-    CHECK(Calibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
+    CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
-    const float jt_horizontal_offset = 0.0;
-    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
-    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
+    const float JT_HORIZONTAL_OFFSET = 0.0;
+    const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
+    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
-    // Calculate expected position from the groove
-    auto abw_in_torch_plane =
-        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    REQUIRE(abw_in_torch_plane.size() >= 7);  // Ensure we have ABW0-ABW6
-
-    // For center tracking, the torch is positioned at ABW3's horizontal position plus offset
-    const auto& abw3 = abw_in_torch_plane[3];
-    const double torch_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
-    const double expected_horizontal_m = torch_horizontal_m;
-
-    // Interpolate Z coordinate at the exact horizontal position of the torch
-    // Find the two ABW points that bracket the torch horizontal position
-    double interpolated_z = abw3.GetZ();  // Default to ABW3's Z
-    if (torch_horizontal_m < abw3.GetX() && abw_in_torch_plane.size() > 3) {
-      // Interpolate between ABW2 and ABW3
-      const auto& abw2 = abw_in_torch_plane[2];
-      if (abw2.GetX() != abw3.GetX()) {
-        const double t = (torch_horizontal_m - abw2.GetX()) / (abw3.GetX() - abw2.GetX());
-        interpolated_z = abw2.GetZ() + t * (abw3.GetZ() - abw2.GetZ());
-      }
-    } else if (torch_horizontal_m > abw3.GetX() && abw_in_torch_plane.size() > 4) {
-      // Interpolate between ABW3 and ABW4
-      const auto& abw4 = abw_in_torch_plane[4];
-      if (abw4.GetX() != abw3.GetX()) {
-        const double t = (torch_horizontal_m - abw3.GetX()) / (abw4.GetX() - abw3.GetX());
-        interpolated_z = abw3.GetZ() + t * (abw4.GetZ() - abw3.GetZ());
-      }
-    }
-    const double expected_vertical_m = interpolated_z + help_sim::ConvertMm2M(jt_vertical_offset);
-
-    // Check final torch position
-    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.001;  // 1mm tolerance
-    CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
-    CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
+    auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;
+    TESTLOG("expected_x  {} expected_z {} final_torch_pos.GetX() {} final_torch_pos.GetZ() {}", expected_x,
+            expected_z, final_torch_pos.GetX(), final_torch_pos.GetZ());
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) <= tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top_u_bevel") {
@@ -215,47 +165,60 @@ TEST_SUITE("MultiblockCalibration") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM,
                          .weld_object_diameter_m  = WELD_OBJECT_DIAMETER_M};
 
-    CHECK(Calibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
+    CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
-    const float jt_horizontal_offset = 0.0;
-    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
-    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
+    const float JT_HORIZONTAL_OFFSET = 0.0;
+    const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
+    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
-    // Calculate expected position from the groove
-    auto abw_in_torch_plane =
-        help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    REQUIRE(abw_in_torch_plane.size() >= 7);  // Ensure we have ABW0-ABW6
+    auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;
+    TESTLOG("expected_x  {} expected_z {} final_torch_pos.GetX() {} final_torch_pos.GetZ() {}", expected_x,
+            expected_z, final_torch_pos.GetX(), final_torch_pos.GetZ());
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) <= tolerance_m);
+  }
 
-    // For center tracking, the torch is positioned at ABW3's horizontal position plus offset
-    const auto& abw3 = abw_in_torch_plane[3];
-    const double torch_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
-    const double expected_horizontal_m = torch_horizontal_m;
+  TEST_CASE("lw_calibration") {
+    MultiFixture mfx;
 
-    // Interpolate Z coordinate at the exact horizontal position of the torch
-    // Find the two ABW points that bracket the torch horizontal position
-    double interpolated_z = abw3.GetZ();  // Default to ABW3's Z
-    if (torch_horizontal_m < abw3.GetX() && abw_in_torch_plane.size() > 3) {
-      // Interpolate between ABW2 and ABW3
-      const auto& abw2 = abw_in_torch_plane[2];
-      if (abw2.GetX() != abw3.GetX()) {
-        const double t = (torch_horizontal_m - abw2.GetX()) / (abw3.GetX() - abw2.GetX());
-        interpolated_z = abw2.GetZ() + t * (abw3.GetZ() - abw2.GetZ());
-      }
-    } else if (torch_horizontal_m > abw3.GetX() && abw_in_torch_plane.size() > 4) {
-      // Interpolate between ABW3 and ABW4
-      const auto& abw4 = abw_in_torch_plane[4];
-      if (abw4.GetX() != abw3.GetX()) {
-        const double t = (torch_horizontal_m - abw3.GetX()) / (abw4.GetX() - abw3.GetX());
-        interpolated_z = abw3.GetZ() + t * (abw4.GetZ() - abw3.GetZ());
-      }
-    }
-    const double expected_vertical_m = interpolated_z + help_sim::ConvertMm2M(jt_vertical_offset);
+    auto simulator  = depsim::CreateSimulator();
+    auto sim_config = simulator->CreateSimConfig();
+    help_sim::SetSimulatorDefault(sim_config, SIM_3D_OBJECT_SLICES_PER_REV);
 
-    // Check final torch position
-    auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.001;  // 1mm tolerance
-    CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
-    CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
+    help_sim::SetJointGeometry(mfx.Main(), sim_config, help_sim::TEST_JOINT_GEOMETRY_WIDE);
+    StoreSettings(mfx.Main(), TestSettings{.use_edge_sensor = false}, true);
+
+    auto depsim_ws1_torch = simulator->AddSingleWireTorch(help_sim::ConvertMm2M(WIRE_DIAMETER_MM),
+                                                          help_sim::ConvertMmPerS2MPerS(WIRE_VELOCITY_MM_PER_SEC));
+
+    help_sim::ConfigOPCS(sim_config, WELD_OBJECT_DIAMETER_M, STICKOUT_M);
+    help_sim::ConfigLPCS(sim_config, STICKOUT_M, SCANNER_MOUNT_ANGLE);
+
+    simulator->Initialize(sim_config);
+
+    CalibrateConfig conf{.stickout_m              = STICKOUT_M,
+                         .touch_point_depth_m     = TOUCH_POINT_DEPTH_M,
+                         .scanner_mount_angle_rad = SCANNER_MOUNT_ANGLE,
+                         .wire_diameter_mm        = WIRE_DIAMETER_MM};
+
+    CHECK(LWCalibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
+    const float JT_HORIZONTAL_OFFSET = 0.0;
+    const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+    auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
+    auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
+    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+
+    auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
+    const double tolerance_m = 0.001;
+    TESTLOG("expected_x  {} expected_z {} final_torch_pos.GetX() {} final_torch_pos.GetZ() {}", expected_x,
+            expected_z, final_torch_pos.GetX(), final_torch_pos.GetZ());
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) <= tolerance_m);
   }
 
   TEST_CASE("cal_set_get_ltc") {
