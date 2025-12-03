@@ -84,13 +84,14 @@ TEST_SUITE("MultiblockCalibration") {
 
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
-    const float JT_HORIZONTAL_OFFSET = 0.0;
-    const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
-    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
-
+    // Get ABW points before JointTracking moves the torch
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
-    auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+    const float JT_HORIZONTAL_OFFSET = 0.0;
+    const float JT_VERTICAL_OFFSET   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    auto expected_z                  = abw_in_torch_plane[3].GetZ() + help_sim::ConvertMm2M(JT_VERTICAL_OFFSET);
+
+    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
     const double tolerance_m = 0.001;
