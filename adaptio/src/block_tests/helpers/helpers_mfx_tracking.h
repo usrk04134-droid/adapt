@@ -5,6 +5,7 @@
 #include <doctest/doctest.h>
 #include <fmt/core.h>
 
+#include "block_tests/helpers/helpers_calibration.h"
 #include "block_tests/helpers/helpers_mfx.h"
 #include "controller/controller_data.h"
 #include "helpers.h"
@@ -24,6 +25,23 @@ inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& s
                           float vertical_offset) {
   constexpr double kConvergenceToleranceM = 1e-3;
   constexpr int    kMaxIterations         = 50;
+
+  auto abw_macs = helpers_simulator::ConvertFromOptionalAbwVector(simulator.GetSliceInTorchPlane(depsim::MACS));
+  auto abw_lpcs = helpers_simulator::ConvertFromOptionalAbwVector(simulator.GetSliceInTorchPlane(depsim::LPCS));
+
+  if (abw_macs.size() >= 4 && abw_lpcs.size() >= 4) {
+    const double translation_c3_mm =
+        helpers_simulator::ConvertM2Mm(abw_macs[3].GetZ() - abw_lpcs[3].GetZ());
+
+    WeldObjectCalGet(mfx.Main());
+    auto calibration_rsp = WeldObjectCalGetRsp(mfx.Main());
+    if (calibration_rsp.contains("payload")) {
+      auto calibration_payload = calibration_rsp.at("payload");
+      calibration_payload["torchToLpcsTranslation"]["c3"] = translation_c3_mm;
+      WeldObjectCalSet(mfx.Main(), calibration_payload);
+      CHECK(WeldObjectCalSetRsp(mfx.Main()));
+    }
+  }
 
   auto torch_pos = simulator.GetTorchPosition(depsim::MACS);
   TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
