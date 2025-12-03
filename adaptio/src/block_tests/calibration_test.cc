@@ -90,15 +90,36 @@ TEST_SUITE("MultiblockCalibration") {
     // Calculate expected position from the groove
     auto abw_in_torch_plane =
         help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    // For center tracking, use ABW3 (center point)
-    REQUIRE(abw_in_torch_plane.size() >= 4);  // Ensure we have at least ABW0-ABW3
+    REQUIRE(abw_in_torch_plane.size() >= 7);  // Ensure we have ABW0-ABW6
+
+    // For center tracking, the torch is positioned at ABW3's horizontal position plus offset
     const auto& abw3 = abw_in_torch_plane[3];
-    const double expected_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
-    const double expected_vertical_m   = abw3.GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
+    const double torch_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_horizontal_m = torch_horizontal_m;
+
+    // Interpolate Z coordinate at the exact horizontal position of the torch
+    // Find the two ABW points that bracket the torch horizontal position
+    double interpolated_z = abw3.GetZ();  // Default to ABW3's Z
+    if (torch_horizontal_m < abw3.GetX() && abw_in_torch_plane.size() > 3) {
+      // Interpolate between ABW2 and ABW3
+      const auto& abw2 = abw_in_torch_plane[2];
+      if (abw2.GetX() != abw3.GetX()) {
+        const double t = (torch_horizontal_m - abw2.GetX()) / (abw3.GetX() - abw2.GetX());
+        interpolated_z = abw2.GetZ() + t * (abw3.GetZ() - abw2.GetZ());
+      }
+    } else if (torch_horizontal_m > abw3.GetX() && abw_in_torch_plane.size() > 4) {
+      // Interpolate between ABW3 and ABW4
+      const auto& abw4 = abw_in_torch_plane[4];
+      if (abw4.GetX() != abw3.GetX()) {
+        const double t = (torch_horizontal_m - abw3.GetX()) / (abw4.GetX() - abw3.GetX());
+        interpolated_z = abw3.GetZ() + t * (abw4.GetZ() - abw3.GetZ());
+      }
+    }
+    const double expected_vertical_m = interpolated_z + help_sim::ConvertMm2M(jt_vertical_offset);
 
     // Check final torch position
     auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;  // 10mm tolerance
+    const double tolerance_m = 0.001;  // 1mm tolerance
     CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
     CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
   }
@@ -136,15 +157,36 @@ TEST_SUITE("MultiblockCalibration") {
     // Calculate expected position from the groove
     auto abw_in_torch_plane =
         help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    // For center tracking, use ABW3 (center point)
-    REQUIRE(abw_in_torch_plane.size() >= 4);  // Ensure we have at least ABW0-ABW3
+    REQUIRE(abw_in_torch_plane.size() >= 7);  // Ensure we have ABW0-ABW6
+
+    // For center tracking, the torch is positioned at ABW3's horizontal position plus offset
     const auto& abw3 = abw_in_torch_plane[3];
-    const double expected_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
-    const double expected_vertical_m   = abw3.GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
+    const double torch_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_horizontal_m = torch_horizontal_m;
+
+    // Interpolate Z coordinate at the exact horizontal position of the torch
+    // Find the two ABW points that bracket the torch horizontal position
+    double interpolated_z = abw3.GetZ();  // Default to ABW3's Z
+    if (torch_horizontal_m < abw3.GetX() && abw_in_torch_plane.size() > 3) {
+      // Interpolate between ABW2 and ABW3
+      const auto& abw2 = abw_in_torch_plane[2];
+      if (abw2.GetX() != abw3.GetX()) {
+        const double t = (torch_horizontal_m - abw2.GetX()) / (abw3.GetX() - abw2.GetX());
+        interpolated_z = abw2.GetZ() + t * (abw3.GetZ() - abw2.GetZ());
+      }
+    } else if (torch_horizontal_m > abw3.GetX() && abw_in_torch_plane.size() > 4) {
+      // Interpolate between ABW3 and ABW4
+      const auto& abw4 = abw_in_torch_plane[4];
+      if (abw4.GetX() != abw3.GetX()) {
+        const double t = (torch_horizontal_m - abw3.GetX()) / (abw4.GetX() - abw3.GetX());
+        interpolated_z = abw3.GetZ() + t * (abw4.GetZ() - abw3.GetZ());
+      }
+    }
+    const double expected_vertical_m = interpolated_z + help_sim::ConvertMm2M(jt_vertical_offset);
 
     // Check final torch position
     auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;  // 10mm tolerance
+    const double tolerance_m = 0.001;  // 1mm tolerance
     CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
     CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
   }
@@ -182,15 +224,36 @@ TEST_SUITE("MultiblockCalibration") {
     // Calculate expected position from the groove
     auto abw_in_torch_plane =
         help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
-    // For center tracking, use ABW3 (center point)
-    REQUIRE(abw_in_torch_plane.size() >= 4);  // Ensure we have at least ABW0-ABW3
+    REQUIRE(abw_in_torch_plane.size() >= 7);  // Ensure we have ABW0-ABW6
+
+    // For center tracking, the torch is positioned at ABW3's horizontal position plus offset
     const auto& abw3 = abw_in_torch_plane[3];
-    const double expected_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
-    const double expected_vertical_m   = abw3.GetZ() + help_sim::ConvertMm2M(jt_vertical_offset);
+    const double torch_horizontal_m = abw3.GetX() + help_sim::ConvertMm2M(jt_horizontal_offset);
+    const double expected_horizontal_m = torch_horizontal_m;
+
+    // Interpolate Z coordinate at the exact horizontal position of the torch
+    // Find the two ABW points that bracket the torch horizontal position
+    double interpolated_z = abw3.GetZ();  // Default to ABW3's Z
+    if (torch_horizontal_m < abw3.GetX() && abw_in_torch_plane.size() > 3) {
+      // Interpolate between ABW2 and ABW3
+      const auto& abw2 = abw_in_torch_plane[2];
+      if (abw2.GetX() != abw3.GetX()) {
+        const double t = (torch_horizontal_m - abw2.GetX()) / (abw3.GetX() - abw2.GetX());
+        interpolated_z = abw2.GetZ() + t * (abw3.GetZ() - abw2.GetZ());
+      }
+    } else if (torch_horizontal_m > abw3.GetX() && abw_in_torch_plane.size() > 4) {
+      // Interpolate between ABW3 and ABW4
+      const auto& abw4 = abw_in_torch_plane[4];
+      if (abw4.GetX() != abw3.GetX()) {
+        const double t = (torch_horizontal_m - abw3.GetX()) / (abw4.GetX() - abw3.GetX());
+        interpolated_z = abw3.GetZ() + t * (abw4.GetZ() - abw3.GetZ());
+      }
+    }
+    const double expected_vertical_m = interpolated_z + help_sim::ConvertMm2M(jt_vertical_offset);
 
     // Check final torch position
     auto final_torch_pos = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;  // 10mm tolerance
+    const double tolerance_m = 0.001;  // 1mm tolerance
     CHECK(std::abs(final_torch_pos.GetX() - expected_horizontal_m) < tolerance_m);
     CHECK(std::abs(final_torch_pos.GetZ() - expected_vertical_m) < tolerance_m);
   }
