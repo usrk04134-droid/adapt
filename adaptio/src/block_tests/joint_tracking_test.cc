@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "block_tests/helpers/helpers_mfx_calibration.h"
 #include "block_tests/helpers/helpers_mfx_tracking.h"
 #include "block_tests/helpers/helpers_web_hmi.h"
 #include "common/messages/management.h"
@@ -25,12 +26,13 @@ namespace help_sim = helpers_simulator;
 namespace {
 const int SIM_3D_OBJECT_SLICES_PER_REV{800};
 
-const double WELD_OBJECT_DIAMETER_M = 2.0;
-const double STICKOUT_M             = 25e-3;
-// const double TOUCH_POINT_DEPTH_M      = 10e-3;
-const double WIRE_DIAMETER_MM         = 4.0;
-const double WIRE_VELOCITY_MM_PER_SEC = 23.0;
-const double SCANNER_MOUNT_ANGLE      = 6.0 * help_sim::PI / 180.0;
+const double WELD_OBJECT_DIAMETER_M        = 2.0;
+const double STICKOUT_M                    = 25e-3;
+const double TOUCH_POINT_DEPTH_M           = 10e-3;
+const double TOP_TOUCH_HORIZONTAL_OFFSET_M = 10e-3;
+const double WIRE_DIAMETER_MM              = 4.0;
+const double WIRE_VELOCITY_MM_PER_SEC      = 23.0;
+const double SCANNER_MOUNT_ANGLE           = 6.0 * help_sim::PI / 180.0;
 }  // namespace
 
 TEST_SUITE("Joint_tracking") {
@@ -51,6 +53,13 @@ TEST_SUITE("Joint_tracking") {
     help_sim::ConfigLPCS(sim_config, STICKOUT_M, SCANNER_MOUNT_ANGLE);
 
     simulator->Initialize(sim_config);
+
+    CalibrateConfig conf{.stickout_m              = STICKOUT_M,
+                         .touch_point_depth_m     = TOUCH_POINT_DEPTH_M,
+                         .scanner_mount_angle_rad = SCANNER_MOUNT_ANGLE,
+                         .wire_diameter_mm        = WIRE_DIAMETER_MM};
+
+    CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
 
     // Check availability status from webhmi before starting tracking
     {
