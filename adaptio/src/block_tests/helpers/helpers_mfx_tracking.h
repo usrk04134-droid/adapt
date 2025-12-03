@@ -1,61 +1,81 @@
 #pragma once
 
 #include <cmath>
-#include <cstdint>
 
 #include <doctest/doctest.h>
+#include <fmt/core.h>
 
 #include "block_tests/helpers/helpers_mfx.h"
-#include "block_tests/helpers/helpers_simulator.h"
-#include "common/messages/management.h"
-#include "common/messages/scanner.h"
+#include "controller/controller_data.h"
+#include "helpers.h"
+#include "helpers_simulator.h"
+#include "simulator_interface.h"
+#include "test_utils/testlog.h"
 #include "tracking/tracking_manager.h"
 
-// NOLINTBEGIN(*-magic-numbers)
+// NOLINTBEGIN(*-magic-numbers, *-optional-access)
 
-namespace help_sim = helpers_simulator;
-namespace depsim   = deposition_simulator;
+namespace depsim = deposition_simulator;
+using controller::AdaptioInput;
+using controller::AxisInput;
+using controller::TrackInput;
 
-inline void JointTracking(MultiFixture& mfx, depsim::ISimulator& simulator, float horizontal_offset_mm,
-                          float vertical_offset_mm, double convergence_tolerance_m = 1e-3,
-                          int max_iterations = 50) {
-  TrackingPreconditions(mfx);
-
-  common::msg::management::TrackingStart start_msg{
-      .joint_tracking_mode = static_cast<uint32_t>(tracking::TrackingMode::TRACKING_CENTER_HEIGHT),
-      .horizontal_offset   = horizontal_offset_mm,
-      .vertical_offset     = vertical_offset_mm};
-  mfx.Main().Management()->Dispatch(start_msg);
-
-  TrackingStart(mfx);
-
-  helpers_simulator::AutoTorchPosition(mfx, simulator);
+inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& simulator, float horizontal_offset,
+                          float vertical_offset) {
+  constexpr double kConvergenceToleranceM = 1e-3;
+  constexpr int    kMaxIterations         = 50;
 
   auto torch_pos = simulator.GetTorchPosition(depsim::MACS);
   TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
 
-  REQUIRE_MESSAGE(mfx.Main().Scanner()->Receive<common::msg::scanner::Start>(), "No Start msg received");
-  mfx.Main().Scanner()->Dispatch(common::msg::scanner::StartRsp{.success = true});
+  TrackInput tracking_data;
+  tracking_data.set_joint_tracking_mode(static_cast<uint32_t>(tracking::TrackingMode::TRACKING_CENTER_HEIGHT));
+  tracking_data.set_horizontal_offset(horizontal_offset);
+  tracking_data.set_vertical_offset(vertical_offset);
+  tracking_data.set_linear_object_distance(0);
+  tracking_data.set_weld_object_radius(3500);
+  tracking_data.set_edge_tracker_value(0.0);
+  mfx.Ctrl().Sut()->OnTrackingInputUpdate(tracking_data);
+
+  AxisInput axis_data;
+  axis_data.set_position(1.23F);
+  axis_data.set_velocity(2.55F);
+  mfx.Ctrl().Sut()->OnWeldAxisInputUpdate(axis_data);
+
+  AdaptioInput adaptio_input;
+  adaptio_input.set_commands_start(true);
+  adaptio_input.set_sequence_type(1);
+  mfx.Ctrl().Sut()->OnAdaptioInputUpdate(adaptio_input);
+
+  mfx.PlcDataUpdate();
+  CHECK_EQ(mfx.Ctrl().Mock()->adaptio_output.get_active_sequence_type(), 1);
 
   ProvideScannerAndKinematicsData(mfx, simulator, torch_pos);
 
   double previous_z = torch_pos.GetZ();
 
-  for (int iteration = 0; iteration < max_iterations; ++iteration) {
+  for (int iteration = 0; iteration < kMaxIterations; ++iteration) {
     mfx.PlcDataUpdate();
 
-    auto commanded = simulator.GetTorchPosition(depsim::MACS);
-    TESTLOG(">>>>> Tracking iteration {} torch position: {}", iteration, ToString(commanded));
+    auto horizontal_pos_m =
+        helpers_simulator::ConvertMm2M(static_cast<double>(mfx.Ctrl().Mock()->axis_x_output.get_position()));
+    auto vertical_pos_m =
+        helpers_simulator::ConvertMm2M(static_cast<double>(mfx.Ctrl().Mock()->axis_y_output.get_position()));
 
-    const double delta_z = std::fabs(commanded.GetZ() - previous_z);
-    previous_z           = commanded.GetZ();
+    depsim::Point3d torch_pos_macs(horizontal_pos_m, 0, vertical_pos_m, depsim::MACS);
+    simulator.UpdateTorchPosition(torch_pos_macs);
 
-    if (delta_z < convergence_tolerance_m) {
+    TESTLOG(">>>>> Tracking iteration {} moved to torch position: {}", iteration, ToString(torch_pos_macs));
+
+    const double delta_z = std::abs(torch_pos_macs.GetZ() - previous_z);
+    previous_z           = torch_pos_macs.GetZ();
+
+    if (delta_z < kConvergenceToleranceM) {
       break;
     }
 
-    ProvideScannerAndKinematicsData(mfx, simulator, commanded);
+    ProvideScannerAndKinematicsData(mfx, simulator, torch_pos_macs);
   }
 }
 
-// NOLINTEND(*-magic-numbers)
+// NOLINTEND(*-magic-numbers, *-optional-access)
