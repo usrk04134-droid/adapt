@@ -44,7 +44,7 @@ const double TOUCH_POINT_DEPTH_M           = 10e-3;
 const double TOP_TOUCH_HORIZONTAL_OFFSET_M = 10e-3;
 
 const float JT_HORIZONTAL_OFFSET = 0.0;
-const float JT_VERTICAL_OFFSET   = STICKOUT_M * 1000 + 1.0;
+const float JT_VERTICAL_OFFSET   = static_cast<float>(help_sim::ConvertM2Mm(STICKOUT_M));
 
 const nlohmann::json DEFAULT_LASER_TORCH_CONFIG = {
     {"distanceLaserTorch", 350.0},
@@ -93,9 +93,9 @@ TEST_SUITE("MultiblockCalibration") {
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top_u_bevel") {
@@ -128,9 +128,9 @@ TEST_SUITE("MultiblockCalibration") {
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("lw_calibration") {
@@ -163,9 +163,9 @@ TEST_SUITE("MultiblockCalibration") {
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("cal_set_get_ltc") {
