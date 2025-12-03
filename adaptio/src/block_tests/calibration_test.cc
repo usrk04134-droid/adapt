@@ -53,11 +53,13 @@ const nlohmann::json DEFAULT_LASER_TORCH_CONFIG = {
 };
 
 const nlohmann::json DEFAULT_CAL_RESULT = {
-    {"residualStandardError",  0.00                                               },
-    {"rotationCenter",         {{"c1", -28.79}, {"c2", -115.95}, {"c3", -1028.50}}},
-    {"torchToLpcsTranslation", {{"c1", 0.0}, {"c2", 349.29}, {"c3", -31.79}}      },
-    {"weldObjectRadius",       1000.0                                             },
-    {"weldObjectRotationAxis", {{"c1", 1.0}, {"c2", 0.0}, {"c3", 0.0}}            }
+    {"residualStandardError",  0.0011649293846609649                                  },
+    {"rotationCenter",
+     {{"c1", 8.881784197001252e-16}, {"c2", -90.70066405183042}, {"c3", -1020.9834625296584}}},
+    {"torchToLpcsTranslation",
+     {{"c1", 1.0228080329985795e-06}, {"c2", 349.94733348613374}, {"c3", -25.501088407456564}}},
+    {"weldObjectRadius",       1000.0                                                  },
+    {"weldObjectRotationAxis", {{"c1", 1.0}, {"c2", 0.0}, {"c3", 0.0}}                 }
 };
 
 }  // namespace
