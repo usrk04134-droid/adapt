@@ -29,6 +29,8 @@ inline void JointTracking(MultiFixture& mfx, depsim::ISimulator& simulator, floa
 
   TrackingStart(mfx);
 
+  helpers_simulator::AutoTorchPosition(mfx, simulator);
+
   auto torch_pos = simulator.GetTorchPosition(depsim::MACS);
   TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
 
@@ -37,27 +39,22 @@ inline void JointTracking(MultiFixture& mfx, depsim::ISimulator& simulator, floa
 
   ProvideScannerAndKinematicsData(mfx, simulator, torch_pos);
 
+  double previous_z = torch_pos.GetZ();
+
   for (int iteration = 0; iteration < max_iterations; ++iteration) {
-    const auto axis_x_mm = static_cast<double>(mfx.Ctrl().Mock()->axis_x_output.get_position());
-    const auto axis_z_mm = static_cast<double>(mfx.Ctrl().Mock()->axis_y_output.get_position());
+    mfx.PlcDataUpdate();
 
-    auto const axis_x_m = help_sim::ConvertMm2M(axis_x_mm);
-    auto const axis_z_m = help_sim::ConvertMm2M(axis_z_mm);
+    auto commanded = simulator.GetTorchPosition(depsim::MACS);
+    TESTLOG(">>>>> Tracking iteration {} torch position: {}", iteration, ToString(commanded));
 
-    TESTLOG("h_pos {} v_pos {}", axis_x_m, axis_z_m);
-
-    depsim::Point3d commanded(axis_x_m, 0.0, axis_z_m, depsim::MACS);
-    simulator.UpdateTorchPosition(commanded);
-    TESTLOG(">>>>> Tracking, moved to torch position: {}", ToString(commanded));
-
-    const double delta_z = std::fabs(commanded.GetZ() - torch_pos.GetZ());
-    torch_pos            = commanded;
+    const double delta_z = std::fabs(commanded.GetZ() - previous_z);
+    previous_z           = commanded.GetZ();
 
     if (delta_z < convergence_tolerance_m) {
       break;
     }
 
-    ProvideScannerAndKinematicsData(mfx, simulator, torch_pos);
+    ProvideScannerAndKinematicsData(mfx, simulator, commanded);
   }
 }
 
