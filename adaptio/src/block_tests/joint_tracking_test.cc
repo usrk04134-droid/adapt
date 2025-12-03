@@ -1,73 +1,90 @@
-#include <cstdint>
+#include <algorithm>
+#include <cmath>
+#include <doctest/doctest.h>
+#include <iterator>
 
-#include "common/messages/management.h"
-#include "common/messages/weld_system.h"
-#include "helpers/helpers_event_handling.h"
+#include "block_tests/helpers/helpers_tracking.h"
+#include "block_tests/helpers/helpers_web_hmi.h"
+#include "coordination/activity_status.h"
+#include "helpers/helpers.h"
 #include "helpers/helpers_joint_geometry.h"
-#include "helpers/helpers_kinematics.h"
 #include "helpers/helpers_settings.h"
-#include "helpers/helpers_weld_system.h"
-#include "tracking/tracking_manager.h"
-#include "weld_system_client/weld_system_types.h"
+#include "helpers/helpers_simulator.h"
+#include "simulator_interface.h"
+#include "web_hmi/web_hmi_json_helpers.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
 
-#include <doctest/doctest.h>
-
-#include "common/messages/kinematics.h"
-#include "common/messages/scanner.h"
-#include "helpers/helpers.h"
-
 namespace {
-const float HORIZONTAL_OFFSET = 10.0;
-const float VERTICAL_OFFSET   = 20.0;
+const int SIM_3D_OBJECT_SLICES_PER_REV{800};
+
+const double WELD_OBJECT_DIAMETER_M = 2.0;
+const double STICKOUT_M             = 25e-3;
+const double WIRE_DIAMETER_MM       = 4.0;
+const double WIRE_VELOCITY_MM_PER_SEC = 23.0;
+const double SCANNER_MOUNT_ANGLE    = 6.0 * helpers_simulator::PI / 180.0;
+
+const auto ACTIVITY_STATUS_IDLE     = static_cast<uint32_t>(coordination::ActivityStatusE::IDLE);
+const auto ACTIVITY_STATUS_TRACKING = static_cast<uint32_t>(coordination::ActivityStatusE::TRACKING);
 }  // namespace
 
 TEST_SUITE("Joint_tracking") {
-  TEST_CASE("basic_sequence") {
-    TestFixture fixture;
-    fixture.StartApplication();
+  TEST_CASE("joint_tracking_with_multi_fixture") {
+    MultiFixture mfx;
 
-    StoreSettings(fixture, TestSettings{.use_edge_sensor = false}, true);
-    StoreDefaultJointGeometryParams(fixture);
+    auto simulator  = deposition_simulator::CreateSimulator();
+    auto sim_config = simulator->CreateSimConfig();
+    helpers_simulator::SetSimulatorDefault(sim_config, SIM_3D_OBJECT_SLICES_PER_REV);
 
-    // Start Joint tracking
-    common::msg::management::TrackingStart start_joint_tracking_msg{
-        static_cast<uint32_t>(tracking::TrackingMode::TRACKING_LEFT_HEIGHT), HORIZONTAL_OFFSET, VERTICAL_OFFSET};
-    fixture.Management()->Dispatch(start_joint_tracking_msg);
+    helpers_simulator::SetJointGeometry(mfx.Main(), sim_config, helpers_simulator::TEST_JOINT_GEOMETRY_WIDE);
+    StoreSettings(mfx.Main(), TestSettings{.use_edge_sensor = false}, true);
 
-    // Receive StartScanner
-    CHECK(fixture.Scanner()->Receive<common::msg::scanner::Start>());
+    auto depsim_ws1_torch = simulator->AddSingleWireTorch(
+        helpers_simulator::ConvertMm2M(WIRE_DIAMETER_MM),
+        helpers_simulator::ConvertMmPerS2MPerS(WIRE_VELOCITY_MM_PER_SEC));
 
-    // ABW points on scanner interface
-    fixture.Scanner()->Dispatch(fixture.ScannerData()->Get());
+    helpers_simulator::ConfigOPCS(sim_config, WELD_OBJECT_DIAMETER_M, STICKOUT_M);
+    helpers_simulator::ConfigLPCS(sim_config, STICKOUT_M, SCANNER_MOUNT_ANGLE);
 
-    // Receive GetPosition
-    auto get_position = fixture.Kinematics()->Receive<common::msg::kinematics::GetSlidesPosition>();
-    CHECK(get_position);
+    simulator->Initialize(sim_config);
 
-    // GetPosition response
-    fixture.Kinematics()->Dispatch(common::msg::kinematics::GetSlidesPositionRsp{.client_id  = get_position->client_id,
-                                                                                 .time_stamp = get_position->time_stamp,
-                                                                                 .horizontal = -20,
-                                                                                 .vertical   = 5});
+    // Check that status is IDLE before starting tracking
+    {
+      auto get_activity_status = web_hmi::CreateMessage("GetActivityStatus", std::nullopt, {});
+      mfx.Main().WebHmiIn()->DispatchMessage(std::move(get_activity_status));
+      auto status_payload = ReceiveJsonByName(mfx.Main(), "GetActivityStatusRsp");
+      CHECK(status_payload != nullptr);
+      CHECK_EQ(status_payload.at("payload").at("value"), ACTIVITY_STATUS_IDLE);
+    }
 
-    CheckAndDispatchGetWeldAxis(fixture, 1.23, 0.0, 2.55, 3500);
-    const common::msg::weld_system::GetWeldSystemDataRsp weld_system_status_rsp{
-        .voltage           = 31.0,
-        .current           = 216.123456,
-        .wire_lin_velocity = 10.1,
-        .deposition_rate   = 4.5,
-        .heat_input        = 125.0,
-        .twin_wire         = false,
-        .wire_diameter     = 1.2,
-    };
+    // Get ABW points before JointTracking moves the torch
+    auto abw_in_torch_plane =
+        helpers_simulator::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(deposition_simulator::MACS));
 
-    CheckAndDispatchWeldSystemDataRsp(fixture, weld_system::WeldSystemId::ID1, weld_system_status_rsp);
-    CheckAndDispatchWeldSystemDataRsp(fixture, weld_system::WeldSystemId::ID2, weld_system_status_rsp);
+    const float jt_horizontal_offset = 0.0;
+    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
 
-    // Finally receive SetPosition
-    CHECK(fixture.Kinematics()->Receive<common::msg::kinematics::SetSlidesPosition>());
+    auto [expected_x, expected_z] =
+        CalculateExpectedCenterTrackingPosition(abw_in_torch_plane, jt_horizontal_offset, jt_vertical_offset);
+
+    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
+
+    // Check that status is TRACKING after starting joint tracking
+    {
+      auto get_activity_status = web_hmi::CreateMessage("GetActivityStatus", std::nullopt, {});
+      mfx.Main().WebHmiIn()->DispatchMessage(std::move(get_activity_status));
+      auto status_payload = ReceiveJsonByName(mfx.Main(), "GetActivityStatusRsp");
+      CHECK(status_payload != nullptr);
+      CHECK_EQ(status_payload.at("payload").at("value"), ACTIVITY_STATUS_TRACKING);
+    }
+
+    // Check final torch position
+    auto final_torch_pos = simulator->GetTorchPosition(deposition_simulator::MACS);
+    // Tolerance accounts for coordinate system differences: tracking uses MCS (after LPCS->MCS conversion)
+    // while we use MACS directly. These should be equivalent but small transformation differences can occur.
+    const double tolerance_m = 0.003;  // 3mm tolerance
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 }
 
