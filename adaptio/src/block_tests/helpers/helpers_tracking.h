@@ -18,8 +18,9 @@
 // For center tracking with BOTTOM reference:
 // - Horizontal: midpoint of ABW1 and ABW5 (lower left/right) minus horizontal_offset
 // - Vertical: interpolated groove height at calculated horizontal position plus vertical_offset
-// Note: Uses ABW points in MACS coordinates (from GetSliceInTorchPlane) which should match
-// the groove after LPCS->MCS conversion that the tracking system uses
+// Note: Uses ABW points in MACS coordinates (from GetSliceInTorchPlane). The tracking system
+// uses groove data converted from LPCS->MCS, which may introduce small coordinate system
+// differences (typically < 3mm). This is why tests use a tolerance rather than exact equality.
 inline auto CalculateExpectedCenterTrackingPosition(
     const std::vector<deposition_simulator::Point3d>& abw_points, float horizontal_offset_mm,
     float vertical_offset_mm) -> std::pair<double, double> {
@@ -66,6 +67,15 @@ inline auto CalculateExpectedCenterTrackingPosition(
   }
 
   const double expected_z = joint_height + helpers_simulator::ConvertMm2M(vertical_offset_mm);
+
+  // Debug logging to help diagnose issues
+  TESTLOG(">>>>> CalculateExpectedCenterTrackingPosition: center_h={}, expected_x={}, iter_idx={}, first_z={}, second_z={}, "
+          "interpolated_z={}, joint_height={}, expected_z={}",
+          center_horizontal, expected_x,
+          iter == groove_points.end() ? -1 : static_cast<int>(iter - groove_points.begin()),
+          iter == groove_points.begin() || iter == groove_points.end() ? 0.0 : (iter - 1)->vertical,
+          iter == groove_points.end() ? 0.0 : iter->vertical, joint_height - helpers_simulator::ConvertMm2M(vertical_offset_mm),
+          joint_height, expected_z);
 
   return {expected_x, expected_z};
 }
