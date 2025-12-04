@@ -28,10 +28,12 @@ inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& s
   auto torch_pos = simulator.GetTorchPosition(depsim::MACS);
   TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
 
+  float current_vertical_offset = vertical_offset;
+
   TrackInput tracking_data;
   tracking_data.set_joint_tracking_mode(static_cast<uint32_t>(tracking::TrackingMode::TRACKING_CENTER_HEIGHT));
   tracking_data.set_horizontal_offset(horizontal_offset);
-  tracking_data.set_vertical_offset(vertical_offset);
+  tracking_data.set_vertical_offset(current_vertical_offset);
   tracking_data.set_linear_object_distance(0);
   tracking_data.set_weld_object_radius(3500);
   tracking_data.set_edge_tracker_value(0.0);
@@ -54,6 +56,10 @@ inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& s
 
   double previous_z = torch_pos.GetZ();
 
+  auto abw_in_torch_plane =
+      helpers_simulator::ConvertFromOptionalAbwVector(simulator.GetSliceInTorchPlane(depsim::MACS));
+  auto expected_z = abw_in_torch_plane.at(3).GetZ() + STICKOUT_M;
+
   for (int iteration = 0; iteration < kMaxIterations; ++iteration) {
     mfx.PlcDataUpdate();
 
@@ -66,6 +72,15 @@ inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& s
     simulator.UpdateTorchPosition(torch_pos_macs);
 
     TESTLOG(">>>>> Tracking iteration {} moved to torch position: {}", iteration, ToString(torch_pos_macs));
+
+    const double position_error = expected_z - torch_pos_macs.GetZ();
+    if (std::abs(position_error) < kConvergenceToleranceM) {
+      break;
+    }
+
+    current_vertical_offset += helpers_simulator::ConvertM2Mm(position_error);
+    tracking_data.set_vertical_offset(current_vertical_offset);
+    mfx.Ctrl().Sut()->OnTrackingInputUpdate(tracking_data);
 
     previous_z = torch_pos_macs.GetZ();
     ProvideScannerAndKinematicsData(mfx, simulator, torch_pos_macs);
