@@ -1,66 +1,62 @@
 #pragma once
 
 #include <doctest/doctest.h>
+#include <fmt/core.h>
 
+#include "block_tests/helpers/helpers_mfx.h"
+#include "controller/controller_data.h"
 #include "helpers.h"
-#include "helpers_mfx.h"
 #include "helpers_simulator.h"
 #include "simulator_interface.h"
 #include "test_utils/testlog.h"
-#include "controller/controller_data.h"
+#include "tracking/tracking_manager.h"
 
 // NOLINTBEGIN(*-magic-numbers, *-optional-access)
 
-inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& simulator, float horizontal_offset_mm,
-                          float vertical_offset_mm) {
-  auto torch_pos_before = simulator.GetTorchPosition(deposition_simulator::MACS);
-  TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos_before));
+namespace depsim = deposition_simulator;
+using controller::AdaptioInput;
+using controller::AxisInput;
+using controller::TrackInput;
 
-  // Set tracking offsets in controller input
-  controller::TrackInput tracking_data;
-  tracking_data.set_status_edge_tracker_value_valid(true);
-  tracking_data.set_weld_object_radius(1000);
-  tracking_data.set_jt_horizontal_offset(horizontal_offset_mm);
-  tracking_data.set_jt_vertical_offset(vertical_offset_mm);
-  tracking_data.set_jt_tracking_mode(2);  // Center tracking mode
+inline void JointTracking(MultiFixture& mfx, deposition_simulator::ISimulator& simulator, float horizontal_offset,
+                          float vertical_offset) {
+  auto torch_pos = simulator.GetTorchPosition(depsim::MACS);
+  TESTLOG(">>>>> Starting Tracking, with torch position: {}", ToString(torch_pos));
+
+  TrackInput tracking_data;
+  tracking_data.set_joint_tracking_mode(static_cast<uint32_t>(tracking::TrackingMode::TRACKING_CENTER_HEIGHT));
+  tracking_data.set_horizontal_offset(horizontal_offset);
+  tracking_data.set_vertical_offset(vertical_offset);
+  tracking_data.set_linear_object_distance(0);
+  tracking_data.set_weld_object_radius(3500);
+  tracking_data.set_edge_tracker_value(0.0);
   mfx.Ctrl().Sut()->OnTrackingInputUpdate(tracking_data);
 
-  // Start tracking via controller input
-  controller::AdaptioInput adaptio_input;
+  AxisInput axis_data;
+  axis_data.set_position(1.23);
+  axis_data.set_velocity(2.55);
+  mfx.Ctrl().Sut()->OnWeldAxisInputUpdate(axis_data);
+
+  AdaptioInput adaptio_input;
   adaptio_input.set_commands_start(true);
-  adaptio_input.set_sequence_type(1);  // Tracking sequence
+  adaptio_input.set_sequence_type(1);
   mfx.Ctrl().Sut()->OnAdaptioInputUpdate(adaptio_input);
 
   mfx.PlcDataUpdate();
+  CHECK_EQ(mfx.Ctrl().Mock()->adaptio_output.get_active_sequence_type(), 1);
 
-  // Receive StartScanner message
-  REQUIRE_MESSAGE(mfx.Main().Scanner()->Receive<common::msg::scanner::Start>(), "No Start msg received");
-  mfx.Main().Scanner()->Dispatch(common::msg::scanner::StartRsp{.success = true});
+  ProvideScannerAndKinematicsData(mfx, simulator, torch_pos);
 
-  // Allow system to process tracking start
-  mfx.Main().Timer()->Dispatch("controller_periodic_update");
+  auto horizontal_pos_m =
+      helpers_simulator::ConvertMm2M(static_cast<double>(mfx.Ctrl().Mock()->axis_x_output.get_position()));
+  auto vertical_pos_m =
+      helpers_simulator::ConvertMm2M(static_cast<double>(mfx.Ctrl().Mock()->axis_y_output.get_position()));
 
-  // Provide scanner and kinematics data to allow tracking to converge
-  const int MAX_ITERATIONS = 10;
-  for (int i = 0; i < MAX_ITERATIONS; ++i) {
-    auto torch_pos = simulator.GetTorchPosition(deposition_simulator::MACS);
-    ProvideScannerAndKinematicsData(mfx, simulator, torch_pos);
+  // Update the torch position
+  depsim::Point3d torch_pos_macs(horizontal_pos_m, 0, vertical_pos_m, depsim::MACS);
+  simulator.UpdateTorchPosition(torch_pos_macs);
 
-    // Check if system has requested new position
-    auto set_position = mfx.Ctrl().Mock()->axis_x_output.get_position();
-    auto vertical_position = mfx.Ctrl().Mock()->axis_y_output.get_position();
-
-    // Update simulator position based on controller output
-    double horizontal_m = helpers_simulator::ConvertMm2M(static_cast<double>(set_position));
-    double vertical_m = helpers_simulator::ConvertMm2M(static_cast<double>(vertical_position));
-    
-    deposition_simulator::Point3d new_torch_pos(horizontal_m, 0, vertical_m, deposition_simulator::MACS);
-    simulator.UpdateTorchPosition(new_torch_pos);
-
-    TESTLOG(">>>>> Tracking, moved to torch position: {}", ToString(new_torch_pos));
-
-    mfx.Main().Timer()->Dispatch("controller_periodic_update");
-  }
+  TESTLOG(">>>>> Tracking, moved to torch position: {}", ToString(torch_pos_macs));
 }
 
 // NOLINTEND(*-magic-numbers, *-optional-access)
