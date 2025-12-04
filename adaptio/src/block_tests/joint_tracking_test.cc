@@ -61,17 +61,21 @@ TEST_SUITE("Joint_tracking") {
       const auto ACTIVITY_STATUS_IDLE = static_cast<uint32_t>(coordination::ActivityStatusE::IDLE);
       CHECK_EQ(status_payload.at("payload").at("value"), ACTIVITY_STATUS_IDLE);
     }
-    const float jt_horizontal_offset = 0.0;
-    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
-    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
+    // Calculate dynamic vertical offset based on actual groove geometry
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+    
+    // Dynamic vertical offset: convert expected Z position to mm for tracking system
+    const float jt_horizontal_offset = 0.0;
+    const float jt_vertical_offset   = static_cast<float>(help_sim::ConvertM2Mm(expected_z));
+    
+    JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 }
 

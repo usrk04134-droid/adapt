@@ -44,7 +44,7 @@ const double TOUCH_POINT_DEPTH_M           = 10e-3;
 const double TOP_TOUCH_HORIZONTAL_OFFSET_M = 10e-3;
 
 const float JT_HORIZONTAL_OFFSET = 0.0;
-const float JT_VERTICAL_OFFSET   = STICKOUT_M * 1000 + 1.0;
+// Note: Vertical offset is now calculated dynamically based on groove geometry
 
 const nlohmann::json DEFAULT_LASER_TORCH_CONFIG = {
     {"distanceLaserTorch", 350.0},
@@ -87,15 +87,21 @@ TEST_SUITE("MultiblockCalibration") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM};
 
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
-    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+    
+    // Calculate dynamic vertical offset based on actual groove geometry
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+    
+    // Dynamic vertical offset: convert expected Z position to mm for tracking system
+    float dynamic_vertical_offset = static_cast<float>(help_sim::ConvertM2Mm(expected_z));
+    
+    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, dynamic_vertical_offset);
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("basic_calibration_touch_top_u_bevel") {
@@ -122,15 +128,21 @@ TEST_SUITE("MultiblockCalibration") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM};
 
     CHECK(Calibrate(mfx, sim_config, *simulator, conf, WELD_OBJECT_DIAMETER_M, TOP_TOUCH_HORIZONTAL_OFFSET_M));
-    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+    
+    // Calculate dynamic vertical offset based on actual groove geometry
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+    
+    // Dynamic vertical offset: convert expected Z position to mm for tracking system
+    float dynamic_vertical_offset = static_cast<float>(help_sim::ConvertM2Mm(expected_z));
+    
+    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, dynamic_vertical_offset);
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("lw_calibration") {
@@ -157,15 +169,21 @@ TEST_SUITE("MultiblockCalibration") {
                          .wire_diameter_mm        = WIRE_DIAMETER_MM};
 
     CHECK(LWCalibrate(mfx, sim_config, *simulator, conf, TOP_TOUCH_HORIZONTAL_OFFSET_M));
-    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, JT_VERTICAL_OFFSET);
+    
+    // Calculate dynamic vertical offset based on actual groove geometry
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());
     auto expected_z         = abw_in_torch_plane[3].GetZ() + STICKOUT_M;
+    
+    // Dynamic vertical offset: convert expected Z position to mm for tracking system
+    float dynamic_vertical_offset = static_cast<float>(help_sim::ConvertM2Mm(expected_z));
+    
+    JointTracking(mfx, *simulator, JT_HORIZONTAL_OFFSET, dynamic_vertical_offset);
 
     auto final_torch_pos     = simulator->GetTorchPosition(depsim::MACS);
-    const double tolerance_m = 0.01;
-    CHECK((final_torch_pos.GetX() - expected_x) < tolerance_m);
-    CHECK((final_torch_pos.GetZ() - expected_z) < tolerance_m);
+    const double tolerance_m = 0.001;
+    CHECK(std::abs(final_torch_pos.GetX() - expected_x) < tolerance_m);
+    CHECK(std::abs(final_torch_pos.GetZ() - expected_z) < tolerance_m);
   }
 
   TEST_CASE("cal_set_get_ltc") {
