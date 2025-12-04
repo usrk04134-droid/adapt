@@ -62,7 +62,7 @@ TEST_SUITE("Joint_tracking") {
       CHECK_EQ(status_payload.at("payload").at("value"), ACTIVITY_STATUS_IDLE);
     }
     const float jt_horizontal_offset = 0.0;
-    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000 + 1.0);
+    const float jt_vertical_offset   = static_cast<float>(STICKOUT_M * 1000);
     JointTracking(mfx, *simulator, jt_horizontal_offset, jt_vertical_offset);
     auto abw_in_torch_plane = help_sim::ConvertFromOptionalAbwVector(simulator->GetSliceInTorchPlane(depsim::MACS));
     auto expected_x         = std::midpoint(abw_in_torch_plane.front().GetX(), abw_in_torch_plane.back().GetX());

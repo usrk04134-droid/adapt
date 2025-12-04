@@ -44,7 +44,7 @@ const double TOUCH_POINT_DEPTH_M           = 10e-3;
 const double TOP_TOUCH_HORIZONTAL_OFFSET_M = 10e-3;
 
 const float JT_HORIZONTAL_OFFSET = 0.0;
-const float JT_VERTICAL_OFFSET   = STICKOUT_M * 1000 + 1.0;
+const float JT_VERTICAL_OFFSET   = STICKOUT_M * 1000;
 
 const nlohmann::json DEFAULT_LASER_TORCH_CONFIG = {
     {"distanceLaserTorch", 350.0},
