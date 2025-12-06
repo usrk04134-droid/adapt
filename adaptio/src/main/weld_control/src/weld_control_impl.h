@@ -116,13 +116,16 @@ class WeldControlImpl : public WeldControl,
   LayerType abp_layer_type_{LayerType::FILL};
   std::vector<WeldStateObserver*> weld_state_observers_;
 
-  double cached_weld_axis_position_{0.0};
-  double cached_weld_axis_ang_velocity_{0.0};
-  double cached_weld_object_radius_{0.0};
+  struct {
+    double position{0.0};   // 0.0 - 1.0
+    double max_value{0.0};  // only for logging
+  } cached_segment_;
+  double cached_velocity_{0.0};
+  double cached_object_path_length_{0.0};
   double cached_distance_from_torch_to_scanner_{0.0};
   double cached_edge_position_{0.0};
   std::optional<double> cached_linear_object_distance_;
-  std::optional<double> last_weld_axis_position_;
+  std::optional<double> last_segment_position_;
   bool ready_for_jt_to_auto_cap_{false};
 
   macs::Slice cached_mcs_{};
@@ -195,7 +198,7 @@ class WeldControlImpl : public WeldControl,
   auto GetDelayedGrooveMCS() -> common::Groove;
   void StoreGrooveInDelayBuffer();
   auto GetHybridGrooveMCS() const -> common::Groove;
-  auto GetSampleToTorchDist(uint64_t ts_sample, double ang_velocity, double torch_to_scanner_dist) -> double;
+  auto GetSampleToTorchDist(uint64_t ts_sample, double linear_velocity, double torch_to_scanner_dist) -> double;
   auto GetSmoothMCS(double smooth_ang_distance) -> std::optional<common::Groove>;
   void UpdateTrackingPosition();
   void UpdateBeadControlParameters();

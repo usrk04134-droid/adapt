@@ -46,9 +46,9 @@ class ConfidentSliceBuffer {
   explicit ConfidentSliceBuffer(SQLite::Database* db)
       : storage_(std::make_unique<common::storage::SlotBufferStorage<ConfidentSliceData>>(db, "confident_slice")) {}
 
-  auto Init(double radius, double resolution) -> void {
-    auto const slots = static_cast<size_t>(2 * std::numbers::pi * radius / resolution);
-    storage_->Init(slots, 2 * std::numbers::pi);
+  auto Init(double path_length, double resolution) -> void {
+    auto const slots = static_cast<size_t>(path_length / resolution);
+    storage_->Init(slots, 1.0);
   }
 
   auto Store(double pos, ConfidentSliceData const& value) -> void { storage_->Store(pos, value); }
